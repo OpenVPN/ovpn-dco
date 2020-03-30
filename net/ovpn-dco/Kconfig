@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (C) 2020 OpenVPN, Inc.
+#
+#  Author:	Antonio Quartulli <antonio@openvpn.net>
+
+config OVPN_DCO
+	tristate "OpenVPN data channel offload"
+	depends on NET
+	help
+	  This module enhances the performance of the OpenVPN userspace software
+	  by offliading the data channel processing to kernelspace.
