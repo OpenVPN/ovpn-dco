@@ -38,6 +38,7 @@ ovpn_netlink_policy_key[OVPN_KEY_ATTR_MAX + 1] = {
 		NLA_POLICY_NESTED(ovpn_netlink_policy_key_dir),
 	[OVPN_KEY_ATTR_DECRYPT] =
 		NLA_POLICY_NESTED(ovpn_netlink_policy_key_dir),
+	[OVPN_KEY_ATTR_ID] = { .type = NLA_U16 },
 };
 
 static const struct nla_policy
@@ -172,6 +173,7 @@ ovpn_netlink_copy_key_config(struct genl_info *info, struct nlattr *key)
 		return ERR_PTR(-EINVAL);
 
 	if (!attrs[OVPN_KEY_ATTR_CIPHER_ALG] ||
+	    !attrs[OVPN_KEY_ATTR_ID] ||
 	    !attrs[OVPN_KEY_ATTR_ENCRYPT] ||
 	    !attrs[OVPN_KEY_ATTR_DECRYPT])
 		return ERR_PTR(-EINVAL);
@@ -188,6 +190,7 @@ ovpn_netlink_copy_key_config(struct genl_info *info, struct nlattr *key)
 
 	kc->cipher_alg = cipher;
 	kc->hmac_alg = nla_get_u16(attrs[OVPN_KEY_ATTR_HMAC_ALG]);
+	kc->key_id = nla_get_u16(attrs[OVPN_KEY_ATTR_ID]);
 
 	ret = ovpn_netlink_copy_key_dir(info, attrs[OVPN_KEY_ATTR_ENCRYPT],
 					&kc->encrypt);

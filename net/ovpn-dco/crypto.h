@@ -36,7 +36,7 @@ struct ovpn_key_direction {
 struct ovpn_key_config {
 	enum ovpn_cipher_alg cipher_alg;
 	enum ovpn_hmac_alg hmac_alg;          /* not used for GCM modes */
-	int key_id;
+	u16 key_id;
 	struct ovpn_key_direction encrypt;
 	struct ovpn_key_direction decrypt;
 };

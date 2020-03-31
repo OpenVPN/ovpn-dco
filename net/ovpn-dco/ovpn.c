@@ -8,6 +8,7 @@
 #include "main.h"
 #include "debug.h"
 #include "bind.h"
+#include "netlink.h"
 #include "sock.h"
 #include "peer.h"
 #include "stats_counters.h"
@@ -173,6 +174,17 @@ static int ovpn_transport_to_userspace(struct ovpn_struct *ovpn,
 				       struct ovpn_peer *peer,
 				       struct sk_buff *skb)
 {
+	int ret;
+
+	ret = skb_linearize(skb);
+	if (ret < 0)
+		return ret;
+
+	ret = ovpn_netlink_send_packet(ovpn, skb->data, skb->len);
+	if (ret < 0)
+		return ret;
+
+	consume_skb(skb);
 	return 0;
 }
 
