@@ -593,6 +593,8 @@ static int do_ovpn_net_xmit(struct ovpn_struct *ovpn, struct sk_buff *skb,
 	int key_id;
 	int ret = -1;
 
+	if (unlikely(!peer))
+		goto drop;
 
 	/* set minimum encapsulation headroom for encrypt */
 	headroom = ovpn_bind_udp_encap_overhead(&peer->bind, ETH_HLEN);
