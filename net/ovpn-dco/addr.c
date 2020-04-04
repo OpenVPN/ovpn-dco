@@ -37,25 +37,31 @@ int ovpn_sockaddr_pair_from_skb(struct ovpn_sockaddr_pair *sapair,
 	switch (skb->protocol) {
 	case htons(ETH_P_IP):
 	{
-		unsigned int addr_or = 0;
 		if (unlikely(ip_hdr(skb)->protocol != IPPROTO_UDP))
 			return -OVPN_ERR_ADDR4_MUST_BE_UDP;
+
 		sapair->skb_hash = skb_get_hash(skb);
 		sapair->skb_hash_defined = true;
 		sapair->local.family = AF_INET;
-		addr_or |= (sapair->local.u.in4.sin_addr.s_addr = ip_hdr(skb)->daddr);
-		addr_or |= (sapair->local.u.in4.sin_port = udp_hdr(skb)->dest);
+		sapair->local.u.in4.sin_addr.s_addr = ip_hdr(skb)->daddr;
+		sapair->local.u.in4.sin_port = udp_hdr(skb)->dest;
 		sapair->remote.family = AF_INET;
-		addr_or |= (sapair->remote.u.in4.sin_addr.s_addr = ip_hdr(skb)->saddr);
-		addr_or |= (sapair->remote.u.in4.sin_port = udp_hdr(skb)->source);
-		if (unlikely(!addr_or))
+		sapair->remote.u.in4.sin_addr.s_addr = ip_hdr(skb)->saddr;
+		sapair->remote.u.in4.sin_port = udp_hdr(skb)->source;
+
+		if (unlikely(!sapair->local.u.in4.sin_addr.s_addr &&
+			     !sapair->local.u.in4.sin_port &&
+			     !sapair->remote.u.in4.sin_addr.s_addr &&
+			     !sapair->remote.u.in4.sin_port))
 			return -OVPN_ERR_ADDR4_ZERO;
+
 		return 0;
 	}
 #if IS_ENABLED(CONFIG_IPV6)
 	case htons(ETH_P_IPV6):
 		if (unlikely(ipv6_hdr(skb)->nexthdr != IPPROTO_UDP))
 			return -OVPN_ERR_ADDR6_MUST_BE_UDP;
+
 		sapair->skb_hash = skb_get_hash(skb);
 		sapair->skb_hash_defined = true;
 		sapair->local.family = AF_INET6;
@@ -65,6 +71,7 @@ int ovpn_sockaddr_pair_from_skb(struct ovpn_sockaddr_pair *sapair,
 		sapair->remote.u.in6.sin6_addr = ipv6_hdr(skb)->saddr;
 		sapair->remote.u.in6.sin6_port = udp_hdr(skb)->source;
 		sapair->remote.u.in6.sin6_flowinfo = ip6_flowinfo(ipv6_hdr(skb));
+
 		return 0;
 #endif
 	}
