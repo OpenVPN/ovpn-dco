@@ -295,7 +295,7 @@ static int ovpn_netlink_parse_sockaddr(struct genl_info *info,
 
 	/* assume IPv4 as that's the only supported family for now */
 	sin->sin_family = AF_INET;
-	sin->sin_port = nla_get_u16(attrs[OVPN_SOCKADDR_ATTR_PORT]);
+	sin->sin_port = nla_get_be16(attrs[OVPN_SOCKADDR_ATTR_PORT]);
 
 	if (nla_len(attrs[OVPN_SOCKADDR_ATTR_ADDRESS]) != 4)
 		return -EINVAL;

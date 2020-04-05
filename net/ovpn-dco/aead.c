@@ -226,7 +226,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_context *cc,
 						       cc->remote_peer_id);
 		__skb_push(skb, OVPN_OP_SIZE_V2);
 		BUILD_BUG_ON(OVPN_OP_SIZE_V2 != sizeof(pkt_op));
-		*((__u32 *)skb->data) = htonl(pkt_op);
+		*((__be32 *)skb->data) = htonl(pkt_op);
 	}
 
 	/* AEAD Additional data */
@@ -283,9 +283,10 @@ static struct ovpn_aead_work *ovpn_aead_decrypt_done2(struct sk_buff *skb, int *
 
 	/* verify packet ID */
 	{
-		const __u32 *pid = (const __u32 *)(skb->data + work->u.d.pktid_offset);
+		const __be32 *pid = (const __be32 *)(skb->data +
+						     work->u.d.pktid_offset);
 		const int status = ovpn_pktid_recv(&cc->pid_recv,
-						   ntohl(pid[0]), 0);
+						   ntohl(*pid), 0);
 		if (unlikely(status < 0)) {
 			/* bad packet ID, drop packet */
 			*err = status;

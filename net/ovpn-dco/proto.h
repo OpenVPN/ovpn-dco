@@ -102,7 +102,7 @@ static inline unsigned int ovpn_op32_from_skb(const struct sk_buff *skb,
 	if (unlikely(!p))
 		return 0;
 
-	op = ntohl(*(const u32 *)p);
+	op = ntohl(*(const __be32 *)p);
 	if (op_peer_id && ovpn_opcode_extract(op >> 24) == OVPN_DATA_V2) {
 		const int opi = op & 0x00FFFFFF;
 		if (opi != OVPN_OP_PEER_ID_UNDEF)

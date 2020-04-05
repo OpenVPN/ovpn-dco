@@ -119,7 +119,7 @@ static inline void ovpn_pktid_aead_write(const __u32 pktid,
 					 const struct ovpn_nonce_tail *nt,
 					 unsigned char *dest)
 {
-	*(__u32 *)(dest) = htonl(pktid);
+	*(__be32 *)(dest) = htonl(pktid);
 	BUILD_BUG_ON(4 + sizeof(struct ovpn_nonce_tail) != NONCE_SIZE);
 	memcpy(dest+4, nt->u8, sizeof(struct ovpn_nonce_tail));
 }
