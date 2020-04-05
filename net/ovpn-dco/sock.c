@@ -19,10 +19,9 @@
 #include <net/udp_tunnel.h>
 
 /*
- * Detach socket from encapsulation handler
- * and/or other callbacks.  Called from process context.
+ * Detach socket from encapsulation handler and/or other callbacks
  */
-void ovpn_sock_unset_udp_cb(struct sock *sk)
+static void ovpn_sock_unset_udp_cb(struct sock *sk)
 {
 	write_lock_bh(&sk->sk_callback_lock);
 
@@ -41,6 +40,8 @@ void ovpn_sock_detach(struct socket *sock)
 {
 	if (!sock)
 		return;
+
+	ovpn_sock_unset_udp_cb(sock->sk);
 
 	sock_put(sock->sk);
 	sockfd_put(sock);
