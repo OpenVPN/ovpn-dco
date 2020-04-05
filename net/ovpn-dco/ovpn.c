@@ -124,18 +124,16 @@ static void post_decrypt(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	/* test decrypt status */
 	if (unlikely(err)) {
 		/* decryption failed */
+		kfree_skb(skb);
 		goto error;
 	}
 
 	/* successful decryption */
 	tun_netdev_write(ovpn, peer, skb);
 
-	ovpn_crypto_context_put(cc);
-	return;
-
 error:
 	ovpn_crypto_context_put(cc);
-	kfree_skb(skb);
+	ovpn_peer_put(peer);
 }
 
 static void post_decrypt_callback(struct sk_buff *skb, int err)
@@ -211,8 +209,6 @@ static void ovpn_recv_crypto(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	int key_id;
 	int ret;
 
-	ovpn_rcu_lockdep_assert_held();
-
 	/* save original packet size for stats accounting */
 	OVPN_SKB_CB(skb)->rx_stats_size = skb->len;
 
@@ -233,12 +229,6 @@ static void ovpn_recv_crypto(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	if (unlikely(!cc))
 		goto drop;
 
-	/* we need to increment crypto context refcount in case we go async in crypto API */
-	if (unlikely(!ovpn_crypto_context_hold(cc)))
-		goto drop;
-
-	rcu_read_unlock();
-
 	/* decrypt */
 	ret = cc->ops->decrypt(cc, skb, key_id, op, post_decrypt_callback);
 	if (likely(ret != -EINPROGRESS))
@@ -247,7 +237,6 @@ static void ovpn_recv_crypto(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	return;
 
 drop:
-	rcu_read_unlock();
 	kfree_skb(skb);
 }
 
@@ -290,7 +279,6 @@ int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 	/* pop off outer UDP header */
 	__skb_pull(skb, sizeof(struct udphdr));
 
-	rcu_read_lock();
 	ovpn = ovpn_from_udp_sock(sk);
 	if (!ovpn)
 		goto drop;
@@ -318,10 +306,9 @@ static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	struct udphdr *uh;
 	struct rtable *rt;
 	struct iphdr *iph;
-	int ret;
 
-	rt = ip_route_output_ports(sock_net(sk), &inet->cork.fl.u.ip4,
-				   sk, bind->sapair.remote.u.in4.sin_addr.s_addr,
+	rt = ip_route_output_ports(sock_net(sk), &inet->cork.fl.u.ip4, sk,
+				   bind->sapair.remote.u.in4.sin_addr.s_addr,
 				   bind->sapair.local.u.in4.sin_addr.s_addr,
 				   bind->sapair.remote.u.in4.sin_port,
 				   bind->sapair.local.u.in4.sin_port,
@@ -350,8 +337,8 @@ static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	/* setup IPv4 header */
 	if (unlikely(skb_headroom(skb)
 		     < sizeof(struct iphdr) + sizeof(struct ethhdr))) {
-		ret = -OVPN_ERR_SKB_NOT_ENOUGH_HEADROOM;
-		goto rel_rt;
+		ip_rt_put(rt);
+		return -OVPN_ERR_SKB_NOT_ENOUGH_HEADROOM;
 	}
 
 	__skb_push(skb, sizeof(struct iphdr));
@@ -367,16 +354,12 @@ static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	iph->saddr = bind->sapair.local.u.in4.sin_addr.s_addr;
 	iph->daddr = bind->sapair.remote.u.in4.sin_addr.s_addr;
 
-	rcu_read_unlock();
 	/*
 	 * Transmit IPv4 UDP packet using ip_local_out which
 	 * will set iph->tot_len and iph->check.
 	 */
 	ip_local_out(dev_net(ovpn->dev), sk, skb);
 	return 0;
-rel_rt:
-	ip_rt_put(rt);
-	return ret;
 }
 
 #if IS_ENABLED(CONFIG_IPV6)
@@ -443,8 +426,6 @@ static int ovpn_udp6_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	ip6->hop_limit = 64;
 	ip6->saddr = bind->sapair.local.u.in6.sin6_addr;
 	ip6->daddr = bind->sapair.remote.u.in6.sin6_addr;
-
-	rcu_read_unlock();
 
 	/*
 	 * Transmit IPv6 UDP packet using ip6_local_out.
@@ -513,18 +494,15 @@ static void ovpn_udp_write(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	struct socket *sock;
 	int ret;
 
-	rcu_read_lock();
-
 	/* get socket info */
 	sock = peer->sock;
-	if (unlikely(!sock)) {
-		ret = -OVPN_ERR_NO_TRANSPORT_SOCK;
-		goto out;
-	}
+	if (unlikely(!sock))
+		return;
 
 	/* post-encrypt -- scrub packet prior to encapsulation in a UDP packet */
 	ovpn_skb_scrub(skb);
 
+	rcu_read_lock();
 	/* get binding */
 	bind = rcu_dereference(peer->bind);
 	if (unlikely(!bind)) {
@@ -539,14 +517,9 @@ static void ovpn_udp_write(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	ret = ovpn_udp_output(ovpn, bind, sock->sk, skb);
 
 out:
-	/* in case of success, all cleanup has been performed by the
-	 * ovpn_udp_output() function
-	 */
-	if (!ret)
-		return;
-
 	rcu_read_unlock();
-	kfree_skb(skb);
+	if (ret < 0)
+		kfree_skb(skb);
 }
 
 static void post_encrypt(struct ovpn_struct *ovpn,
@@ -557,20 +530,18 @@ static void post_encrypt(struct ovpn_struct *ovpn,
 	kfree(work);
 
 	/* test encrypt status */
-	if (unlikely(err))
+	if (unlikely(err)) {
+		kfree_skb(skb);
 		goto error;
+	}
 
 	/* successful encryption */
 	ovpn_udp_write(ovpn, peer, skb);
 
-done:
+error:
 	/* release our reference to crypto context */
 	ovpn_crypto_context_put(cc);
-	return;
-
-error:
-	kfree_skb(skb);
-	goto done;
+	ovpn_peer_put(peer);
 }
 
 static void post_encrypt_callback(struct sk_buff *skb, int err)
@@ -592,8 +563,7 @@ static void post_encrypt_callback(struct sk_buff *skb, int err)
 /*
  * rcu_read_lock must be held on entry.
  * On success, 0 is returned, skb ownership is transferred,
- * and rcu_read lock is released.  On error, a value < 0 is returned,
- * the skb is not owned/released, and rcu_read_lock is not released.
+ * On error, a value < 0 is returned, the skb is not owned/released.
  */
 static int do_ovpn_net_xmit(struct ovpn_struct *ovpn, struct sk_buff *skb,
 			    const bool is_ip_packet)
@@ -605,10 +575,11 @@ static int do_ovpn_net_xmit(struct ovpn_struct *ovpn, struct sk_buff *skb,
 	int key_id;
 	int ret = -1;
 
-	peer = rcu_dereference(ovpn->peer);
+	peer = ovpn_peer_get(ovpn);
 	if (unlikely(!peer))
-		goto drop;
+		return -ENOENT;
 
+	rcu_read_lock();
 	bind = rcu_dereference(peer->bind);
 	if (unlikely(!bind))
 		goto drop;
@@ -624,12 +595,7 @@ static int do_ovpn_net_xmit(struct ovpn_struct *ovpn, struct sk_buff *skb,
 		ret = -OVPN_ERR_NO_PRIMARY_KEY;
 		goto drop;
 	}
-
-	/* we need to increment crypto context refcount in case we go async in crypto API */
-	if (unlikely(!ovpn_crypto_context_hold(cc))) {
-		ret = -OVPN_ERR_CANNOT_GRAB_CRYPTO_REF;
-		goto drop;
-	}
+	rcu_read_unlock();
 
 	/* init packet ID to undef in case we err before setting real value */
 	OVPN_SKB_CB(skb)->pktid = 0;
@@ -644,6 +610,7 @@ static int do_ovpn_net_xmit(struct ovpn_struct *ovpn, struct sk_buff *skb,
 	return 0;
 
 drop:
+	rcu_read_unlock();
 	return ret;
 
 }
@@ -655,8 +622,6 @@ netdev_tx_t ovpn_net_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct ovpn_struct *ovpn = netdev_priv(dev);
 	int ret;
-
-	rcu_read_lock();
 
 	/* reset netfilter state */
 	nf_reset_ct(skb);
@@ -677,14 +642,11 @@ netdev_tx_t ovpn_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	if (unlikely(ret < 0))
 		goto drop;
 
-	rcu_read_unlock();
-
 	return NETDEV_TX_OK;
 
 drop:
 	skb_tx_error(skb);
 	kfree_skb(skb);
-	rcu_read_unlock();
 	return NET_XMIT_DROP;
 }
 
@@ -700,33 +662,19 @@ drop:
 	struct sk_buff *skb;
 	int err;
 
-	rcu_read_lock();
-
 	ovpn = peer->ovpn;
-	if (unlikely(!ovpn)) {
-		err = -OVPN_ERR_NO_OVPN_CONTEXT;
-		goto unlock;
-	}
+	if (unlikely(!ovpn))
+		return;
 
 	skb = alloc_skb(256 + len, GFP_ATOMIC);
-	if (unlikely(!skb)) {
-		err = -ENOMEM;
-		goto unlock;
-	}
+	if (unlikely(!skb))
+		return;
+
 	skb_reserve(skb, 128);
 	skb->priority = TC_PRIO_BESTEFFORT;
 	memcpy(__skb_put(skb, len), data, len);
 
 	err = do_ovpn_net_xmit(ovpn, skb, false);
 	if (likely(err < 0))
-		goto free_skb;
-
-	rcu_read_unlock();
-
-	return;
-free_skb:
-	kfree_skb(skb);
-unlock:
-	rcu_read_unlock();
-	return;
+		kfree_skb(skb);
 }

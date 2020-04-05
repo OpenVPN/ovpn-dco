@@ -109,6 +109,11 @@ struct ovpn_crypto_state {
 	const struct ovpn_crypto_ops *ops;
 };
 
+static inline bool ovpn_crypto_context_hold(struct ovpn_crypto_context *cc)
+{
+	return kref_get_unless_zero(&cc->refcount);
+}
+
 static inline void ovpn_crypto_state_init(struct ovpn_crypto_state *cs)
 {
 	RCU_INIT_POINTER(cs->ccp, NULL);
@@ -124,16 +129,26 @@ static inline struct ovpn_crypto_context *
 ovpn_crypto_context_from_key_id(const struct ovpn_crypto_context_pair *ccp,
 				const int key_id)
 {
-	if (ccp) {
-		if (key_id == ccp->primary_key_id)
-			return ccp->primary;
-		else if (key_id == ccp->secondary_key_id)
-			return ccp->secondary;
-	}
-	return NULL;
+	struct ovpn_crypto_context *cc = NULL;
+
+	if (!ccp)
+		return NULL;
+
+	rcu_read_lock();
+
+	if (key_id == ccp->primary_key_id)
+		cc = ccp->primary;
+	else if (key_id == ccp->secondary_key_id)
+		cc = ccp->secondary;
+
+	if (unlikely(cc && !ovpn_crypto_context_hold(cc)))
+		cc = NULL;
+
+	rcu_read_unlock();
+
+	return cc;
 }
 
-/* rcu_read_lock must be held */
 static inline struct ovpn_crypto_context *
 ovpn_crypto_context_from_state(const struct ovpn_crypto_state *cs,
 			       const int key_id)
@@ -142,17 +157,26 @@ ovpn_crypto_context_from_state(const struct ovpn_crypto_state *cs,
 	return ovpn_crypto_context_from_key_id(ccp, key_id);
 }
 
-/* rcu_read_lock must be held */
 static inline struct ovpn_crypto_context *
 ovpn_crypto_context_primary(const struct ovpn_crypto_state *cs,
 			    int *key_id)
 {
-	const struct ovpn_crypto_context_pair *ccp = rcu_dereference(cs->ccp);
+	const struct ovpn_crypto_context_pair *ccp;
+	struct ovpn_crypto_context *cc = NULL;
+
+	rcu_read_lock();
+
+	ccp = rcu_dereference(cs->ccp);
 	if (ccp) {
 		*key_id = ccp->primary_key_id;
-		return ccp->primary;
-	} else
-		return NULL;
+		cc = ccp->primary;
+		if (unlikely(cc && !ovpn_crypto_context_hold(cc)))
+			cc = NULL;
+	}
+
+	rcu_read_unlock();
+
+	return cc;
 }
 
 /*
@@ -173,11 +197,6 @@ static inline bool ovpn_crypto_err_fatal_for_tcp(const int err)
 }
 
 void ovpn_crypto_context_release(struct kref *kref);
-
-static inline bool ovpn_crypto_context_hold(struct ovpn_crypto_context *cc)
-{
-	return kref_get_unless_zero(&cc->refcount);
-}
 
 static inline void ovpn_crypto_context_put(struct ovpn_crypto_context *cc)
 {
