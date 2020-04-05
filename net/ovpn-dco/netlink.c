@@ -18,6 +18,7 @@
 #include <linux/netlink.h>
 #include <linux/rcupdate.h>
 #include <linux/types.h>
+#include <linux/spinlock.h>
 #include <net/genetlink.h>
 #include <uapi/linux/in.h>
 
@@ -45,7 +46,7 @@ static const struct nla_policy
 ovpn_netlink_policy_sockaddr[OVPN_SOCKADDR_ATTR_MAX + 1] = {
 	/* IPv4 only supported for now */
 	[OVPN_SOCKADDR_ATTR_ADDRESS] = { .type = NLA_BINARY, .len = 4 },
-	[OVPN_SOCKADDR_ATTR_ADDRESS] = { .type = NLA_U16 },
+	[OVPN_SOCKADDR_ATTR_PORT] = { .type = NLA_U16 },
 };
 
 static const struct nla_policy ovpn_netlink_policy[OVPN_ATTR_MAX + 1] = {
@@ -313,7 +314,7 @@ static int ovpn_netlink_add_peer(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ovpn_struct *ovpn = info->user_ptr[0];
 	struct ovpn_sockaddr_pair pair;
-	struct ovpn_peer *peer;
+	struct ovpn_peer *old, *new;
 	int ret;
 
 	if (!info->attrs[OVPN_ATTR_SOCKADDR_REMOTE] ||
@@ -333,15 +334,19 @@ static int ovpn_netlink_add_peer(struct sk_buff *skb, struct genl_info *info)
 	if (ret < 0)
 		return ret;
 
-	peer = ovpn_peer_new_with_sockaddr(&pair);
-	if (IS_ERR(peer))
-		return PTR_ERR(peer);
+	new = ovpn_peer_new_with_sockaddr(&pair);
+	if (IS_ERR(new))
+		return PTR_ERR(new);
 
-	if (ovpn->peer)
-		ovpn_peer_release(ovpn->peer);
+	spin_lock(&ovpn->lock);
+	old = rcu_dereference_protected(ovpn->peer,
+					lockdep_is_held(&ovpn->lock));
+	if (old)
+		ovpn_peer_put(old);
 
-	ovpn->peer = peer;
-	rcu_assign_pointer(peer->sock, rcu_dereference(ovpn->sock));
+	new->sock = ovpn->sock;
+	rcu_assign_pointer(ovpn->peer, new);
+	spin_unlock(&ovpn->lock);
 
 	return 0;
 }
@@ -406,6 +411,7 @@ sockfd_release:
 static int ovpn_netlink_stop_vpn(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ovpn_struct *ovpn = info->user_ptr[0];
+	struct ovpn_peer *peer;
 
 	if (!ovpn->sock)
 		return -EINVAL;
@@ -413,8 +419,12 @@ static int ovpn_netlink_stop_vpn(struct sk_buff *skb, struct genl_info *info)
 	ovpn_sock_detach(ovpn->sock);
 	ovpn->sock = NULL;
 
-	ovpn_peer_delete(ovpn->peer);
-	ovpn->peer = NULL;
+	spin_lock(&ovpn->lock);
+	peer = rcu_dereference_protected(ovpn->peer,
+					 lockdep_is_held(&ovpn->lock));
+	rcu_assign_pointer(ovpn->peer, NULL);
+	ovpn_peer_put(peer);
+	spin_unlock(&ovpn->lock);
 
 	ovpn->registered_nl_portid_set = false;
 

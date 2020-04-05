@@ -123,7 +123,7 @@ int ovpn_sock_attach_udp(struct ovpn_struct *ovpn, struct socket *sock)
 struct ovpn_struct *ovpn_from_udp_sock(struct sock *sk)
 {
 	struct ovpn_struct *ovpn;
-	struct socket *sock;
+	struct ovpn_peer *peer;
 
 	ovpn_rcu_lockdep_assert_held();
 
@@ -134,10 +134,12 @@ struct ovpn_struct *ovpn_from_udp_sock(struct sock *sk)
 	if (unlikely(!ovpn))
 		return NULL;
 
-	sock = rcu_dereference(ovpn->peer->sock);
+	peer = rcu_dereference(ovpn->peer);
+	if (unlikely(!peer))
+		return NULL;
 
 	/* make sure that sk matches our stored transport socket */
-	if (unlikely(!sock || sk != sock->sk))
+	if (unlikely(!peer->sock || sk != peer->sock->sk))
 		return NULL;
 
 	return ovpn;

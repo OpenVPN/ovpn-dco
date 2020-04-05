@@ -15,6 +15,7 @@
 #include "peer.h"
 
 #include <uapi/linux/ovpn_dco.h>
+#include <linux/spinlock.h>
 
 /*
  * Our state per ovpn interface, shared across all queues.
@@ -23,6 +24,7 @@ struct ovpn_struct {
 	/* read-mostly objects in this section */
 	struct net_device *dev;
 
+	spinlock_t lock;
 	/* associated peer. in client mode we need only one peer. will be
 	 * extended with a table later
 	 */

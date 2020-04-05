@@ -18,15 +18,15 @@
 #include "timer.h"
 
 struct ovpn_peer {
-	struct ovpn_struct __rcu *ovpn;
+	struct ovpn_struct *ovpn;
 
-	struct socket __rcu *sock;
+	struct socket *sock;
 
 	/* our crypto context, protected by mutex */
 	struct ovpn_crypto_state crypto;
 
 	/* our binding to peer */
-	struct ovpn_bind_state bind;
+	struct ovpn_bind __rcu *bind;
 
 	/* time in future when we will transmit a keepalive
 	   (subject to continuous change) */
@@ -53,6 +53,9 @@ struct ovpn_peer {
 
 	/* needed because crypto methods can go async */
 	struct kref refcount;
+
+	/* needed to free a peer in an RCU safe way */
+	struct rcu_head rcu;
 };
 
 int ovpn_update_peer_by_sockaddr_pc(struct ovpn_peer *peer);

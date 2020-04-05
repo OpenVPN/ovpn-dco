@@ -140,17 +140,10 @@ error:
 
 static void post_decrypt_callback(struct sk_buff *skb, int err)
 {
-	struct ovpn_work *work;
-	struct ovpn_struct *ovpn;
-	struct ovpn_peer *peer;
-	struct ovpn_crypto_context *cc;
+	struct ovpn_work *work = OVPN_SKB_CB(skb)->work;
 
-	work = OVPN_SKB_CB(skb)->work;
-	cc = work->cc;
-	peer = cc->peer;
-	ovpn = rcu_dereference_protected(peer->ovpn, true);
-
-	post_decrypt(ovpn, peer, cc, skb, err, work);
+	post_decrypt(work->cc->peer->ovpn, work->cc->peer, work->cc, skb, err,
+		     work);
 }
 
 /*
@@ -161,13 +154,31 @@ static struct ovpn_peer *
 ovpn_lookup_peer_via_transport(struct ovpn_struct *ovpn,
 			       struct sk_buff *skb)
 {
+	struct ovpn_peer *peer;
+	struct ovpn_bind *bind;
+
+	rcu_read_lock();
+	peer = ovpn_peer_get(ovpn);
+	if (!peer)
+		goto err;
+
+	bind = rcu_dereference(peer->bind);
+	if (!bind)
+		goto err;
+
 	/* only one peer is supported at the moment. check if it's the one the
 	 * skb was received from and return it
 	 */
-	if (!ovpn_bind_skb_match(rcu_dereference(ovpn->peer->bind.ob), skb))
-		return NULL;
+	if (!ovpn_bind_skb_match(bind, skb))
+		goto err;
 
-	return ovpn->peer;
+	rcu_read_unlock();
+	return peer;
+
+err:
+	ovpn_peer_put(peer);
+	rcu_read_unlock();
+	return NULL;
 }
 
 static int ovpn_transport_to_userspace(struct ovpn_struct *ovpn,
@@ -498,14 +509,14 @@ static int ovpn_udp_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 static void ovpn_udp_write(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 			   struct sk_buff *skb)
 {
-	struct socket *sock;
 	struct ovpn_bind *bind;
+	struct socket *sock;
 	int ret;
 
 	rcu_read_lock();
 
 	/* get socket info */
-	sock = rcu_dereference(peer->sock);
+	sock = peer->sock;
 	if (unlikely(!sock)) {
 		ret = -OVPN_ERR_NO_TRANSPORT_SOCK;
 		goto out;
@@ -515,7 +526,7 @@ static void ovpn_udp_write(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	ovpn_skb_scrub(skb);
 
 	/* get binding */
-	bind = rcu_dereference(peer->bind.ob);
+	bind = rcu_dereference(peer->bind);
 	if (unlikely(!bind)) {
 		ret = -OVPN_ERR_NO_PEER_BINDING;
 		goto out;
@@ -587,17 +598,23 @@ static void post_encrypt_callback(struct sk_buff *skb, int err)
 static int do_ovpn_net_xmit(struct ovpn_struct *ovpn, struct sk_buff *skb,
 			    const bool is_ip_packet)
 {
-	struct ovpn_peer *peer = rcu_dereference(ovpn->peer);
-	unsigned int headroom;
 	struct ovpn_crypto_context *cc;
+	struct ovpn_peer *peer;
+	struct ovpn_bind *bind;
+	unsigned int headroom;
 	int key_id;
 	int ret = -1;
 
+	peer = rcu_dereference(ovpn->peer);
 	if (unlikely(!peer))
 		goto drop;
 
+	bind = rcu_dereference(peer->bind);
+	if (unlikely(!bind))
+		goto drop;
+
 	/* set minimum encapsulation headroom for encrypt */
-	headroom = ovpn_bind_udp_encap_overhead(&peer->bind, ETH_HLEN);
+	headroom = ovpn_bind_udp_encap_overhead(bind, ETH_HLEN);
 	if (unlikely(headroom < 0))
 		goto drop;
 
@@ -621,7 +638,7 @@ static int do_ovpn_net_xmit(struct ovpn_struct *ovpn, struct sk_buff *skb,
 	ret = cc->ops->encrypt(cc, skb, headroom, key_id,
 			       post_encrypt_callback);
 	if (likely(ret != -EINPROGRESS))
-		post_encrypt(ovpn, ovpn->peer, cc, skb, ret,
+		post_encrypt(ovpn, peer, cc, skb, ret,
 			     OVPN_SKB_CB(skb)->work);
 
 	return 0;

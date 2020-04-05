@@ -20,20 +20,13 @@ struct ovpn_bind {
 	struct rcu_head rcu;
 };
 
-struct ovpn_bind_state {
-	struct ovpn_bind __rcu *ob;
-};
-
 /*
  * Return encapsulation overhead of the transport protocol.
  * rcu_read_lock must be held.
  */
-static inline int ovpn_bind_udp_encap_overhead(const struct ovpn_bind_state *bs,
+static inline int ovpn_bind_udp_encap_overhead(const struct ovpn_bind *bind,
 					       const size_t hw_head_size)
 {
-	struct ovpn_bind *bind = rcu_dereference(bs->ob);
-	if (unlikely(!bind))
-		return -OVPN_ERR_NO_PEER_BINDING;
 	switch (bind->sapair.local.family) {
 	case AF_INET:
 		return sizeof(struct iphdr)
@@ -89,36 +82,31 @@ static inline bool ovpn_bind_skb_match(const struct ovpn_bind *bind,
  * rcu_read_lock must be held.
  * Called in softirq context.
  */
-static inline bool ovpn_bind_test_peer(const struct ovpn_bind_state *obs,
+static inline bool ovpn_bind_test_peer(const struct ovpn_bind *bind,
 				       struct sk_buff *skb)
 {
 	ovpn_rcu_lockdep_assert_held();
 
 	/* no-op if skb src/dest addr/port is equal to what
 	   we previously saved */
-	if (likely(ovpn_bind_skb_match(rcu_dereference(obs->ob),
-				       skb)))
+	if (likely(ovpn_bind_skb_match(bind, skb)))
 		return false;
 
 	/* peer src/dest addr/port has changed */
 	return true;
 }
 
-bool ovpn_bind_get_sockaddr_pair(const struct ovpn_bind_state *bs,
+bool ovpn_bind_get_sockaddr_pair(const struct ovpn_peer *peer,
 				 struct ovpn_sockaddr_pair *sapair);
 
 struct ovpn_struct;
 struct ovpn_peer;
 
-void ovpn_bind_record_peer(struct ovpn_struct *ovpn,
-			   struct ovpn_peer *peer, struct sk_buff *skb,
-			   spinlock_t *lock);
-
-void ovpn_bind_state_init(struct ovpn_bind_state *obs);
+int ovpn_bind_record_peer(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
+			  struct sk_buff *skb, spinlock_t *lock);
 
 struct ovpn_bind *
 ovpn_bind_from_sockaddr_pair(const struct ovpn_sockaddr_pair *pair);
-void ovpn_bind_state_reset(struct ovpn_bind_state *obs, spinlock_t *lock,
-			   struct ovpn_bind *bind);
+void ovpn_bind_reset(struct ovpn_peer *peer, struct ovpn_bind *bind);
 
 #endif /* _NET_OVPN_DCO_OVPNBIND_H_ */

@@ -109,6 +109,9 @@ static int ovpn_net_init(struct net_device *dev)
 	ovpn->dev = dev;
 	ovpn->omit_csum = true;
 
+	spin_lock_init(&ovpn->lock);
+	RCU_INIT_POINTER(ovpn->peer, NULL);
+
 	ovpn->stats = alloc_percpu(struct ovpn_stats_percpu);
 	if (!ovpn->stats)
 		return -ENOMEM;

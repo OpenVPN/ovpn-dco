@@ -50,20 +50,15 @@ static void ovpn_bind_release_rcu(struct rcu_head *head)
 	ovpn_bind_release(bind);
 }
 
-void ovpn_bind_state_init(struct ovpn_bind_state *obs)
-{
-	RCU_INIT_POINTER(obs->ob, NULL);
-}
-
-void ovpn_bind_state_reset(struct ovpn_bind_state *obs, spinlock_t *lock,
-			   struct ovpn_bind *bind)
+void ovpn_bind_reset(struct ovpn_peer *peer, struct ovpn_bind *new)
 {
 	struct ovpn_bind *old;
 
-	spin_lock(lock);
-	old = rcu_dereference_protected(obs->ob, lockdep_is_held(lock));
-	rcu_assign_pointer(obs->ob, bind);
-	spin_unlock(lock);
+	spin_lock(&peer->lock);
+	old = rcu_dereference_protected(peer->bind, true);
+	rcu_assign_pointer(peer->bind, new);
+	spin_unlock(&peer->lock);
+
 	if (old)
 		call_rcu(&old->rcu, ovpn_bind_release_rcu);
 }
@@ -74,9 +69,8 @@ void ovpn_bind_state_reset(struct ovpn_bind_state *obs, spinlock_t *lock,
  * will be released prior to exit.
  * Called in softirq context.
  */
-void ovpn_bind_record_peer(struct ovpn_struct *ovpn,
-			   struct ovpn_peer *peer, struct sk_buff *skb,
-			   spinlock_t *lock)
+int ovpn_bind_record_peer(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
+			  struct sk_buff *skb, spinlock_t *lock)
 {
 	struct ovpn_sockaddr_pair sapair;
 	struct ovpn_bind *bind;
@@ -87,28 +81,19 @@ void ovpn_bind_record_peer(struct ovpn_struct *ovpn,
 
 	err = ovpn_sockaddr_pair_from_skb(&sapair, skb);
 	if (unlikely(err < 0))
-		goto error_unlock;
+		return err;
 
-	sock = rcu_dereference(peer->sock);
-	if (unlikely(!sock)) {
-		err = -OVPN_ERR_NO_TRANSPORT_SOCK;
-		goto error_unlock;
-	}
+	sock = peer->sock;
+	if (unlikely(!sock))
+		return -OVPN_ERR_NO_TRANSPORT_SOCK;
 
 	bind = ovpn_bind_from_sockaddr_pair(&sapair);
-	if (unlikely(IS_ERR(bind))) {
-		err = PTR_ERR(bind);
-		goto error_unlock;
-	}
+	if (unlikely(IS_ERR(bind)))
+		return PTR_ERR(bind);
 
-	rcu_read_unlock();
+	ovpn_bind_reset(peer, bind);
 
-	ovpn_bind_state_reset(&peer->bind, lock, bind);
-
-	return;
-
-error_unlock:
-	rcu_read_unlock();
+	return 0;
 }
 
 /*
@@ -116,21 +101,21 @@ error_unlock:
  * save in sapair.  If binding is undefined, zero sapair.
  * Return true on success or false if binding is undefined.
  */
-bool ovpn_bind_get_sockaddr_pair(const struct ovpn_bind_state *bs,
+bool ovpn_bind_get_sockaddr_pair(const struct ovpn_peer *peer,
 				 struct ovpn_sockaddr_pair *sapair)
 {
 	struct ovpn_bind *bind;
-	bool ret;
+	bool ret = false;
+
+	memset(sapair, 0, sizeof(*sapair));
 
 	rcu_read_lock();
-	bind = rcu_dereference(bs->ob);
+	bind = rcu_dereference(peer->bind);
 	if (bind) {
 		*sapair = bind->sapair;
 		ret = true;
-	} else {
-		memset(sapair, 0, sizeof(*sapair));
-		ret = false;
 	}
 	rcu_read_unlock();
+
 	return ret;
 }
