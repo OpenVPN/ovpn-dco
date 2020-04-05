@@ -8,6 +8,7 @@
  *		Antonio Quartulli <antonio@openvpn.net>
  */
 
+#include "aead.h"
 #include "peer.h"
 #include "work.h"
 #include "crypto.h"
