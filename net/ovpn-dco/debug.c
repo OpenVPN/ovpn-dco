@@ -11,14 +11,12 @@
 #include <net/ip.h>
 #include <linux/types.h>
 
-static inline const char *ovpn_pt_str(const unsigned int pkt_type)
+static const char *ovpn_pt_str(const unsigned int pkt_type)
 {
 	return "NONE";
 }
 
-static inline void ovpn_fmt_proto(const __u8 proto,
-				  char *outbuf,
-				  const size_t size)
+static void ovpn_fmt_proto(const __u8 proto, char *outbuf, const size_t size)
 {
 	switch (proto) {
 	case IPPROTO_TCP:
@@ -41,9 +39,8 @@ static inline void ovpn_fmt_proto(const __u8 proto,
 	}
 }
 
-static inline void ovpn_fmt_proto_port(const struct ovpn_proto_port *pp,
-				       char *outbuf,
-				       const size_t size)
+static void ovpn_fmt_proto_port(const struct ovpn_proto_port *pp, char *outbuf,
+				const size_t size)
 {
 	char protoname[16];
 
@@ -71,10 +68,8 @@ static inline void ovpn_fmt_proto_port(const struct ovpn_proto_port *pp,
 }
 
 /* 1.2.3.4/TCP:443 */
-static inline void ovpn_skb_fmt_addr(const struct sk_buff *skb,
-				     const bool src,
-				     char *outbuf,
-				     const size_t size)
+static void ovpn_skb_fmt_addr(const struct sk_buff *skb, const bool src,
+			      char *outbuf, const size_t size)
 {
 	const struct iphdr *iph;
 	struct ovpn_proto_port pp = {0};
@@ -108,8 +103,8 @@ static inline void ovpn_skb_fmt_addr(const struct sk_buff *skb,
 }
 
 
-static inline void ovpn_dbg_kovpn_in(const struct sk_buff *skb,
-				     const struct ovpn_peer* peer)
+static void ovpn_dbg_kovpn_in(const struct sk_buff *skb,
+			      const struct ovpn_peer* peer)
 {
 	char srcbuf[64];
 	char destbuf[64];
@@ -118,14 +113,14 @@ static inline void ovpn_dbg_kovpn_in(const struct sk_buff *skb,
 	printk("OVPN_DCO IN %s -> %s\n", srcbuf, destbuf);
 }
 
-static inline void ovpn_dbg_ping_received(const struct sk_buff *skb,
-					  const struct ovpn_struct *ovpn,
-					  const struct ovpn_peer* peer)
+static void ovpn_dbg_ping_received(const struct sk_buff *skb,
+				   const struct ovpn_struct *ovpn,
+				   const struct ovpn_peer* peer)
 {
 	printk("PING RECEIVED\n");
 }
 
-static inline void ovpn_dbg_ping_xmit(const struct ovpn_peer* peer)
+static void ovpn_dbg_ping_xmit(const struct ovpn_peer* peer)
 {
 	struct ovpn_struct *ovpn = NULL;
 	struct ovpn_file *ofile;
@@ -139,8 +134,8 @@ static inline void ovpn_dbg_ping_xmit(const struct ovpn_peer* peer)
 
 #if DEBUG_DTAB
 
-static inline void ovpn_dbg_dtab_lookup(const struct ovpn_dtab_key *dkey,
-					const struct ovpn_dtab_entry *de)
+static void ovpn_dbg_dtab_lookup(const struct ovpn_dtab_key *dkey,
+				 const struct ovpn_dtab_entry *de)
 {
 	if (ovpn_dtab_addr_v4(&dkey->addr)) {
 		printk("DTAB LOOKUP rid=%d swid=%d v4=%pI4\n", (int)dkey->route_id, (int)dkey->switch_id, &dkey->addr.a4.s_addr);
