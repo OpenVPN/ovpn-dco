@@ -60,7 +60,6 @@ static inline int ovpn_ip_header_probe(struct sk_buff *skb,
 		if (flags & OVPN_PROBE_SET_SKB) {
 			skb->protocol = htons(ETH_P_IP);
 			skb_reset_network_header(skb);
-			skb_pop_mac_header(skb);
 		}
 		return 4;
 #if IS_ENABLED(CONFIG_IPV6)
@@ -71,7 +70,6 @@ static inline int ovpn_ip_header_probe(struct sk_buff *skb,
 		if (flags & OVPN_PROBE_SET_SKB) {
 			skb->protocol = htons(ETH_P_IPV6);
 			skb_reset_network_header(skb);
-			skb_pop_mac_header(skb);
 		}
 		return 6;
 #endif

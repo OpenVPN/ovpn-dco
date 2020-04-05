@@ -625,12 +625,6 @@ netdev_tx_t ovpn_net_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	/* reset netfilter state */
 	nf_reset_ct(skb);
-	/* pop MAC header if it exists - AQ: should not */
-	//skb_pop_mac_header(skb);
-	ovpn_debug(KERN_INFO,
-		   "ovpn_net_xmit: mac_header_was_set=%d mac_header_len=%u",
-		   skb_mac_header_was_set(skb), skb_mac_header_len(skb));
-
 	/* verify IP header size in network packet */
 	ret = ovpn_ip_header_probe(skb, 0);
 	if (unlikely(ret < 0))
