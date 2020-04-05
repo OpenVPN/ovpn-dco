@@ -1,0 +1,14 @@
+To build the ovpn-dco kernel module, just type `make` in the root folder.
+The Makefile will autodetect your running kernel and will try to use its
+headers to get the code compiled.
+
+If you want to build the ovpn-dco against a kernel different from the one
+running on the host, run `make KERNEL_SRC=/path/to/the/kernel/tree`
+
+The control is passed to the kernel Makefile, therefore any kernel Makefile
+argument can be specified on the command line and it will be passed
+automatically.
+
+Running `make install` will install the ovpn-dco.ko kernel module in the
+updates/ subfolder of the kernel modules directory on your system.
+It normally means `/lib/modules/$(uname -r)/updates/`.
