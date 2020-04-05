@@ -8,7 +8,7 @@
 /*
  * READ_ONCE version of skb_queue_len()
  */
-static inline __u32 ovpn_skb_queue_len(const struct sk_buff_head *list)
+static inline u32 ovpn_skb_queue_len(const struct sk_buff_head *list)
 {
 	return READ_ONCE(list->qlen);
 }

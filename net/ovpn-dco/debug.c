@@ -16,7 +16,7 @@ static const char *ovpn_pt_str(const unsigned int pkt_type)
 	return "NONE";
 }
 
-static void ovpn_fmt_proto(const __u8 proto, char *outbuf, const size_t size)
+static void ovpn_fmt_proto(const u8 proto, char *outbuf, const size_t size)
 {
 	switch (proto) {
 	case IPPROTO_TCP:

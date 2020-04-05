@@ -25,7 +25,7 @@ struct ovpn_skb_cb {
 	unsigned int rx_stats_size;
 
 	/* OpenVPN packet ID */
-	__u32 pktid;
+	u32 pktid;
 };
 
 #endif /* _NET_OVPN_DCO_OVPNWORK_H_ */

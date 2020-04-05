@@ -60,7 +60,7 @@
  * being sent explicitly over the wire.
  */
 struct ovpn_nonce_tail {
-	__u8 u8[12];
+	u8 u8[12];
 };
 
 /*
@@ -83,13 +83,13 @@ struct ovpn_pktid_xmit {
  * Other than lock member, can be zeroed to initialize.
  */
 struct ovpn_pktid_recv {
-	__u8 history[REPLAY_WINDOW_BYTES]; /* "sliding window" bitmask of recent packet IDs received */
+	u8 history[REPLAY_WINDOW_BYTES]; /* "sliding window" bitmask of recent packet IDs received */
 	unsigned int base;     /* bit position of deque base in history */
 	unsigned int extent;   /* extent (in bits) of deque in history */
 	unsigned long expire;  /* expiration of history in jiffies */
-	__u32 id;              /* highest sequence number received */
-	__u32 time;            /* highest time stamp received */
-	__u32 id_floor;        /* we will only accept backtrack IDs > id_floor */
+	u32 id;              /* highest sequence number received */
+	u32 time;            /* highest time stamp received */
+	u32 id_floor;        /* we will only accept backtrack IDs > id_floor */
 	unsigned int max_backtrack;
 	spinlock_t lock;
 };
@@ -97,12 +97,11 @@ struct ovpn_pktid_recv {
 /*
  * Get the next packet ID for xmit.
  */
-static inline int ovpn_pktid_xmit_next(struct ovpn_pktid_xmit *pid,
-				       __u32 *pktid)
+static inline int ovpn_pktid_xmit_next(struct ovpn_pktid_xmit *pid, u32 *pktid)
 {
-	const __u64 seq_num = atomic64_inc_return(&pid->seq_num);
+	const u64 seq_num = atomic64_inc_return(&pid->seq_num);
 	BUILD_BUG_ON(PKTID_WRAP_WARN >= 0x100000000ULL);
-	*pktid = (__u32)seq_num;
+	*pktid = (u32)seq_num;
 	if (unlikely(seq_num >= PKTID_WRAP_WARN)) {
 		if (seq_num >= 0x100000000ULL)
 			return -OVPN_ERR_PKTID_WRAP;
@@ -115,7 +114,7 @@ static inline int ovpn_pktid_xmit_next(struct ovpn_pktid_xmit *pid,
 /*
  * Write the full 16-byte AEAD IV to dest.
  */
-static inline void ovpn_pktid_aead_write(const __u32 pktid,
+static inline void ovpn_pktid_aead_write(const u32 pktid,
 					 const struct ovpn_nonce_tail *nt,
 					 unsigned char *dest)
 {
@@ -127,15 +126,14 @@ static inline void ovpn_pktid_aead_write(const __u32 pktid,
 /*
  * Write a short-form CBC/HMAC packet ID to dest (4 bytes).
  */
-static inline void ovpn_pktid_chm_write(const __u32 pktid,
-					unsigned char *dest)
+static inline void ovpn_pktid_chm_write(const u32 pktid, unsigned char *dest)
 {
-	*(__u32 *)(dest) = htonl(pktid);
+	*(u32 *)dest = htonl(pktid);
 }
 
 void ovpn_pktid_xmit_init(struct ovpn_pktid_xmit *pid);
 void ovpn_pktid_recv_init(struct ovpn_pktid_recv *pr);
 
-int ovpn_pktid_recv(struct ovpn_pktid_recv *pr, __u32 pkt_id, __u32 pkt_time);
+int ovpn_pktid_recv(struct ovpn_pktid_recv *pr, u32 pkt_id, u32 pkt_time);
 
 #endif /* _NET_OVPN_DCO_OVPNPKTID_H_ */

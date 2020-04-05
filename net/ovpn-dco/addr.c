@@ -19,7 +19,7 @@
 #include <net/ipv6.h>
 #include <net/ip.h>
 
-__u32 ovpn_hashrnd __read_mostly;
+u32 ovpn_hashrnd __read_mostly;
 
 void ovpn_hash_secret_init(void)
 {

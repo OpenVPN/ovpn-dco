@@ -15,7 +15,7 @@
 #include <linux/in6.h>
 #include <net/ipv6.h>
 
-extern __u32 ovpn_hashrnd __read_mostly;
+extern u32 ovpn_hashrnd __read_mostly;
 
 struct ovpn_addr {
        bool v6;
@@ -43,8 +43,8 @@ struct ovpn_sockaddr_pair {
 };
 
 /* assumes that ovpn_hash_secret_init has been called */
-static __always_inline __u32 ovpn_hash_3words(const __u32 a, const __u32 b,
-					      const __u32 c)
+static __always_inline u32 ovpn_hash_3words(const u32 a, const u32 b,
+					    const u32 c)
 {
 	return jhash_3words(a, b, c, ovpn_hashrnd);
 }
@@ -60,14 +60,14 @@ static inline __be32 ovpn_ipv4_network_addr(const __be32 addr,
 }
 
 /* return an IPv4 address / prefix_len hash */
-static inline __u32 ovpn_ipv4_hash(const __be32 addr,
-				   const unsigned int prefix_len) {
+static inline u32 ovpn_ipv4_hash(const __be32 addr,
+				 const unsigned int prefix_len) {
 	return ovpn_hash_3words(AF_INET, addr, prefix_len);
 }
 
 #if IS_ENABLED(CONFIG_IPV6)
 /* return an IPv6 address / prefix_len hash */
-static inline __u32 ovpn_ipv6_hash(const struct in6_addr *addr,
+static inline u32 ovpn_ipv6_hash(const struct in6_addr *addr,
 				   const unsigned int prefix_len) {
 	return jhash_2words(AF_INET6,
 			    prefix_len,

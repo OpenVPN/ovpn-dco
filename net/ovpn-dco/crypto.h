@@ -29,7 +29,7 @@ struct ovpn_key_direction {
 	const unsigned char *hmac_key;  /* not used for GCM modes */
 	unsigned int hmac_key_size;     /* not used for GCM modes */
 	unsigned char nonce_tail[12];   /* only needed for GCM modes */
-	__u64 data_limit;               /* per-key bytes limit if >0, not used for GCM modes */
+	u64 data_limit;                 /* per-key bytes limit if >0, not used for GCM modes */
 };
 
 /* all info for a particular symmetric key (primary or secondary) */

@@ -40,7 +40,7 @@ struct ovpn_struct {
 	void *security;
 
 	/* Don't calculate checksum on outgoing tunnel packets */
-	__u8 omit_csum:1;
+	u8 omit_csum:1;
 
 #ifdef CONFIG_OVPN_DCO_DEBUG
 	int debug;

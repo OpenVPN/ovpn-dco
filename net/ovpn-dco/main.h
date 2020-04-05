@@ -122,17 +122,17 @@ struct ovpn_peer_keys_reset {
 #define OVPN_TH_NOTIFY_RES             6
 
 struct ovpn_tun_head {
-	__u8 type;          /* OVPN_TH_x */
-	__u8 status;        /* OVPN_STATUS_x for OVPN_TH_NOTIFY_STATUS */
-	__u16 reserved;
-	__u32 peer_id;
+	u8 type;          /* OVPN_TH_x */
+	u8 status;        /* OVPN_STATUS_x for OVPN_TH_NOTIFY_STATUS */
+	u16 reserved;
+	u32 peer_id;
 } __attribute__ ((__packed__));
 
 /* OVPN_TH_NOTIFY_STATUS variant of ovpn_tun_head */
 struct ovpn_tun_head_status {
 	struct ovpn_tun_head head;
-	__u64 rx_bytes;
-	__u64 tx_bytes;
+	u64 rx_bytes;
+	u64 tx_bytes;
 };
 
 /* OVPN_TH_NOTIFY_PKTID_WRAP_WARN variant of ovpn_tun_head */

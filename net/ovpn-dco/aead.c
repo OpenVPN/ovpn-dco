@@ -206,7 +206,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_context *cc,
 	   Nonce containing OpenVPN packet ID is both our IV (NONCE_SIZE)
 	   and tail of our additional data (NONCE_WIRE_SIZE). */
 	{
-		__u32 pktid;
+		u32 pktid;
 
 		__skb_push(skb, NONCE_WIRE_SIZE);
 		err = ovpn_pktid_xmit_next(&cc->pid_xmit, &pktid);
@@ -222,8 +222,8 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_context *cc,
 
 	/* add packet op as head of additional data */
 	{
-		const __u32 pkt_op = ovpn_op32_compose(OVPN_DATA_V2, key_id,
-						       cc->remote_peer_id);
+		const u32 pkt_op = ovpn_op32_compose(OVPN_DATA_V2, key_id,
+						     cc->remote_peer_id);
 		__skb_push(skb, OVPN_OP_SIZE_V2);
 		BUILD_BUG_ON(OVPN_OP_SIZE_V2 != sizeof(pkt_op));
 		*((__be32 *)skb->data) = htonl(pkt_op);

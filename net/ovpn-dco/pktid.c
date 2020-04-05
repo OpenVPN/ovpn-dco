@@ -16,7 +16,7 @@
 
 void ovpn_pktid_xmit_init(struct ovpn_pktid_xmit *pid)
 {
-	atomic64_set(&pid->seq_num, (__u64)0);
+	atomic64_set(&pid->seq_num, 0);
 	pid->tcp_linear = NULL;
 }
 
@@ -32,7 +32,8 @@ void ovpn_pktid_recv_init(struct ovpn_pktid_recv *pr)
  * Packet replay detection.
  * Allows ID backtrack of up to REPLAY_WINDOW_SIZE - 1.
  */
-static int __ovpn_pktid_recv(struct ovpn_pktid_recv *pr, __u32 pkt_id, __u32 pkt_time)
+static int __ovpn_pktid_recv(struct ovpn_pktid_recv *pr, u32 pkt_id,
+			     u32 pkt_time)
 {
 	const unsigned long now = jiffies;
 
@@ -95,8 +96,8 @@ static int __ovpn_pktid_recv(struct ovpn_pktid_recv *pr, __u32 pkt_id, __u32 pkt
 		if (delta < pr->extent) {
 			if (pkt_id > pr->id_floor) {
 				const unsigned int ri = REPLAY_INDEX(pr->base, delta);
-				__u8 *p = &pr->history[ri / 8];
-				const __u8 mask = (1 << (ri % 8));
+				u8 *p = &pr->history[ri / 8];
+				const u8 mask = (1 << (ri % 8));
 				if (*p & mask)
 					return -OVPN_ERR_PKTID_REPLAY;
 				*p |= mask;
@@ -115,7 +116,7 @@ static int __ovpn_pktid_recv(struct ovpn_pktid_recv *pr, __u32 pkt_id, __u32 pkt
 /*
  * Packet replay detection with locking.
  */
-int ovpn_pktid_recv(struct ovpn_pktid_recv *pr, __u32 pkt_id, __u32 pkt_time)
+int ovpn_pktid_recv(struct ovpn_pktid_recv *pr, u32 pkt_id, u32 pkt_time)
 {
 #if ENABLE_REPLAY_PROTECTION
 	int ret;

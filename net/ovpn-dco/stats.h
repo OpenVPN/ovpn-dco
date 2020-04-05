@@ -15,10 +15,10 @@
 struct ovpn_struct;
 
 struct ovpn_stats {
-	__u64 rx_packets;
-	__u64 tx_packets;
-	__u64 rx_bytes;
-	__u64 tx_bytes;
+	u64 rx_packets;
+	u64 tx_packets;
+	u64 rx_bytes;
+	u64 tx_bytes;
 };
 
 struct ovpn_stats_percpu {
@@ -62,7 +62,7 @@ struct ovpn_peer_stats {
 struct ovpn_err_stat {
 	unsigned int category;
 	int errcode;
-	__u64 count;
+	u64 count;
 };
 
 struct ovpn_err_stats {
@@ -74,8 +74,8 @@ struct ovpn_err_stats {
 /* struct for OVPN_PERCPU_STATS */
 
 struct ovpn_percpu_stat {
-	__u64 rx_bytes;
-	__u64 tx_bytes;
+	u64 rx_bytes;
+	u64 tx_bytes;
 };
 
 struct ovpn_percpu_stats {
