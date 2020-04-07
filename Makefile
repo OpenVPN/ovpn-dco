@@ -6,7 +6,7 @@
 PWD:=$(shell pwd)
 KERNEL_SRC ?= /lib/modules/$(shell uname -r)/build
 ifeq ($(shell cd $(KERNEL_SRC) && pwd),)
-$(warning $(KERNEL_SRC) is missing, please set KERNELSRC)
+$(warning $(KERNEL_SRC) is missing, please set KERNEL_SRC)
 endif
 
 export KERNEL_SRC
