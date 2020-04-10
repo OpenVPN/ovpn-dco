@@ -103,37 +103,17 @@ static void ovpn_set_lockdep_class(struct net_device *dev)
 
 static int ovpn_net_init(struct net_device *dev)
 {
-	struct ovpn_struct *ovpn = netdev_priv(dev);
-	int err;
+	int ret;
 
 	ovpn_set_lockdep_class(dev);
 
-	ovpn->dev = dev;
-	ovpn->omit_csum = true;
+	ret = security_tun_dev_create();
+	if (ret < 0)
+		return ret;
 
-	spin_lock_init(&ovpn->lock);
-	RCU_INIT_POINTER(ovpn->peer, NULL);
-
-	ovpn->stats = alloc_percpu(struct ovpn_stats_percpu);
-	if (!ovpn->stats)
-		return -ENOMEM;
-
-	err = security_tun_dev_create();
-	if (err < 0)
-		goto err_free_stats;
-
-	err = security_tun_dev_alloc_security(&ovpn->security);
-	if (err < 0)
-		goto err_free_stats;
-
-	/* kernel -> userspace tun queue length */
-	ovpn->max_tun_queue_len = OVPN_MAX_TUN_QUEUE_LEN;
+	ret = ovpn_struct_init(dev);
 
 	return 0;
-
-err_free_stats:
-	free_percpu(ovpn->stats);
-	return err;
 }
 
 /* Net device open */

@@ -23,6 +23,36 @@
 #include <net/udp.h>
 #include <uapi/linux/if_ether.h>
 
+
+int ovpn_struct_init(struct net_device *dev)
+{
+	struct ovpn_struct *ovpn = netdev_priv(dev);
+	int err;
+
+	ovpn->dev = dev;
+	ovpn->omit_csum = true;
+
+	spin_lock_init(&ovpn->lock);
+	RCU_INIT_POINTER(ovpn->peer, NULL);
+
+	ovpn->stats = alloc_percpu(struct ovpn_stats_percpu);
+	if (!ovpn->stats)
+		return -ENOMEM;
+
+	err = security_tun_dev_alloc_security(&ovpn->security);
+	if (err < 0)
+		goto err_free_stats;
+
+	/* kernel -> userspace tun queue length */
+	ovpn->max_tun_queue_len = OVPN_MAX_TUN_QUEUE_LEN;
+
+	return 0;
+
+err_free_stats:
+	free_percpu(ovpn->stats);
+	return err;
+}
+
 /*
  * Called after decrypt to write IP packet to tun netdev.
  * This method is expected to manage/free skb.

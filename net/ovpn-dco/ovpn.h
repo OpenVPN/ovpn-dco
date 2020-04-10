@@ -16,29 +16,9 @@
 #include <net/sock.h>
 
 struct ovpn_struct;
+struct net_device;
 
-static inline bool ovpn_hold(struct ovpn_struct *ovpn)
-{
-	return kref_get_unless_zero(&ovpn->refcount);
-}
-
-static inline void ovpn_put(struct ovpn_struct *ovpn)
-{
-	int removed;
-
-	removed = kref_put(&ovpn->refcount, ovpn_release_lock);
-#if DEBUG_FREE >= 1
-	ovpn_debug(OVPN_KERN_INFO, "ovpn_put removed=%d refs=%d\n",
-		   removed,
-		   removed ? 0 : atomic_read(&ovpn->refcount.refcount));
-#endif
-}
-
-static inline struct ovpn_struct *ovpn_struct_from_peer(struct ovpn_peer *peer)
-	__must_hold(ovpn_config_mutex)
-{
-	return peer->ovpn;
-}
+int ovpn_struct_init(struct net_device *dev);
 
 u16 ovpn_select_queue(struct net_device *dev, struct sk_buff *skb,
 		      struct net_device *sb_dev);
