@@ -451,37 +451,37 @@ static struct crypto_aead *ovpn_aead_init(const char *title, const char *alg_nam
 	aead = crypto_alloc_aead(alg_name, 0, 0);
 	if (IS_ERR(aead)) {
 		err = PTR_ERR(aead);
-		ovpn_debug(OVPN_KERN_INFO, "%s crypto_alloc_aead failed, err=%d\n", title, err);
+		ovpn_debug(KERN_INFO, "%s crypto_alloc_aead failed, err=%d\n", title, err);
 		aead = NULL;
 		goto error;
 	}
 
 	err = crypto_aead_setkey(aead, key, keylen);
 	if (err) {
-		ovpn_debug(OVPN_KERN_INFO, "%s crypto_aead_setkey size=%u failed, err=%d\n", title, keylen, err);
+		ovpn_debug(KERN_INFO, "%s crypto_aead_setkey size=%u failed, err=%d\n", title, keylen, err);
 		goto error;
 	}
 
 	err = crypto_aead_setauthsize(aead, auth_tag_size);
 	if (err) {
-		ovpn_debug(OVPN_KERN_INFO, "%s crypto_aead_setauthsize failed, err=%d\n", title, err);
+		ovpn_debug(KERN_INFO, "%s crypto_aead_setauthsize failed, err=%d\n", title, err);
 		goto error;
 	}
 
 	/* basic AEAD assumption */
 	if (EXPECTED_IV_SIZE != crypto_aead_ivsize(aead)) {
-		ovpn_debug(OVPN_KERN_INFO, "%s IV size must be %d\n", title, EXPECTED_IV_SIZE);
+		ovpn_debug(KERN_INFO, "%s IV size must be %d\n", title, EXPECTED_IV_SIZE);
 		err = -OVPN_ERR_IV_SIZE;
 		goto error;
 	}
 
 #if DEBUG_CRYPTO >= 1
-	ovpn_debug(OVPN_KERN_INFO, "********* Cipher %s (%s)\n", alg_name, title);
-	ovpn_debug(OVPN_KERN_INFO, "*** IV size=%u\n", crypto_aead_ivsize(aead));
-	ovpn_debug(OVPN_KERN_INFO, "*** req size=%u\n", crypto_aead_reqsize(aead));
-	ovpn_debug(OVPN_KERN_INFO, "*** block size=%u\n", crypto_aead_blocksize(aead));
-	ovpn_debug(OVPN_KERN_INFO, "*** auth size=%u\n", crypto_aead_authsize(aead));
-	ovpn_debug(OVPN_KERN_INFO, "*** alignmask=0x%x\n", crypto_aead_alignmask(aead));
+	ovpn_debug(KERN_INFO, "********* Cipher %s (%s)\n", alg_name, title);
+	ovpn_debug(KERN_INFO, "*** IV size=%u\n", crypto_aead_ivsize(aead));
+	ovpn_debug(KERN_INFO, "*** req size=%u\n", crypto_aead_reqsize(aead));
+	ovpn_debug(KERN_INFO, "*** block size=%u\n", crypto_aead_blocksize(aead));
+	ovpn_debug(KERN_INFO, "*** auth size=%u\n", crypto_aead_authsize(aead));
+	ovpn_debug(KERN_INFO, "*** alignmask=0x%x\n", crypto_aead_alignmask(aead));
 #endif
 
       done:

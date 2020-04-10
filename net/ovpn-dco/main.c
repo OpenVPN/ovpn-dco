@@ -67,7 +67,7 @@ static void ovpn_struct_free(struct net_device *net)
 {
 	struct ovpn_struct *ovpn = netdev_priv(net);
 
-	ovpn_debug(OVPN_KERN_INFO, "ovpn_struct_free()");
+	ovpn_debug(KERN_INFO, "ovpn_struct_free()");
 
 	ovpn_sock_detach(ovpn->sock);
 
