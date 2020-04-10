@@ -14,6 +14,7 @@
 #include "peer.h"
 #include "sock.h"
 #include "rcu.h"
+#include "debug.h"
 
 #include <net/udp.h>
 #include <net/udp_tunnel.h>
@@ -67,12 +68,14 @@ static int ovpn_sock_set_udp_cb(struct sock *sk, void *user_data)
 
 	/* make sure no pre-existing encapsulation handler exists */
 	if (READ_ONCE(sk->sk_user_data)) {
+		ovpn_debug(KERN_ERR, "provided socket already taken by other user\n");
 		err = -OVPN_ERR_SOCK_ENCAP_EXISTS;
 		goto unlock;
 	}
 
 	/* verify UDP socket */
 	if (sk->sk_protocol != IPPROTO_UDP) {
+		ovpn_debug(KERN_ERR, "expected UDP socket\n");
 		err = -OVPN_ERR_SOCK_MUST_BE_UDP;
 		goto unlock;
 	}
