@@ -69,6 +69,8 @@ static void ovpn_struct_free(struct net_device *net)
 
 	ovpn_debug(OVPN_KERN_INFO, "ovpn_struct_free()");
 
+	ovpn_sock_detach(ovpn->sock);
+
 	security_tun_dev_free_security(ovpn->security);
 
 	debug_log_stats64(ovpn);
