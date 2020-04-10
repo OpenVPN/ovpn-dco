@@ -48,17 +48,6 @@ struct ovpn_struct {
 	int debug;
 #endif
 
-	union {
-		struct rcu_head rcu;
-		struct execute_work ew;
-	} du;
-
-	/* write-heavy objects below this point */
-
-	/* each ovpn_file holds a reference, as well
-	   as resource notifications  */
-	struct kref refcount ____cacheline_aligned_in_smp;
-
 	uint32_t registered_nl_portid;
 	bool registered_nl_portid_set;
 };
