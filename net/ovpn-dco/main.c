@@ -218,6 +218,15 @@ static void ovpn_setup(struct net_device *dev)
 
 static void ovpn_dellink(struct net_device *dev, struct list_head *head)
 {
+	struct ovpn_struct *ovpn = netdev_priv(dev);
+	struct ovpn_peer *peer;
+
+	rcu_read_lock();
+	peer = rcu_dereference(ovpn->peer);
+	if (peer)
+		ovpn_peer_put(peer);
+	rcu_read_unlock();
+
 	unregister_netdevice_queue(dev, head); /* calls ovpn_net_uninit */
 }
 

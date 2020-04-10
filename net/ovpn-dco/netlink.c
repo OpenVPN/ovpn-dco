@@ -334,7 +334,7 @@ static int ovpn_netlink_add_peer(struct sk_buff *skb, struct genl_info *info)
 	if (ret < 0)
 		return ret;
 
-	new = ovpn_peer_new_with_sockaddr(&pair);
+	new = ovpn_peer_new_with_sockaddr(ovpn, &pair);
 	if (IS_ERR(new))
 		return PTR_ERR(new);
 

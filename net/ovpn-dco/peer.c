@@ -41,7 +41,7 @@ struct ovpn_peer *ovpn_peer_get(struct ovpn_struct *ovpn)
 /*
  * Construct a new peer.
  */
-struct ovpn_peer *ovpn_peer_new(void)
+static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 {
 	struct ovpn_peer *peer = NULL;
 
@@ -58,6 +58,9 @@ struct ovpn_peer *ovpn_peer_new(void)
 	mutex_init(&peer->mutex);
 	kref_init(&peer->refcount);
 	ovpn_peer_stats_init(&peer->stats);
+
+	peer->ovpn = ovpn;
+	dev_hold(ovpn->dev);
 
 	/* init keepalive timers */
 	ovpn_timer_init(&peer->keepalive_xmit,
@@ -92,6 +95,8 @@ void ovpn_peer_release(struct ovpn_peer *peer)
 	ovpn_bind_reset(peer, NULL);
 	__ovpn_peer_timer_delete_all(peer);
 	ovpn_crypto_state_release(peer);
+
+	dev_put(peer->ovpn->dev);
 
 	mutex_destroy(&peer->mutex);
 	kfree(peer);
@@ -129,13 +134,14 @@ void ovpn_peer_delete(struct ovpn_peer *peer)
 
 
 struct ovpn_peer *
-ovpn_peer_new_with_sockaddr(const struct ovpn_sockaddr_pair *sapair)
+ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn,
+			    const struct ovpn_sockaddr_pair *sapair)
 {
 	struct ovpn_peer *peer;
 	int ret;
 
 	/* create new peer */
-	peer = ovpn_peer_new();
+	peer = ovpn_peer_new(ovpn);
 	if (IS_ERR(peer))
 		return peer;
 

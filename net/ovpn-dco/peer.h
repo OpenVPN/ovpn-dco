@@ -81,9 +81,9 @@ static inline void ovpn_peer_update_keepalive_expire(struct ovpn_peer *peer)
 
 void ovpn_peer_update_keepalive_xmit(struct ovpn_peer *peer);
 
-struct ovpn_peer *ovpn_peer_new(void);
 struct ovpn_peer *
-ovpn_peer_new_with_sockaddr(const struct ovpn_sockaddr_pair *sapair);
+ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn,
+			    const struct ovpn_sockaddr_pair *sapair);
 
 void ovpn_peer_delete(struct ovpn_peer *peer);
 
