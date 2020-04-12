@@ -643,6 +643,7 @@ static int do_ovpn_net_xmit(struct ovpn_struct *ovpn, struct sk_buff *skb,
 
 drop:
 	rcu_read_unlock();
+	ovpn_peer_put(peer);
 	return ret;
 
 }
