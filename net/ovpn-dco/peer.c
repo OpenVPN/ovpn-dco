@@ -148,7 +148,7 @@ ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn,
 	/* set peer sockaddr */
 	ret = ovpn_peer_reset_sockaddr(peer, sapair);
 	if (ret < 0) {
-		ovpn_peer_delete(peer);
+		ovpn_peer_release(peer);
 		return ERR_PTR(ret);
 	}
 
