@@ -70,14 +70,14 @@ void ovpn_crypto_state_release(struct ovpn_peer *peer)
 {
 	struct ovpn_crypto_context_pair *ccp;
 
-	mutex_lock(&peer->mutex);
+	spin_lock(&peer->lock);
 	ccp = rcu_dereference_protected(peer->crypto.ccp,
-					lockdep_is_held(&peer->mutex));
+					lockdep_is_held(&peer->lock));
 	if (ccp) {
 		RCU_INIT_POINTER(peer->crypto.ccp, NULL);
 		ovpn_crypto_context_pair_release(ccp);
 	}
-	mutex_unlock(&peer->mutex);
+	spin_unlock(&peer->lock);
 }
 
 int ovpn_crypto_encap_overhead(const struct ovpn_crypto_state *cs)
