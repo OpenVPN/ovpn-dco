@@ -45,7 +45,7 @@ ovpn_netlink_policy_key[OVPN_KEY_ATTR_MAX + 1] = {
 static const struct nla_policy
 ovpn_netlink_policy_sockaddr[OVPN_SOCKADDR_ATTR_MAX + 1] = {
 	/* IPv4 only supported for now */
-	[OVPN_SOCKADDR_ATTR_ADDRESS] = { .type = NLA_BINARY, .len = 4 },
+	[OVPN_SOCKADDR_ATTR_ADDRESS] = NLA_POLICY_EXACT_LEN(4),
 	[OVPN_SOCKADDR_ATTR_PORT] = { .type = NLA_U16 },
 };
 
