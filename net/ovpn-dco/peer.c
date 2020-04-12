@@ -23,8 +23,6 @@ static void __ovpn_peer_timer_delete_all(struct ovpn_peer *peer);
 static void __ovpn_peer_keepalive_xmit_handler(struct timer_list *arg);
 static void __ovpn_peer_keepalive_expire_handler(struct timer_list *arg);
 
-void ovpn_peer_delete(struct ovpn_peer *peer);
-
 struct ovpn_peer *ovpn_peer_get(struct ovpn_struct *ovpn)
 {
 	struct ovpn_peer *peer;
