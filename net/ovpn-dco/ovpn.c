@@ -607,12 +607,14 @@ static int do_ovpn_net_xmit(struct ovpn_struct *ovpn, struct sk_buff *skb,
 
 	peer = ovpn_peer_get(ovpn);
 	if (unlikely(!peer))
-		return -ENOENT;
+		return -ENOLINK;
 
 	rcu_read_lock();
 	bind = rcu_dereference(peer->bind);
-	if (unlikely(!bind))
+	if (unlikely(!bind)) {
+		ret = -ENOENT;
 		goto drop;
+	}
 
 	/* set minimum encapsulation headroom for encrypt */
 	headroom = ovpn_bind_udp_encap_overhead(bind, ETH_HLEN);
@@ -622,7 +624,7 @@ static int do_ovpn_net_xmit(struct ovpn_struct *ovpn, struct sk_buff *skb,
 	/* get crypto context */
 	cc = ovpn_crypto_context_primary(&peer->crypto, &key_id);
 	if (unlikely(!cc)) {
-		ret = -OVPN_ERR_NO_PRIMARY_KEY;
+		ret = -ENODEV;
 		goto drop;
 	}
 	rcu_read_unlock();
