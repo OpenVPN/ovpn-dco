@@ -133,6 +133,4 @@ enum ovpn_attrs {
 	OVPN_ATTR_MAX = __OVPN_ATTR_AFTER_LAST - 1,
 };
 
-#define OVPN_NL_MCAST_GROUP_CONFIG	"config"
-
 #endif /* _UAPI_LINUX_OVPN_DCO_H_ */
