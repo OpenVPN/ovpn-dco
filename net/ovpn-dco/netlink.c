@@ -385,11 +385,11 @@ static int ovpn_netlink_start_vpn(struct sk_buff *skb, struct genl_info *info)
 
 	ovpn->mode = nla_get_u8(info->attrs[OVPN_ATTR_MODE]);
 	if (ovpn->mode != OVPN_MODE_CLIENT)
-		return -ENOTSUPP;
+		return -EOPNOTSUPP;
 
 	ovpn->proto = nla_get_u8(info->attrs[OVPN_ATTR_PROTO]);
 	if (ovpn->proto != OVPN_PROTO_UDP4)
-		return -ENOTSUPP;
+		return -EOPNOTSUPP;
 
 	/* lookup the fd in the kernel table and extract the socket object */
 	sockfd = nla_get_u32(info->attrs[OVPN_ATTR_SOCKET]);

@@ -506,7 +506,7 @@ static int ovpn_udp_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 		break;
 #endif
 	default:
-		ret = -ENOTSUPP;
+		ret = -EOPNOTSUPP;
 		break;
 	}
 
