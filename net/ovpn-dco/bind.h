@@ -39,7 +39,7 @@ static inline int ovpn_bind_udp_encap_overhead(const struct ovpn_bind *bind,
 			+ hw_head_size;
 #endif
 	default:
-		return -EOPNOTSUPP;
+		return -ENOTSUPP;
 	}
 }
 
