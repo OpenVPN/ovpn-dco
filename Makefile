@@ -42,6 +42,7 @@ all: config
 	$(MAKE) -C $(KERNEL_SRC) $(BUILD_FLAGS)	modules
 
 clean:
+	$(RM) psk_client
 	$(RM) compat-autoconf.h*
 	$(MAKE) -C $(KERNEL_SRC) $(BUILD_FLAGS) clean
 
@@ -52,4 +53,8 @@ install: config
 config:
 	$(PWD)/gen-compat-autoconf.sh $(PWD)/compat-autoconf.h
 
-.PHONY: all clean install config
+psk_client:
+	$(CC) -Iinclude `pkg-config --cflags --libs libnl-3.0 libnl-genl-3.0` \
+		-lmbedtls -lmbedcrypto $@.c -o $@
+
+.PHONY: all clean install config psk_client
