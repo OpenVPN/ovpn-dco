@@ -134,6 +134,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_context *cc,
 			     unsigned int key_id,
 			     void (*callback)(struct sk_buff *, int err))
 {
+	struct sk_buff *trailer;
 	unsigned int nfrags;
 	struct ovpn_aead_work *work;
 	struct scatterlist *sg;
@@ -162,7 +163,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_context *cc,
 
 	/* get number of skb fragments and ensure that packet data is writable */
 	{
-		err = skb_cow_data(skb, 0, NULL);
+		err = skb_cow_data(skb, 0, &trailer);
 		if (unlikely(err < 0)) {
 			err = -OVPN_ERR_ENCRYPT_COW_DATA;
 			goto error;
@@ -316,6 +317,7 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_context *cc,
 			     unsigned int op,
 			     void (*callback)(struct sk_buff *, int err))
 {
+	struct sk_buff *trailer;
 	unsigned int nfrags;
 	struct ovpn_aead_work *work;
 	struct scatterlist *sg;
@@ -347,7 +349,7 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_context *cc,
 
 	/* get number of skb fragments and ensure that packet data is writable */
 	{
-		err = skb_cow_data(skb, 0, NULL);
+		err = skb_cow_data(skb, 0, &trailer);
 		if (unlikely(err < 0)) {
 			err = -OVPN_ERR_DECRYPT_COW_DATA;
 			goto error;
