@@ -287,8 +287,11 @@ static int ovpn_netlink_parse_sockaddr(struct genl_info *info,
 
 	err = nla_parse_nested(attrs, OVPN_SOCKADDR_ATTR_MAX, key,
 			       ovpn_netlink_policy_sockaddr, info->extack);
-	if (err)
+	if (err) {
+		ovpn_debug(KERN_ERR, "error while parsing sockaddr: %s\n",
+			   info->extack ? info->extack->_msg : "null");
 		return -EINVAL;
+	}
 
 	if (!attrs[OVPN_SOCKADDR_ATTR_ADDRESS] ||
 	    !attrs[OVPN_SOCKADDR_ATTR_PORT])
@@ -303,9 +306,6 @@ static int ovpn_netlink_parse_sockaddr(struct genl_info *info,
 
 	addr = nla_data(attrs[OVPN_SOCKADDR_ATTR_ADDRESS]);
 	sin->sin_addr.s_addr = *addr;
-
-	ovpn_debug(KERN_INFO, "ovpn_netlink_parse_sockaddr: addr=%pI4 port=%hu",
-		   &sin->sin_addr.s_addr, ntohs(sin->sin_port));
 
 	return 0;
 }
@@ -337,8 +337,12 @@ static int ovpn_netlink_add_peer(struct sk_buff *skb, struct genl_info *info)
 		return ret;
 
 	new = ovpn_peer_new_with_sockaddr(ovpn, &pair);
-	if (IS_ERR(new))
+	if (IS_ERR(new)) {
+		ovpn_debug(KERN_ERR, "cannot create peer object for %pI4:%u\n",
+			   &pair.remote.u.in4.sin_addr.s_addr,
+			   ntohs(pair.remote.u.in4.sin_port));
 		return PTR_ERR(new);
+	}
 
 	spin_lock(&ovpn->lock);
 	old = rcu_dereference_protected(ovpn->peer,
@@ -349,6 +353,10 @@ static int ovpn_netlink_add_peer(struct sk_buff *skb, struct genl_info *info)
 	new->sock = ovpn->sock;
 	rcu_assign_pointer(ovpn->peer, new);
 	spin_unlock(&ovpn->lock);
+
+	ovpn_debug(KERN_DEBUG, "ovpn_netlink_add_peer: added peer %pI4:%hu\n",
+		   &pair.remote.u.in4.sin_addr.s_addr,
+		   ntohs(pair.remote.u.in4.sin_port));
 
 	return 0;
 }
