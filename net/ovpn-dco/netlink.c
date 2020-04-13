@@ -414,6 +414,9 @@ static int ovpn_netlink_start_vpn(struct sk_buff *skb, struct genl_info *info)
 
 	ovpn->sock = sock;
 
+	ovpn_debug(KERN_DEBUG, "ovpn_netlink_start_vpn: mode %u proto %u\n",
+		   ovpn->mode, ovpn->proto);
+
 	return 0;
 
 sockfd_release:
