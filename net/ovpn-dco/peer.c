@@ -124,10 +124,12 @@ void ovpn_peer_release_kref(struct kref *kref)
  */
 void ovpn_peer_delete(struct ovpn_peer *peer)
 {
-	if (!peer->halt) {
-		peer->halt = true;
-		ovpn_peer_put(peer);
-	}
+	if (peer->halt)
+		return;
+
+	peer->halt = true;
+	ovpn_crypto_state_release(peer);
+	ovpn_peer_put(peer);
 }
 
 
