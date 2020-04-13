@@ -41,10 +41,10 @@ struct ovpn_peer *ovpn_peer_get(struct ovpn_struct *ovpn)
  */
 static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 {
-	struct ovpn_peer *peer = NULL;
+	struct ovpn_peer *peer;
 
 	/* alloc and init peer object */
-        peer = (struct ovpn_peer *)kmalloc(sizeof(struct ovpn_peer), GFP_KERNEL);
+        peer = kmalloc(sizeof(*peer), GFP_KERNEL);
 	if (!peer)
 		return ERR_PTR(-ENOMEM);
 
