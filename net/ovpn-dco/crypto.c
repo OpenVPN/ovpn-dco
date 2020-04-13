@@ -25,14 +25,7 @@ static struct ovpn_crypto_context *
 ovpn_cc_new(const struct ovpn_crypto_ops *ops, const struct ovpn_key_config *kc,
 	    int *key_id, struct ovpn_peer *peer)
 {
-	struct ovpn_crypto_context *cc;
-	int err = 0;
-
-	cc = ops->new(kc, key_id, peer, &err);
-	if (!cc)
-		return NULL;
-
-	return cc;
+	return ops->new(kc, key_id, peer);
 }
 
 /*
@@ -43,11 +36,9 @@ ovpn_cc_new(const struct ovpn_crypto_ops *ops, const struct ovpn_key_config *kc,
  */
 static void __ovpn_cc_destroy_rcu(struct rcu_head *head)
 {
-	struct ovpn_crypto_context *cc = container_of(head, struct ovpn_crypto_context, rcu);
-	struct ovpn_peer *peer = cc->peer;
-
-	ovpn_peer_put(peer);
-
+	struct ovpn_crypto_context *cc = container_of(head,
+						      struct ovpn_crypto_context,
+						      rcu);
 	cc->ops->destroy(cc);
 }
 
@@ -119,6 +110,7 @@ int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
 {
 	struct ovpn_crypto_context_pair *oldc;
 	struct ovpn_crypto_context_pair *newc;
+	int ret;
 
 	lockdep_assert_held(&peer->mutex);
 
@@ -127,20 +119,27 @@ int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
 		return -ENOMEM;
 
 	newc->primary_key_id = newc->secondary_key_id = -1;
-	oldc = rcu_dereference_protected(cs->ccp, lockdep_is_held(&peer->mutex));
+	oldc = rcu_dereference_protected(cs->ccp,
+					 lockdep_is_held(&peer->mutex));
 
 	if (pkr->primary_key_set) {
 		newc->primary = ovpn_cc_new(cs->ops, &pkr->primary,
 					    &newc->primary_key_id, peer);
-		if (!newc->primary)
+		if (IS_ERR(newc->primary)) {
+			ret = PTR_ERR(newc->primary);
+			newc->primary = NULL;
 			goto free_cc;
+		}
 	}
 
 	if (pkr->secondary_key_set) {
 		newc->secondary = ovpn_cc_new(cs->ops, &pkr->secondary,
 					      &newc->secondary_key_id, peer);
-		if (!newc->secondary)
+		if (IS_ERR(newc->secondary)) {
+			ret = PTR_ERR(newc->secondary);
+			newc->secondary = NULL;
 			goto free_cc;
+		}
 	}
 
 	printk("*** NEW CRYPTO CONTEXT pri=%d sec=%d\n",
@@ -153,7 +152,7 @@ int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
 	return 0;
 free_cc:
 	ovpn_crypto_context_pair_release(newc);
-	return -ENOMEM;
+	return ret;
 }
 
 static const struct ovpn_crypto_ops *

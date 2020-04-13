@@ -72,8 +72,7 @@ struct ovpn_crypto_ops {
 
 	struct ovpn_crypto_context *(*new)(const struct ovpn_key_config *kc,
 					   int *key_id,
-					   struct ovpn_peer *peer,
-					   int *err);
+					   struct ovpn_peer *peer);
 
 	void (*destroy)(struct ovpn_crypto_context *cc);
 

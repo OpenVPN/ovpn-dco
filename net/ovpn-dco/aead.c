@@ -442,38 +442,44 @@ error:
 /*
  * Initialize a struct crypto_aead object
  */
-static struct crypto_aead *ovpn_aead_init(const char *title, const char *alg_name,
-					  const unsigned char *key, unsigned int keylen,
-					  int *error)
+static struct crypto_aead *ovpn_aead_init(const char *title,
+					  const char *alg_name,
+					  const unsigned char *key,
+					  unsigned int keylen)
 {
-	int err = 0;
 	const unsigned int auth_tag_size = 16;
 	struct crypto_aead *aead;
+	int ret;
 
 	aead = crypto_alloc_aead(alg_name, 0, 0);
 	if (IS_ERR(aead)) {
-		err = PTR_ERR(aead);
-		ovpn_debug(KERN_INFO, "%s crypto_alloc_aead failed, err=%d\n", title, err);
+		ret = PTR_ERR(aead);
+		ovpn_debug(KERN_ERR, "%s crypto_alloc_aead failed, err=%d\n",
+			   title, ret);
 		aead = NULL;
 		goto error;
 	}
 
-	err = crypto_aead_setkey(aead, key, keylen);
-	if (err) {
-		ovpn_debug(KERN_INFO, "%s crypto_aead_setkey size=%u failed, err=%d\n", title, keylen, err);
+	ret = crypto_aead_setkey(aead, key, keylen);
+	if (ret) {
+		ovpn_debug(KERN_ERR,
+			   "%s crypto_aead_setkey size=%u failed, err=%d\n",
+			   title, keylen, ret);
 		goto error;
 	}
 
-	err = crypto_aead_setauthsize(aead, auth_tag_size);
-	if (err) {
-		ovpn_debug(KERN_INFO, "%s crypto_aead_setauthsize failed, err=%d\n", title, err);
+	ret = crypto_aead_setauthsize(aead, auth_tag_size);
+	if (ret) {
+		ovpn_debug(KERN_ERR,
+			   "%s crypto_aead_setauthsize failed, err=%d\n", title,
+			   ret);
 		goto error;
 	}
 
 	/* basic AEAD assumption */
 	if (EXPECTED_IV_SIZE != crypto_aead_ivsize(aead)) {
 		ovpn_debug(KERN_INFO, "%s IV size must be %d\n", title, EXPECTED_IV_SIZE);
-		err = -OVPN_ERR_IV_SIZE;
+		ret = -OVPN_ERR_IV_SIZE;
 		goto error;
 	}
 
@@ -486,23 +492,22 @@ static struct crypto_aead *ovpn_aead_init(const char *title, const char *alg_nam
 	ovpn_debug(KERN_INFO, "*** alignmask=0x%x\n", crypto_aead_alignmask(aead));
 #endif
 
-      done:
-	*error = err;
 	return aead;
 
-      error:
+error:
 	crypto_free_aead(aead);
-	aead = NULL;
-	goto done;
+	return ERR_PTR(ret);
 }
 
 static void ovpn_aead_crypto_context_destroy(struct ovpn_crypto_context *cc)
 {
-	if (cc) {
-		crypto_free_aead(cc->u.ae.encrypt);
-		crypto_free_aead(cc->u.ae.decrypt);
-		kfree(cc);
-	}
+	if (!cc)
+		return;
+
+	crypto_free_aead(cc->u.ae.encrypt);
+	crypto_free_aead(cc->u.ae.decrypt);
+	ovpn_peer_put(cc->peer);
+	kfree(cc);
 }
 
 static struct ovpn_crypto_context *
@@ -515,12 +520,11 @@ ovpn_aead_crypto_context_init(enum ovpn_cipher_alg alg,
 			      unsigned int encrypt_nonce_tail_len,
 			      const unsigned char *decrypt_nonce_tail, /* 4 bytes */
 			      unsigned int decrypt_nonce_tail_len,
-			      struct ovpn_peer *peer,
-			      int *error)
+			      struct ovpn_peer *peer)
 {
-	int err = 0;
 	struct ovpn_crypto_context *cc = NULL;
 	const char *alg_name;
+	int ret;
 
 	/* validate crypto alg */
 	switch (alg) {
@@ -528,36 +532,47 @@ ovpn_aead_crypto_context_init(enum ovpn_cipher_alg alg,
 		alg_name = "gcm(aes)";
 		break;
 	default:
-		err = -OVPN_ERR_BAD_CIPHER_ALG;
-		goto done;
+		return ERR_PTR(-EOPNOTSUPP);
 	}
 
 	/* build the crypto context */
-	cc = kmalloc(sizeof(struct ovpn_crypto_context), GFP_KERNEL);
-	if (!cc) {
-		err = -ENOMEM;
-		goto done;
-	}
+	cc = kmalloc(sizeof(*cc), GFP_KERNEL);
+	if (!cc)
+		return ERR_PTR(-ENOMEM);
 
+	cc->peer = NULL;
 	cc->ops = &ovpn_aead_ops;
 	cc->u.ae.encrypt = NULL;
 	cc->u.ae.decrypt = NULL;
-	cc->peer = NULL;
 	kref_init(&cc->refcount);
 
-	cc->u.ae.encrypt = ovpn_aead_init("encrypt", alg_name,
-					  encrypt_key, encrypt_keylen, &err);
-	if (!cc->u.ae.encrypt)
-		goto error;
-	cc->u.ae.decrypt = ovpn_aead_init("decrypt", alg_name,
-					  decrypt_key, decrypt_keylen, &err);
-	if (!cc->u.ae.decrypt)
-		goto error;
+	/* grab a reference to peer */
+	if (!ovpn_peer_hold(peer)) {
+		ret = -ENOENT;
+		goto destroy_cc;
+	}
+
+	cc->peer = peer;
+
+	cc->u.ae.encrypt = ovpn_aead_init("encrypt", alg_name, encrypt_key,
+					  encrypt_keylen);
+	if (IS_ERR(cc->u.ae.encrypt)) {
+		ret = PTR_ERR(cc->u.ae.encrypt);
+		cc->u.ae.encrypt = NULL;
+		goto destroy_cc;
+	}
+	cc->u.ae.decrypt = ovpn_aead_init("decrypt", alg_name, decrypt_key,
+					  decrypt_keylen);
+	if (IS_ERR(cc->u.ae.decrypt)) {
+		ret = PTR_ERR(cc->u.ae.decrypt);
+		cc->u.ae.decrypt = NULL;
+		goto destroy_cc;
+	}
 
 	if (sizeof(struct ovpn_nonce_tail) != encrypt_nonce_tail_len ||
 	    sizeof(struct ovpn_nonce_tail) != decrypt_nonce_tail_len) {
-		err = -EINVAL;
-		goto error;
+		ret = -EINVAL;
+		goto destroy_cc;
 	}
 
 	memcpy(cc->u.ae.nonce_tail_xmit.u8, encrypt_nonce_tail,
@@ -569,30 +584,16 @@ ovpn_aead_crypto_context_init(enum ovpn_cipher_alg alg,
 	ovpn_pktid_xmit_init(&cc->pid_xmit);
 	ovpn_pktid_recv_init(&cc->pid_recv);
 
-	/* grab a reference to peer */
-	if (peer) {
-		if (!ovpn_peer_hold(peer)) {
-			err = -OVPN_ERR_CANNOT_GRAB_PEER_REF;
-			goto error;
-		}
-		cc->peer = peer;
-	}
-
-      done:
-	*error = err;
 	return cc;
 
-      error:
+destroy_cc:
 	ovpn_aead_crypto_context_destroy(cc);
-	cc = NULL;
-	goto done;
+	return ERR_PTR(ret);
 }
 
 static struct ovpn_crypto_context *
-ovpn_aead_crypto_context_new(const struct ovpn_key_config *kc,
-			     int *key_id,
-			     struct ovpn_peer *peer,
-			     int *err)
+ovpn_aead_crypto_context_new(const struct ovpn_key_config *kc, int *key_id,
+			     struct ovpn_peer *peer)
 {
 	struct ovpn_crypto_context *cc;
 
@@ -602,17 +603,18 @@ ovpn_aead_crypto_context_new(const struct ovpn_key_config *kc,
 		return NULL;
 	}
 
-	cc = ovpn_aead_crypto_context_init(
-		kc->cipher_alg,
-		kc->encrypt.cipher_key, kc->encrypt.cipher_key_size,
-		kc->decrypt.cipher_key, kc->decrypt.cipher_key_size,
-		kc->encrypt.nonce_tail, kc->encrypt.nonce_tail_size,
-		kc->decrypt.nonce_tail, kc->decrypt.nonce_tail_size,
-		peer,
-		err);
-	if (!cc)
-		return NULL;
-	*key_id = kc->key_id;
+	cc = ovpn_aead_crypto_context_init(kc->cipher_alg,
+					   kc->encrypt.cipher_key,
+					   kc->encrypt.cipher_key_size,
+					   kc->decrypt.cipher_key,
+					   kc->decrypt.cipher_key_size,
+					   kc->encrypt.nonce_tail,
+					   kc->encrypt.nonce_tail_size,
+					   kc->decrypt.nonce_tail,
+					   kc->decrypt.nonce_tail_size, peer);
+	if (!IS_ERR(cc))
+		*key_id = kc->key_id;
+
 	return cc;
 }
 
