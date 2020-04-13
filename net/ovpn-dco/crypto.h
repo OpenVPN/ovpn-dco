@@ -22,13 +22,20 @@
 struct ovpn_peer;
 struct ovpn_crypto_context;
 
+enum ovpn_crypto_families {
+	OVPN_CRYPTO_FAMILY_UNDEF = 0,
+	OVPN_CRYPTO_FAMILY_AEAD,
+	OVPN_CRYPTO_FAMILY_CBC_HMAC,
+};
+
 /* info needed for both encrypt and decrypt directions */
 struct ovpn_key_direction {
-	const unsigned char *cipher_key;
-	unsigned int cipher_key_size;
-	const unsigned char *hmac_key;  /* not used for GCM modes */
-	unsigned int hmac_key_size;     /* not used for GCM modes */
-	unsigned char nonce_tail[12];   /* only needed for GCM modes */
+	const uint8_t *cipher_key;
+	size_t cipher_key_size;
+	const uint8_t *hmac_key;	/* not used for GCM modes */
+	size_t hmac_key_size;		/* not used for GCM modes */
+	const uint8_t *nonce_tail;	/* only needed for GCM modes */
+	size_t nonce_tail_size;		/* only needed for GCM modes */
 	u64 data_limit;                 /* per-key bytes limit if >0, not used for GCM modes */
 };
 
@@ -39,6 +46,15 @@ struct ovpn_key_config {
 	u16 key_id;
 	struct ovpn_key_direction encrypt;
 	struct ovpn_key_direction decrypt;
+};
+
+/* used to pass settings from netlink to the crypto engine */
+struct ovpn_peer_keys_reset {
+	enum ovpn_crypto_families crypto_family;
+	bool primary_key_set;
+	struct ovpn_key_config primary;
+	bool secondary_key_set;
+	struct ovpn_key_config secondary;
 };
 
 struct ovpn_crypto_ops {
@@ -203,10 +219,8 @@ static inline void ovpn_crypto_context_put(struct ovpn_crypto_context *cc)
 	kref_put(&cc->refcount, ovpn_crypto_context_release);
 }
 
-const struct ovpn_crypto_ops *
-ovpn_crypto_state_select_family(struct ovpn_peer *peer,
-				const struct ovpn_peer_keys_reset *pkr,
-				int *err);
+int ovpn_crypto_state_select_family(struct ovpn_peer *peer,
+				    const struct ovpn_peer_keys_reset *pkr);
 
 int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
 			    const struct ovpn_peer_keys_reset *pkr,
@@ -216,7 +230,9 @@ int ovpn_crypto_encap_overhead(const struct ovpn_crypto_state *cs);
 
 void ovpn_crypto_state_release(struct ovpn_peer *peer);
 
-void ovpn_peer_keys_reset_free(struct ovpn_peer_keys_reset *pkr);
 void ovpn_key_config_free(struct ovpn_key_config *kc);
+
+enum ovpn_crypto_families
+ovpn_keys_familiy_get(const struct ovpn_key_config *kc);
 
 #endif /* _NET_OVPN_DCO_OVPNCRYPTO_H_ */

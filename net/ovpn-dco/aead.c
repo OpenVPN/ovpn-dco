@@ -512,7 +512,9 @@ ovpn_aead_crypto_context_init(enum ovpn_cipher_alg alg,
 			      const unsigned char *decrypt_key,
 			      unsigned int decrypt_keylen,
 			      const unsigned char *encrypt_nonce_tail, /* 4 bytes */
+			      unsigned int encrypt_nonce_tail_len,
 			      const unsigned char *decrypt_nonce_tail, /* 4 bytes */
+			      unsigned int decrypt_nonce_tail_len,
 			      struct ovpn_peer *peer,
 			      int *error)
 {
@@ -536,6 +538,7 @@ ovpn_aead_crypto_context_init(enum ovpn_cipher_alg alg,
 		err = -ENOMEM;
 		goto done;
 	}
+
 	cc->ops = &ovpn_aead_ops;
 	cc->u.ae.encrypt = NULL;
 	cc->u.ae.decrypt = NULL;
@@ -551,8 +554,12 @@ ovpn_aead_crypto_context_init(enum ovpn_cipher_alg alg,
 	if (!cc->u.ae.decrypt)
 		goto error;
 
-	BUILD_BUG_ON(sizeof(struct ovpn_nonce_tail)
-		     != sizeof(((struct ovpn_key_direction *)0)->nonce_tail));
+	if (sizeof(struct ovpn_nonce_tail) != encrypt_nonce_tail_len ||
+	    sizeof(struct ovpn_nonce_tail) != decrypt_nonce_tail_len) {
+		err = -EINVAL;
+		goto error;
+	}
+
 	memcpy(cc->u.ae.nonce_tail_xmit.u8, encrypt_nonce_tail,
 	       sizeof(struct ovpn_nonce_tail));
 	memcpy(cc->u.ae.nonce_tail_recv.u8, decrypt_nonce_tail,
@@ -599,8 +606,8 @@ ovpn_aead_crypto_context_new(const struct ovpn_key_config *kc,
 		kc->cipher_alg,
 		kc->encrypt.cipher_key, kc->encrypt.cipher_key_size,
 		kc->decrypt.cipher_key, kc->decrypt.cipher_key_size,
-		kc->encrypt.nonce_tail,
-		kc->decrypt.nonce_tail,
+		kc->encrypt.nonce_tail, kc->encrypt.nonce_tail_size,
+		kc->decrypt.nonce_tail, kc->decrypt.nonce_tail_size,
 		peer,
 		err);
 	if (!cc)

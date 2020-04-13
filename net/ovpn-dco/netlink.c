@@ -128,6 +128,7 @@ static void ovpn_post_doit(const struct genl_ops *ops, struct sk_buff *skb,
 
 static int ovpn_netlink_copy_key_dir(struct genl_info *info,
 				     struct nlattr *key,
+				     enum ovpn_cipher_alg cipher,
 				     struct ovpn_key_direction *dir)
 {
 	struct nlattr *attrs[OVPN_KEY_DIR_ATTR_MAX + 1];
@@ -138,100 +139,102 @@ static int ovpn_netlink_copy_key_dir(struct genl_info *info,
 	if (ret)
 		return ret;
 
-	if (!attrs[OVPN_KEY_DIR_ATTR_CIPHER_KEY] ||
-	    !attrs[OVPN_KEY_DIR_ATTR_HMAC_KEY])
+	if (!attrs[OVPN_KEY_DIR_ATTR_CIPHER_KEY])
 		return -EINVAL;
 
 	dir->cipher_key = nla_data(attrs[OVPN_KEY_DIR_ATTR_CIPHER_KEY]);
 	dir->cipher_key_size = nla_len(attrs[OVPN_KEY_DIR_ATTR_CIPHER_KEY]);
-	dir->hmac_key = nla_data(attrs[OVPN_KEY_DIR_ATTR_HMAC_KEY]);
-	dir->hmac_key_size = nla_len(attrs[OVPN_KEY_DIR_ATTR_HMAC_KEY]);
 
-	if (attrs[OVPN_KEY_DIR_ATTR_NONCE_TAIL]) {
-		uint8_t *data;
-		size_t len;
+	if (cipher != OVPN_CIPHER_ALG_AES_GCM) {
+		if (!attrs[OVPN_KEY_DIR_ATTR_HMAC_KEY])
+			return -EINVAL;
 
-		data = nla_data(attrs[OVPN_KEY_DIR_ATTR_NONCE_TAIL]);
-		len = nla_len(attrs[OVPN_KEY_DIR_ATTR_NONCE_TAIL]);
+		dir->hmac_key = nla_data(attrs[OVPN_KEY_DIR_ATTR_HMAC_KEY]);
+		dir->hmac_key_size = nla_len(attrs[OVPN_KEY_DIR_ATTR_HMAC_KEY]);
+	} else {
+		/* AES-256-GCM requires a 96bit nonce */
+		if (!attrs[OVPN_KEY_DIR_ATTR_NONCE_TAIL] ||
+		    nla_len(attrs[OVPN_KEY_DIR_ATTR_NONCE_TAIL]) != 12)
+			return -EINVAL;
 
-		memcpy(dir->nonce_tail, data, len);
+		dir->nonce_tail = nla_data(attrs[OVPN_KEY_DIR_ATTR_NONCE_TAIL]);
+		dir->nonce_tail_size = nla_len(attrs[OVPN_KEY_DIR_ATTR_NONCE_TAIL]);
 	}
 
 	return 0;
 }
 
-static struct ovpn_key_config *
-ovpn_netlink_copy_key_config(struct genl_info *info, struct nlattr *key)
+static int ovpn_netlink_copy_key_config(struct genl_info *info,
+					struct nlattr *key,
+					struct ovpn_key_config *kc)
 {
 	struct nlattr *attrs[OVPN_KEY_ATTR_MAX + 1];
 	enum ovpn_cipher_alg cipher;
-	struct ovpn_key_config *kc;
 	int ret;
 
 	ret = nla_parse_nested(attrs, OVPN_KEY_ATTR_MAX, key,
 			       ovpn_netlink_policy_key, info->extack);
 	if (ret)
-		return ERR_PTR(-EINVAL);
+		return ret;
 
-	if (!attrs[OVPN_KEY_ATTR_CIPHER_ALG] ||
-	    !attrs[OVPN_KEY_ATTR_ID] ||
-	    !attrs[OVPN_KEY_ATTR_ENCRYPT] ||
-	    !attrs[OVPN_KEY_ATTR_DECRYPT])
-		return ERR_PTR(-EINVAL);
+	if (!attrs[OVPN_KEY_ATTR_CIPHER_ALG] || !attrs[OVPN_KEY_ATTR_ID] ||
+	    !attrs[OVPN_KEY_ATTR_ENCRYPT] || !attrs[OVPN_KEY_ATTR_DECRYPT])
+		return -EINVAL;
 
-	/* only AES-GCM is allowed to have no auth algorithm */
 	cipher = nla_get_u16(attrs[OVPN_KEY_ATTR_CIPHER_ALG]);
-	if (cipher != OVPN_CIPHER_ALG_AES_GCM &&
-	    !attrs[OVPN_KEY_ATTR_HMAC_ALG])
-		return ERR_PTR(-EINVAL);
-
-	kc = kcalloc(1, sizeof(*kc), GFP_KERNEL);
-	if (!kc)
-		return ERR_PTR(-ENOMEM);
+	/* non AEAD algs must have have an auth algorithm */
+	if (cipher != OVPN_CIPHER_ALG_AES_GCM && !attrs[OVPN_KEY_ATTR_HMAC_ALG])
+		return -EINVAL;
 
 	kc->cipher_alg = cipher;
-	kc->hmac_alg = nla_get_u16(attrs[OVPN_KEY_ATTR_HMAC_ALG]);
+
+	if (cipher != OVPN_CIPHER_ALG_AES_GCM)
+		kc->hmac_alg = nla_get_u16(attrs[OVPN_KEY_ATTR_HMAC_ALG]);
+
 	kc->key_id = nla_get_u16(attrs[OVPN_KEY_ATTR_ID]);
 
 	ret = ovpn_netlink_copy_key_dir(info, attrs[OVPN_KEY_ATTR_ENCRYPT],
-					&kc->encrypt);
+					cipher, &kc->encrypt);
 	if (ret < 0)
-		goto err_free;
+		return ret;
 
-	ret = ovpn_netlink_copy_key_dir(info,
-					attrs[OVPN_KEY_ATTR_DECRYPT],
-					&kc->decrypt);
+	ret = ovpn_netlink_copy_key_dir(info, attrs[OVPN_KEY_ATTR_DECRYPT],
+					cipher, &kc->decrypt);
 	if (ret < 0)
-		goto err_free;
+		return ret;
 
-	return kc;
-err_free:
-	kfree(kc);
-	return ERR_PTR(ret);
+	return 0;
 }
 
 static int ovpn_netlink_copy_keys(struct ovpn_peer_keys_reset *keys,
 				  struct genl_info *info)
 {
+	enum ovpn_crypto_families fam_sec;
 	struct nlattr *attr;
-
-	keys->primary = NULL;
-	keys->secondary = NULL;
+	int ret;
 
 	attr = info->attrs[OVPN_ATTR_KEY_PRIMARY];
 	if (attr) {
-		keys->primary = ovpn_netlink_copy_key_config(info, attr);
-		if (IS_ERR(keys->primary))
-			return PTR_ERR(keys->primary);
+		ret = ovpn_netlink_copy_key_config(info, attr, &keys->primary);
+		if (ret < 0)
+			return ret;
+
+		keys->crypto_family = ovpn_keys_familiy_get(&keys->primary);
+		keys->primary_key_set = true;
 	}
 
 	attr = info->attrs[OVPN_ATTR_KEY_SECONDARY];
 	if (attr) {
-		keys->secondary = ovpn_netlink_copy_key_config(info, attr);
-		if (IS_ERR(keys->primary)) {
-			ovpn_key_config_free(keys->primary);
-			return PTR_ERR(keys->secondary);
-		}
+		ret = ovpn_netlink_copy_key_config(info, attr,
+						   &keys->secondary);
+		if (ret < 0)
+			return ret;
+
+		fam_sec = ovpn_keys_familiy_get(&keys->secondary);
+		/* primary and secondary key crypto family must match */
+		if (keys->crypto_family != fam_sec)
+			return -EINVAL;
+		keys->secondary_key_set = true;
 	}
 
 	return 0;
@@ -240,7 +243,6 @@ static int ovpn_netlink_copy_keys(struct ovpn_peer_keys_reset *keys,
 static int ovpn_netlink_set_keys(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ovpn_struct *ovpn = info->user_ptr[0];
-	const struct ovpn_crypto_ops *cops;
 	struct ovpn_peer_keys_reset keys;
 	struct ovpn_peer *peer;
 	int ret;
@@ -249,29 +251,30 @@ static int ovpn_netlink_set_keys(struct sk_buff *skb, struct genl_info *info)
 	if (!peer)
 		return -ENOENT;
 
+	keys.primary_key_set = keys.secondary_key_set = false;
+
 	ret = ovpn_netlink_copy_keys(&keys, info);
-	if (ret < 0)
+	if (ret < 0) {
+		ovpn_debug(KERN_DEBUG, "cannot extract keys from netlink message\n");
 		goto release_peer;
+	}
 
 	/* grab peer mutex */
 	mutex_lock(&peer->mutex);
 
 	/* get crypto family and check for consistency */
-	cops = ovpn_crypto_state_select_family(peer, &keys, &ret);
-	if (ret < 0)
+	ret = ovpn_crypto_state_select_family(peer, &keys);
+	if (ret < 0) {
+		ovpn_debug(KERN_DEBUG, "cannot select crypto family for peer\n");
 		goto unlock_mutex;
-
-	if (!cops) {
-		ovpn_peer_keys_reset_free(&keys);
-		keys.primary = NULL;
-		keys.secondary = NULL;
 	}
 
 	ret = ovpn_crypto_state_reset(&peer->crypto, &keys, peer);
 
+	ovpn_debug(KERN_DEBUG, "ovpn_netlink_set_keys: ret %d\n", ret);
+
 unlock_mutex:
 	mutex_unlock(&peer->mutex);
-	ovpn_peer_keys_reset_free(&keys);
 release_peer:
 	ovpn_peer_put(peer);
 	return ret;

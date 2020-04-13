@@ -12,7 +12,10 @@
 #include "main.h"
 #include "aead.h"
 #include "crypto.h"
+#include "debug.h"
 #include "peer.h"
+
+#include <uapi/linux/ovpn_dco.h>
 
 /*
  * Helper method for ovpn_crypto_state_reset to create a new
@@ -104,24 +107,6 @@ int ovpn_crypto_encap_overhead(const struct ovpn_crypto_state *cs)
 	return ret;
 }
 
-void ovpn_key_config_free(struct ovpn_key_config *kc)
-{
-	if (!kc)
-		return;
-
-	kfree(kc->encrypt.cipher_key);
-	kfree(kc->decrypt.cipher_key);
-	kfree(kc->encrypt.hmac_key);
-	kfree(kc->decrypt.hmac_key);
-	kfree(kc);
-}
-
-void ovpn_peer_keys_reset_free(struct ovpn_peer_keys_reset *pkr)
-{
-	ovpn_key_config_free(pkr->primary);
-	ovpn_key_config_free(pkr->secondary);
-}
-
 /*
  * Reset the ovpn_crypto_state object in a way that is atomic
  * to RCU readers.  Should be called from user context
@@ -144,15 +129,19 @@ int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
 	newc->primary_key_id = newc->secondary_key_id = -1;
 	oldc = rcu_dereference_protected(cs->ccp, lockdep_is_held(&peer->mutex));
 
-	newc->primary = ovpn_cc_new(cs->ops, pkr->primary,
-				    &newc->primary_key_id, peer);
-	if (!newc->primary)
-		goto free_cc;
+	if (pkr->primary_key_set) {
+		newc->primary = ovpn_cc_new(cs->ops, &pkr->primary,
+					    &newc->primary_key_id, peer);
+		if (!newc->primary)
+			goto free_cc;
+	}
 
-	newc->secondary = ovpn_cc_new(cs->ops, pkr->secondary,
-				      &newc->secondary_key_id, peer);
-	if (!newc->secondary)
-		goto free_cc;
+	if (pkr->secondary_key_set) {
+		newc->secondary = ovpn_cc_new(cs->ops, &pkr->secondary,
+					      &newc->secondary_key_id, peer);
+		if (!newc->secondary)
+			goto free_cc;
+	}
 
 	printk("*** NEW CRYPTO CONTEXT pri=%d sec=%d\n",
 	       newc->primary_key_id, newc->secondary_key_id);
@@ -168,8 +157,7 @@ free_cc:
 }
 
 static const struct ovpn_crypto_ops *
-ovpn_crypto_select_family(const struct ovpn_peer_keys_reset *pkr,
-			  int *err)
+ovpn_crypto_select_family(const struct ovpn_peer_keys_reset *pkr)
 {
 	switch (pkr->crypto_family) {
 	case OVPN_CRYPTO_FAMILY_UNDEF:
@@ -179,15 +167,12 @@ ovpn_crypto_select_family(const struct ovpn_peer_keys_reset *pkr,
 //	case OVPN_CRYPTO_FAMILY_CBC_HMAC:
 //		return &ovpn_chm_ops;
 	default:
-		*err = -OVPN_ERR_BAD_CRYPTO_FAMILY;
 		return NULL;
 	}
 }
 
-const struct ovpn_crypto_ops *
-ovpn_crypto_state_select_family(struct ovpn_peer *peer,
-				const struct ovpn_peer_keys_reset *pkr,
-				int *err)
+int ovpn_crypto_state_select_family(struct ovpn_peer *peer,
+				    const struct ovpn_peer_keys_reset *pkr)
 	__must_hold(peer->mutex)
 {
 	const struct ovpn_crypto_ops *ops;
@@ -195,16 +180,28 @@ ovpn_crypto_state_select_family(struct ovpn_peer *peer,
 
 	lockdep_assert_held(&peer->mutex);
 
-	new_ops = ovpn_crypto_select_family(pkr, err);
+	new_ops = ovpn_crypto_select_family(pkr);
 	if (!new_ops)
-		return NULL;
+		return -EOPNOTSUPP;
 
 	ops = peer->crypto.ops;
-	if (ops && ops != new_ops) { /* family changed? */
-		*err = -OVPN_ERR_BAD_CRYPTO_FAMILY;
-		return NULL;
-	}
+	if (ops && ops != new_ops) /* family changed? */
+		return -EINVAL;
+
 	peer->crypto.ops = new_ops;
 
-	return new_ops;
+	return 0;
+}
+
+enum ovpn_crypto_families
+ovpn_keys_familiy_get(const struct ovpn_key_config *kc)
+{
+	switch (kc->cipher_alg) {
+	case OVPN_CIPHER_ALG_AES_GCM:
+		return OVPN_CRYPTO_FAMILY_AEAD;
+	case OVPN_CIPHER_ALG_AES_CBC:
+		return OVPN_CRYPTO_FAMILY_CBC_HMAC;
+	default:
+		return OVPN_CRYPTO_FAMILY_UNDEF;
+	}
 }

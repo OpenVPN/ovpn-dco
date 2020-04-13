@@ -94,20 +94,6 @@ enum ovpn_key_op {
 	OVPN_DCO_KEYS_PRIMARY_SECONDARY_SWAP,
 };
 
-/* ovpn_peer_keys_reset.crypto_family values */
-#define OVPN_CRYPTO_FAMILY_UNDEF    0
-#define OVPN_CRYPTO_FAMILY_AEAD     1
-#define OVPN_CRYPTO_FAMILY_CBC_HMAC 2
-
-/* pass to OVPN_PEER_KEYS_RESET */
-struct ovpn_peer_keys_reset {
-	int crypto_family;                  /* see OVPN_CRYPTO_FAMILY_x above */
-	int peer_id;                        /* peer ID */
-	int op;                             /* see OVPN_KEYS_x values above */
-	struct ovpn_key_config *primary;    /* primary key */
-	struct ovpn_key_config *secondary;  /* secondary key */
-};
-
 /*
  * 64-bit tun header
  */
