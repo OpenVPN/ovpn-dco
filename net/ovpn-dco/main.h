@@ -152,69 +152,6 @@ struct ovpn_tun_head_data_limit {
 	struct ovpn_tun_head head;
 };
 
-/*
- * ovpn ioctls
- */
-
-/* get version */
-#define OVPN_GET_VERSION          _IOW('Z', 198, int)
-
-/* init dev */
-#define OVPN_DEV_INIT             _IOW('Z', 199, int)
-
-/* 200 is reserved */
-
-/* attach UDP transport socket */
-#define OVPN_SOCKET_ATTACH_UDP    _IOW('Z', 201, int)
-
-/* detach transport socket */
-#define OVPN_SOCKET_DETACH        _IOW('Z', 202, int)
-
-/* new peer, returns peer ID */
-#define OVPN_PEER_NEW             _IOW('Z', 203, int)
-
-/* new peer, returns peer ID or OVPN_ERR_PEER_EXISTS */
-#define OVPN_PEER_NEW_WITH_SOCKADDR _IOW('Z', 204, int)
-
-/* new peer, returns peer ID */
-#define OVPN_PEER_NEW_TCP         _IOW('Z', 205, int)
-
-/* set peer transport sockaddr_pair */
-#define OVPN_PEER_SOCKADDR_RESET  _IOW('Z', 206, int)
-
-/* delete peer */
-#define OVPN_PEER_DEL             _IOW('Z', 207, int)
-
-/* get status */
-#define OVPN_PEER_STATUS          _IOW('Z', 208, int)
-
-/* add tunnel routes */
-#define OVPN_PEER_ROUTES_ADD      _IOW('Z', 209, int)
-
-/* set primary/secondary symmetric keys */
-#define OVPN_PEER_KEYS_RESET      _IOW('Z', 210, int)
-
-/* modify keepalive settings */
-#define OVPN_PEER_KEEPALIVE       _IOW('Z', 211, int)
-
-/* mark the peer with a OVPN_STATUS_USERSPACE_HALT error, returns status */
-#define OVPN_PEER_USERSPACE_HALT  _IOW('Z', 212, int)
-
-/* get cumulative device stats */
-#define OVPN_DEV_STATS            _IOW('Z', 213, int)
-
-/* get error stats */
-#define OVPN_ERR_STATS            _IOW('Z', 214, int)
-
-/* get per-CPU stats */
-#define OVPN_PERCPU_STATS         _IOW('Z', 215, int)
-
-/* set peer-specific fwmark for outgoing traffic */
-#define OVPN_PEER_SET_FWMARK      _IOW('Z', 216, int)
-
-/* send explicit-exit-notify message to peer */
-#define OVPN_PEER_XMIT_EXPLICIT_EXIT_NOTIFY _IOW('Z', 217, int)
-
 /* ovpn error codes */
 
 enum {
