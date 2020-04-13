@@ -321,7 +321,9 @@ static int ovpn_netlink_add_peer(struct sk_buff *skb, struct genl_info *info)
 	    !info->attrs[OVPN_ATTR_SOCKADDR_LOCAL])
 		return -EINVAL;
 
-	pair.remote.family = AF_INET;
+	memset(&pair, 0, sizeof(pair));
+
+	pair.local.family = pair.remote.family = AF_INET;
 	ret = ovpn_netlink_parse_sockaddr(info,
 					  info->attrs[OVPN_ATTR_SOCKADDR_REMOTE],
 					  &pair.remote.u.in4);
