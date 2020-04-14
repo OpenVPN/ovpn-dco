@@ -498,7 +498,7 @@ int main(int argc, char *argv[])
 
 	ovpn.ifindex = if_nametoindex(argv[1]);
 	if (!ovpn.ifindex) {
-		fprintf(stderr, "cannot resolv interface name: %s\n",
+		fprintf(stderr, "cannot resolve interface name: %s\n",
 			strerror(errno));
 		return -1;
 	}
