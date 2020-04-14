@@ -1,0 +1,15 @@
+/.cache.mk
+/compat-autoconf.h
+/compat-autoconf.h.tmp
+/modules.order
+/Module.symvers
+/net/ovpn-dco/ovpn-dco.ko
+/net/ovpn-dco/.ovpn-dco.ko.cmd
+/net/ovpn-dco/ovpn-dco.mod.c
+/net/ovpn-dco/.ovpn-dco.mod.cmd
+/net/ovpn-dco/ovpn-dco.mod
+/net/ovpn-dco/modules.order
+/net/ovpn-dco/*.o
+/net/ovpn-dco/.*.o.cmd
+/.tmp_versions
+/tests/psk_client
