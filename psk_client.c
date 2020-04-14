@@ -58,6 +58,7 @@ struct ovpn_ctx {
 	uint8_t key_dec[KEY_LEN];
 	uint8_t nonce[NONCE_LEN];
 
+	struct in_addr local;
 	uint16_t lport;
 	struct in_addr remote;
 	uint16_t rport;
@@ -398,7 +399,7 @@ nla_put_failure:
 
 static int ovpn_add_peer(struct ovpn_ctx *ovpn)
 {
-	struct nlattr *remote;
+	struct nlattr *addr;
 	struct nl_ctx *ctx;
 	int ret = -1;
 
@@ -406,12 +407,19 @@ static int ovpn_add_peer(struct ovpn_ctx *ovpn)
 	if (!ctx)
 		return -ENOMEM;
 
-	remote = nla_nest_start(ctx->nl_msg, OVPN_ATTR_SOCKADDR_REMOTE);
+	addr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_SOCKADDR_REMOTE);
 
 	NLA_PUT(ctx->nl_msg, OVPN_SOCKADDR_ATTR_ADDRESS, 4, &ovpn->remote);
 	NLA_PUT_U16(ctx->nl_msg, OVPN_SOCKADDR_ATTR_PORT, ovpn->rport);
 
-	nla_nest_end(ctx->nl_msg, remote);
+	nla_nest_end(ctx->nl_msg, addr);
+
+	addr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_SOCKADDR_LOCAL);
+
+	NLA_PUT(ctx->nl_msg, OVPN_SOCKADDR_ATTR_ADDRESS, 4, &ovpn->local);
+	NLA_PUT_U16(ctx->nl_msg, OVPN_SOCKADDR_ATTR_PORT, ovpn->lport);
+
+	nla_nest_end(ctx->nl_msg, addr);
 
 	ret = ovpn_nl_msg_send(ctx, NULL);
 nla_put_failure:
@@ -479,6 +487,7 @@ static void usage(const char *cmd)
 	fprintf(stderr, "\tiface: tun interface name\n");
 	fprintf(stderr, "\tkey_dir: key direction, must 0 on one host and 1 on the other\n");
 	fprintf(stderr, "\tkey_file: file containing the pre-shared key\n");
+	fprintf(stderr, "\tlocal-addr: IP address of this peer\n");
 	fprintf(stderr, "\tlocal-port: UDP port to listen to\n");
 	fprintf(stderr, "\tremote-addr: IP address of the other peer\n");
 	fprintf(stderr, "\tremote-port: UDP port of the other peer\n");
@@ -511,19 +520,25 @@ int main(int argc, char *argv[])
 	if (ret)
 		return ret;
 
-	ovpn.lport = strtoul(argv[4], NULL, 10);
+	ret = inet_pton(AF_INET, argv[4], &ovpn.local);
+	if (!ret) {
+		fprintf(stderr, "invalid local address\n");
+		return ret;
+	}
+
+	ovpn.lport = strtoul(argv[5], NULL, 10);
 	if (errno == ERANGE || ovpn.lport > 65535) {
 		fprintf(stderr, "lport value out of range\n");
 		return ret;
 	}
 
-	ret = inet_pton(AF_INET, argv[5], &ovpn.remote);
+	ret = inet_pton(AF_INET, argv[6], &ovpn.remote);
 	if (!ret) {
 		fprintf(stderr, "invalid remote address\n");
 		return ret;
 	}
 
-	ovpn.rport = strtoul(argv[6], NULL, 10);
+	ovpn.rport = strtoul(argv[7], NULL, 10);
 	if (errno == ERANGE || ovpn.rport > 65535) {
 		fprintf(stderr, "rport value out of range\n");
 		return ret;
