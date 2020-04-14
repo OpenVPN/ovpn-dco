@@ -1,4 +1,8 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (C) 2020 OpenVPN, Inc.
+#
+#  Author:	Antonio Quartulli <antonio@openvpn.net>
 
 function create_ns() {
 	ip -n peer$1 link del tun0
