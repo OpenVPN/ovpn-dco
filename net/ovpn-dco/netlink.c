@@ -22,8 +22,6 @@
 #include <net/genetlink.h>
 #include <uapi/linux/in.h>
 
-static struct genl_family ovpn_netlink_family __ro_after_init;
-
 static const struct nla_policy
 ovpn_netlink_policy_key_dir[OVPN_KEY_DIR_ATTR_MAX + 1] = {
 	[OVPN_KEY_DIR_ATTR_CIPHER_KEY] = { .type = NLA_BINARY, .len = U8_MAX },
@@ -462,42 +460,6 @@ static int ovpn_netlink_register_packet(struct sk_buff *skb,
 	return 0;
 }
 
-int ovpn_netlink_send_packet(struct ovpn_struct *ovpn, const uint8_t *buf,
-			     size_t len)
-{
-	struct sk_buff *msg;
-	void *hdr;
-	int ret;
-
-	if (!ovpn->registered_nl_portid_set)
-		return 0;
-
-	msg = nlmsg_new(100 + len, GFP_KERNEL);
-	if (!msg)
-		return -ENOMEM;
-
-	hdr = genlmsg_put(msg, 0, 0, &ovpn_netlink_family, 0,
-			  OVPN_CMD_PACKET);
-	if (!hdr) {
-		ret = -ENOBUFS;
-		goto err_free_msg;
-	}
-
-	if (nla_put(msg, OVPN_ATTR_PACKET, len, buf)) {
-		ret = -EMSGSIZE;
-		goto err_free_msg;
-	}
-
-	genlmsg_end(msg, hdr);
-
-	return genlmsg_unicast(dev_net(ovpn->dev), msg,
-			       ovpn->registered_nl_portid);
-
-err_free_msg:
-	nlmsg_free(msg);
-	return ret;
-}
-
 static const struct genl_ops ovpn_netlink_ops[] = {
 	{
 		.cmd = OVPN_CMD_START_VPN,
@@ -544,6 +506,42 @@ static struct genl_family ovpn_netlink_family __ro_after_init = {
 	.ops = ovpn_netlink_ops,
 	.n_ops = ARRAY_SIZE(ovpn_netlink_ops)
 };
+
+int ovpn_netlink_send_packet(struct ovpn_struct *ovpn, const uint8_t *buf,
+			     size_t len)
+{
+	struct sk_buff *msg;
+	void *hdr;
+	int ret;
+
+	if (!ovpn->registered_nl_portid_set)
+		return 0;
+
+	msg = nlmsg_new(100 + len, GFP_KERNEL);
+	if (!msg)
+		return -ENOMEM;
+
+	hdr = genlmsg_put(msg, 0, 0, &ovpn_netlink_family, 0,
+			  OVPN_CMD_PACKET);
+	if (!hdr) {
+		ret = -ENOBUFS;
+		goto err_free_msg;
+	}
+
+	if (nla_put(msg, OVPN_ATTR_PACKET, len, buf)) {
+		ret = -EMSGSIZE;
+		goto err_free_msg;
+	}
+
+	genlmsg_end(msg, hdr);
+
+	return genlmsg_unicast(dev_net(ovpn->dev), msg,
+			       ovpn->registered_nl_portid);
+
+err_free_msg:
+	nlmsg_free(msg);
+	return ret;
+}
 
 /**
  * ovpn_netlink_register() - register the ovpn genl netlink family
