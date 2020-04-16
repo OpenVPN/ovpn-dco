@@ -61,12 +61,6 @@ static const unsigned char ovpn_explicit_exit_notify_message[] = {
 
 void ovpn_release_lock(struct kref *kref);
 
-/*
- * Structs for passing info to API methods via ioctl
- */
-
-/* for OVPN_DEV_INIT */
-
 /* max allowed parameter values */
 #define OVPN_MAX_PEERS                1000000
 #define OVPN_MAX_DEV_QUEUES           0x1000
@@ -92,50 +86,6 @@ enum ovpn_key_op {
 	OVPN_DCO_KEY_OP_PRIMARY_ASSIGN_MOVE,
 /* Swap primary and secondary keys */
 	OVPN_DCO_KEYS_PRIMARY_SECONDARY_SWAP,
-};
-
-/*
- * 64-bit tun header
- */
-
-/* struct ovpn_tun_head types */
-#define OVPN_TH_TRANS_BY_PEER_ID       0
-#define OVPN_TH_TRANS_BY_SOCKADDR_PAIR 1
-#define OVPN_TH_NOTIFY_STATUS          2
-#define OVPN_TH_NOTIFY_PKTID_WRAP_WARN 3
-#define OVPN_TH_NOTIFY_DATA_LIMIT      4
-#define OVPN_TH_NOTIFY_FLOAT           5
-#define OVPN_TH_NOTIFY_RES             6
-
-struct ovpn_tun_head {
-	u8 type;          /* OVPN_TH_x */
-	u8 status;        /* OVPN_STATUS_x for OVPN_TH_NOTIFY_STATUS */
-	u16 reserved;
-	u32 peer_id;
-} __attribute__ ((__packed__));
-
-/* OVPN_TH_NOTIFY_STATUS variant of ovpn_tun_head */
-struct ovpn_tun_head_status {
-	struct ovpn_tun_head head;
-	u64 rx_bytes;
-	u64 tx_bytes;
-};
-
-/* OVPN_TH_NOTIFY_PKTID_WRAP_WARN variant of ovpn_tun_head */
-struct ovpn_tun_head_pktid_wrap {
-	struct ovpn_tun_head head;
-	unsigned int key_id;      /* key ID that is close to wrapping */
-};
-
-/*
- * OVPN_TH_NOTIFY_DATA_LIMIT variant of ovpn_tun_head.
- * All flags below set in head.status.
- */
-#define OVPN_CDL_STATUS_KEY_ID_MASK    0x7    /* key ID */
-#define OVPN_CDL_STATUS_DECRYPT        0x8    /* decrypt if set, otherwise encrypt */
-#define OVPN_CDL_STATUS_RED            0x10   /* red data limit if set, otherwise green limit */
-struct ovpn_tun_head_data_limit {
-	struct ovpn_tun_head head;
 };
 
 /* ovpn error codes */
