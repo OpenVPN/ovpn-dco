@@ -69,25 +69,6 @@ void ovpn_release_lock(struct kref *kref);
 #define OVPN_MAX_TCP_SEND_QUEUE_LEN   0x10000
 #define OVPN_MAX_THROTTLE_PERIOD_MS   10000
 
-/* ovpn_peer_keys_reset.op values */
-
-enum ovpn_key_op {
-/* Assign primary key (may be NULL to reset),
-   leave secondary key unchanged */
-	OVPN_DCO_KEY_OP_PRIMARY_ONLY = 0,
-/* Assign secondary key (may be NULL to reset),
-   leave primary key unchanged */
-	OVPN_DCO_KEY_OP_SECONDARY_ONLY,
-/* Assign both primary and secondary keys
-   (either may be NULL to reset) */
-	OVPN_DCO_KEY_OP_BOTH,
-/* Assign primary key (may be NULL to reset),
-   atomically move previous primary key to secondary */
-	OVPN_DCO_KEY_OP_PRIMARY_ASSIGN_MOVE,
-/* Swap primary and secondary keys */
-	OVPN_DCO_KEYS_PRIMARY_SECONDARY_SWAP,
-};
-
 /* ovpn error codes */
 
 enum {
