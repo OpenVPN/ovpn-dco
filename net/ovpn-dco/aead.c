@@ -315,55 +315,49 @@ static void ovpn_aead_decrypt_done(struct crypto_async_request *base, int err)
  * Decrypt skb.
  */
 static int ovpn_aead_decrypt(struct ovpn_crypto_context *cc,
-			     struct sk_buff *skb,
-			     unsigned int key_id,
+			     struct sk_buff *skb, unsigned int key_id,
 			     unsigned int op,
 			     void (*callback)(struct sk_buff *, int err))
 {
-	struct sk_buff *trailer;
-	unsigned int nfrags;
-	struct ovpn_aead_work *work;
-	struct scatterlist *sg;
-	int err;
-
-	const unsigned int auth_tag_size = crypto_aead_authsize(cc->u.ae.decrypt);
+	unsigned int nfrags, nfrags_check, payload_offset, opsize, ad_start;
+	const unsigned int tag_size = crypto_aead_authsize(cc->u.ae.decrypt);
 	const unsigned int opcode = ovpn_opcode_extract(op);
-	unsigned int opsize;
-	unsigned int payload_offset;
-	int payload_len;
+	struct ovpn_aead_work *work;
+	struct sk_buff *trailer;
+	struct scatterlist *sg;
+	unsigned char *sg_data;
+	int ret, payload_len;
+	unsigned int sg_len;
 
-	if (likely(opcode == OVPN_DATA_V2))
+	if (likely(opcode == OVPN_DATA_V2)) {
 		opsize = OVPN_OP_SIZE_V2;
-	else if (opcode == OVPN_DATA_V1)
+	} else if (opcode == OVPN_DATA_V1) {
 		opsize = OVPN_OP_SIZE_V1;
-	else {
-		err = -OVPN_ERR_DATA_V1_V2_REQUIRED;
+	} else {
+		ret = -OVPN_ERR_DATA_V1_V2_REQUIRED;
 		goto error;
 	}
 
-	payload_offset = opsize + NONCE_WIRE_SIZE + auth_tag_size;
+	payload_offset = opsize + NONCE_WIRE_SIZE + tag_size;
 	payload_len = skb->len - payload_offset;
 
 	/* sanity check on packet size, payload size must be >= 0 */
 	if (unlikely(payload_len < 0 || !pskb_may_pull(skb, payload_offset))) {
-		err = -OVPN_ERR_DECRYPT_PKT_SIZE;
+		ret = -OVPN_ERR_DECRYPT_PKT_SIZE;
 		goto error;
 	}
 
 	/* get number of skb fragments and ensure that packet data is writable */
-	{
-		err = skb_cow_data(skb, 0, &trailer);
-		if (unlikely(err < 0)) {
-			err = -OVPN_ERR_DECRYPT_COW_DATA;
-			goto error;
-		}
-		nfrags = err;
+	nfrags = skb_cow_data(skb, 0, &trailer);
+	if (unlikely(nfrags < 0)) {
+		ret = nfrags;
+		goto error;
 	}
 
 	/* allocate workspace */
 	work = ovpn_aead_work_alloc(cc->u.ae.decrypt, nfrags + 2);
 	if (unlikely(!work)) {
-		err = -ENOMEM;
+		ret = -ENOMEM;
 		goto error;
 	}
 
@@ -374,33 +368,34 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_context *cc,
 	 * sg table:
 	 * 0: pkt_op, wire nonce (AD, len=OVPN_OP_SIZE_V2+NONCE_WIRE_SIZE),
 	 * 1, 2, 3, ...: payload,
-	 * n: auth_tag (len=auth_tag_size)
+	 * n: auth_tag (len=tag_size)
 	 */
 	sg_init_table(sg, nfrags + 2);
 
 	/* packet op is head of additional data */
-	if (opcode == OVPN_DATA_V2)
-		sg_set_buf(sg, skb->data, OVPN_OP_SIZE_V2 + NONCE_WIRE_SIZE);
-	else
-		sg_set_buf(sg, skb->data + OVPN_OP_SIZE_V1, NONCE_WIRE_SIZE);
+	sg_data = skb->data;
+	sg_len = OVPN_OP_SIZE_V2 + NONCE_WIRE_SIZE;
+	if (unlikely(opcode == OVPN_DATA_V1)) {
+		sg_data = skb->data + OVPN_OP_SIZE_V1;
+		sg_len = NONCE_WIRE_SIZE;
+	}
+	sg_set_buf(sg, sg_data, sg_len);
 
 	/* build scatterlist to decrypt packet payload */
-	{
-		unsigned int nfrags_check;
-		nfrags_check = skb_to_sgvec_nomark(skb, sg + 1, payload_offset, payload_len);
-		if (unlikely(nfrags != nfrags_check)) {
-			err = -OVPN_ERR_NFRAGS;
-			goto error_free;
-		}
+	nfrags_check = skb_to_sgvec_nomark(skb, sg + 1, payload_offset,
+					   payload_len);
+	if (unlikely(nfrags != nfrags_check)) {
+		ret = -OVPN_ERR_NFRAGS;
+		goto error_free;
 	}
 
 	/* append auth_tag onto scatterlist */
-	sg_set_buf(sg + nfrags + 1, skb->data + opsize + NONCE_WIRE_SIZE, auth_tag_size);
+	sg_set_buf(sg + nfrags + 1, skb->data + opsize + NONCE_WIRE_SIZE,
+		   tag_size);
 
 	/* copy nonce into IV buffer */
 	memcpy(wa_iv(work), skb->data + opsize, NONCE_WIRE_SIZE);
-	memcpy(wa_iv(work) + NONCE_WIRE_SIZE,
-	       cc->u.ae.nonce_tail_recv.u8,
+	memcpy(wa_iv(work) + NONCE_WIRE_SIZE, cc->u.ae.nonce_tail_recv.u8,
 	       sizeof(struct ovpn_nonce_tail));
 
 #if DEBUG_CRYPTO >= 1
@@ -418,23 +413,26 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_context *cc,
 	/* setup async crypto operation */
 	aead_request_set_tfm(wa_req(work), cc->u.ae.decrypt);
 	aead_request_set_callback(wa_req(work), 0, ovpn_aead_decrypt_done, skb);
-	aead_request_set_crypt(wa_req(work), sg, sg,
-			       payload_len + auth_tag_size, wa_iv(work));
-	aead_request_set_ad(wa_req(work), (opcode == OVPN_DATA_V2 ? OVPN_OP_SIZE_V2 : 0) + NONCE_WIRE_SIZE);
+	aead_request_set_crypt(wa_req(work), sg, sg, payload_len + tag_size,
+			       wa_iv(work));
+
+	ad_start = NONCE_WIRE_SIZE;
+	if (likely(opcode == OVPN_DATA_V2))
+		ad_start += OVPN_OP_SIZE_V2;
+	aead_request_set_ad(wa_req(work), ad_start);
 
 	/* decrypt it */
-	err = crypto_aead_decrypt(wa_req(work));
+	ret = crypto_aead_decrypt(wa_req(work));
+	if (likely(ret != -EINPROGRESS))
+		ovpn_aead_decrypt_done2(skb, &ret); /* synchronous */
 
-	if (likely(err != -EINPROGRESS))
-		ovpn_aead_decrypt_done2(skb, &err); /* synchronous */
-
-	return err;
+	return ret;
 
 error_free:
 	kfree(work);
 error:
 	*OVPN_AEAD_WORK_SKB_CB(skb) = NULL;
-	return err;
+	return ret;
 }
 
 /*
