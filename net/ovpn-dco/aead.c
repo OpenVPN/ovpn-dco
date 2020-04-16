@@ -53,17 +53,17 @@ struct ovpn_aead_work {
  * ovpn_aead_work accessors for the variable length components
  */
 
-static inline unsigned char *wa_iv(struct ovpn_aead_work *work)
+static unsigned char *wa_iv(struct ovpn_aead_work *work)
 {
 	return work->data;
 }
 
-static inline struct aead_request *wa_req(struct ovpn_aead_work *work)
+static struct aead_request *wa_req(struct ovpn_aead_work *work)
 {
 	return (struct aead_request *)(work->data + work->req_offset);
 }
 
-static inline struct scatterlist *wa_sg(struct ovpn_aead_work *work)
+static struct scatterlist *wa_sg(struct ovpn_aead_work *work)
 {
 	return (struct scatterlist *)(work->data + work->sg_offset);
 }
@@ -109,8 +109,8 @@ static struct ovpn_aead_work *ovpn_aead_work_alloc(struct crypto_aead *aead,
 	return work;
 }
 
-static inline struct ovpn_aead_work *ovpn_aead_encrypt_done2(struct sk_buff *skb,
-							     int *err)
+static struct ovpn_aead_work *ovpn_aead_encrypt_done2(struct sk_buff *skb,
+						      int *err)
 {
 	struct ovpn_aead_work *work = *OVPN_AEAD_WORK_SKB_CB(skb);
 	if (unlikely(*err))
