@@ -155,8 +155,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_context *cc,
 	if (unlikely(skb_cow_head(skb, net_headroom +
 				  OVPN_OP_SIZE_V2 +
 				  NONCE_WIRE_SIZE +
-				  auth_tag_size +
-				  OVPN_COMPRESS_V2_MAX_HEAD))) {
+				  auth_tag_size))) {
 		err = -OVPN_ERR_ENCRYPT_COW_HEAD;
 		goto error;
 	}
@@ -622,8 +621,7 @@ static int ovpn_aead_encap_overhead(const struct ovpn_crypto_context *cc)
 {
 	return  OVPN_OP_SIZE_V2 +                        /* OP header size */
 		4 +                                      /* Packet ID */
-		crypto_aead_authsize(cc->u.ae.encrypt) + /* Auth Tag */
-		OVPN_COMPRESS_V2_MAX_HEAD;               /* Compression V2 header */
+		crypto_aead_authsize(cc->u.ae.encrypt);  /* Auth Tag */
 }
 
 const struct ovpn_crypto_ops ovpn_aead_ops = {

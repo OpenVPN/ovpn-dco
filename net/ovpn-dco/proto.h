@@ -35,13 +35,6 @@ enum {
 	OVPN_OP_SIZE_V1 =       1,
 	OVPN_OP_SIZE_V2 =       4,
 
-	/* for better alignment handling, replace this byte with last byte of packet */
-	OVPN_NO_COMPRESS_SWAP = 0xFB,
-
-	/* new AEAD mode compression header */
-	OVPN_COMPRESS_V2_ESCAPE   = 0x50,
-	OVPN_COMPRESS_V2_MAX_HEAD = 2,
-
 	/* indicates that Peer ID is undefined */
 	OVPN_OP_PEER_ID_UNDEF = 0x00FFFFFF,
 
