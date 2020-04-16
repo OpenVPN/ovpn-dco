@@ -437,7 +437,8 @@ static int ovpn_netlink_stop_vpn(struct sk_buff *skb, struct genl_info *info)
 	peer = rcu_dereference_protected(ovpn->peer,
 					 lockdep_is_held(&ovpn->lock));
 	rcu_assign_pointer(ovpn->peer, NULL);
-	ovpn_peer_put(peer);
+	if (peer)
+		ovpn_peer_delete(peer);
 	spin_unlock(&ovpn->lock);
 
 	ovpn->registered_nl_portid_set = false;
