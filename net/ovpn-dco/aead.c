@@ -125,6 +125,13 @@ static void ovpn_aead_encrypt_done(struct crypto_async_request *base, int err)
 	work->callback(skb, err);
 }
 
+static int ovpn_aead_encap_overhead(const struct ovpn_crypto_context *cc)
+{
+	return  OVPN_OP_SIZE_V2 +                        /* OP header size */
+		4 +                                      /* Packet ID */
+		crypto_aead_authsize(cc->u.ae.encrypt);  /* Auth Tag */
+}
+
 /*
  * Encrypt skb.
  */
@@ -134,13 +141,14 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_context *cc,
 			     unsigned int key_id,
 			     void (*callback)(struct sk_buff *, int err))
 {
-	struct sk_buff *trailer;
-	unsigned int nfrags;
+	const unsigned int tag_size = crypto_aead_authsize(cc->u.ae.encrypt);
+	const unsigned int head_size = ovpn_aead_encap_overhead(cc);
 	struct ovpn_aead_work *work;
+	struct sk_buff *trailer;
 	struct scatterlist *sg;
+	unsigned int nfrags;
 	int err;
 
-	const unsigned int auth_tag_size = crypto_aead_authsize(cc->u.ae.encrypt);
 
 	/*
 	 * Sample AES-GCM head:
@@ -152,10 +160,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_context *cc,
 
 	/* check that there's enough headroom in the skb for packet encapsulation,
 	   after adding network header and encryption overhead */
-	if (unlikely(skb_cow_head(skb, net_headroom +
-				  OVPN_OP_SIZE_V2 +
-				  NONCE_WIRE_SIZE +
-				  auth_tag_size))) {
+	if (unlikely(skb_cow_head(skb, net_headroom + head_size))) {
 		err = -OVPN_ERR_ENCRYPT_COW_HEAD;
 		goto error;
 	}
@@ -184,7 +189,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_context *cc,
 	 * sg table:
 	 * 0: pkt_op, wire nonce (AD, len=OVPN_OP_SIZE_V2+NONCE_WIRE_SIZE),
 	 * 1, 2, 3, ...: payload,
-	 * n: auth_tag (len=auth_tag_size)
+	 * n: auth_tag (len=tag_size)
 	 */
 	sg_init_table(sg, nfrags + 2);
 
@@ -199,8 +204,8 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_context *cc,
 	}
 
 	/* append auth_tag onto scatterlist */
-	__skb_push(skb, auth_tag_size);
-	sg_set_buf(sg + nfrags + 1, skb->data, auth_tag_size);
+	__skb_push(skb, tag_size);
+	sg_set_buf(sg + nfrags + 1, skb->data, tag_size);
 
 	/* Prepend packet ID.
 	   Nonce containing OpenVPN packet ID is both our IV (NONCE_SIZE)
@@ -245,8 +250,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_context *cc,
 	/* setup async crypto operation */
 	aead_request_set_tfm(wa_req(work), cc->u.ae.encrypt);
 	aead_request_set_callback(wa_req(work), 0, ovpn_aead_encrypt_done, skb);
-	aead_request_set_crypt(wa_req(work), sg, sg,
-			       skb->len - (OVPN_OP_SIZE_V2 + NONCE_WIRE_SIZE + auth_tag_size),
+	aead_request_set_crypt(wa_req(work), sg, sg, skb->len - head_size,
 			       wa_iv(work));
 	aead_request_set_ad(wa_req(work), OVPN_OP_SIZE_V2 + NONCE_WIRE_SIZE);
 
@@ -615,13 +619,6 @@ ovpn_aead_crypto_context_new(const struct ovpn_key_config *kc, int *key_id,
 		*key_id = kc->key_id;
 
 	return cc;
-}
-
-static int ovpn_aead_encap_overhead(const struct ovpn_crypto_context *cc)
-{
-	return  OVPN_OP_SIZE_V2 +                        /* OP header size */
-		4 +                                      /* Packet ID */
-		crypto_aead_authsize(cc->u.ae.encrypt);  /* Auth Tag */
 }
 
 const struct ovpn_crypto_ops ovpn_aead_ops = {
