@@ -1,6 +1,5 @@
-// SPDX-License-Identifier: GPL-2.0-only
-/*
- *  OpenVPN data channel accelerator
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*  OpenVPN data channel accelerator
  *
  *  Copyright (C) 2019-2020 OpenVPN, Inc.
  *
@@ -8,10 +7,8 @@
  *		Antonio Quartulli <antonio@openvpn.net>
  */
 
-
 #ifndef _NET_OVPN_DCO_MAIN_H_
 #define _NET_OVPN_DCO_MAIN_H_
-
 
 #ifndef OVPN_DCO_VERSION
 #define OVPN_DCO_VERSION "2.0.0"
@@ -27,15 +24,12 @@
 #define DEBUG_MTU		0
 #define DEBUG_ERR_VERBOSE	0
 
-/*
- * Our UDP encapsulation types, must be unique
+/* Our UDP encapsulation types, must be unique
  * (other values in include/uapi/linux/udp.h)
  */
 #define UDP_ENCAP_OVPNINUDP 100  /* transport layer */
 
-/*
- * If 1, filter replay packets
- */
+/* If 1, filter replay packets */
 #define ENABLE_REPLAY_PROTECTION 1
 
 #include <linux/cache.h>
@@ -73,7 +67,7 @@ void ovpn_release_lock(struct kref *kref);
 
 enum {
 	/* ioctl parameter errors */
-	OVPN_ERR_PARM_IS_NULL=200,
+	OVPN_ERR_PARM_IS_NULL = 200,
 	OVPN_ERR_PARM_SIZE,
 	OVPN_ERR_DEV_NAME,
 	OVPN_ERR_IV_SIZE,
@@ -108,7 +102,7 @@ enum {
 	OVPN_ERR_SKB_COPY,
 	OVPN_ERR_ORPHAN_FRAGS,
 
-        /* address/binding errors */
+	/* address/binding errors */
 	OVPN_ERR_ADDR4_ZERO,
 	OVPN_ERR_ADDR4_MUST_BE_UDP,
 	OVPN_ERR_ADDR6_MUST_BE_UDP,

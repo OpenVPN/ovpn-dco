@@ -1,13 +1,8 @@
-/*
- *  OVPN -- OpenVPN protocol accelerator for Linux
+// SPDX-License-Identifier: GPL-2.0-only
+/*  OVPN -- OpenVPN protocol accelerator for Linux
  *  Copyright (C) 2012-2020 OpenVPN Technologies, Inc.
  *  All rights reserved.
  *  Author: James Yonan <james@openvpn.net>
- */
-
-/*
- * Random secret to be used in hash computations to prevent
- * hash collision attacks.
  */
 
 #include "main.h"
@@ -26,33 +21,37 @@ void ovpn_hash_secret_init(void)
 	get_random_once(&ovpn_hashrnd, sizeof(ovpn_hashrnd));
 }
 
-/*
- * Construct an ovpn_sockaddr_pair object from src/dest addr/port
+/* Construct an ovpn_sockaddr_pair object from src/dest addr/port
  * addresses in an skb.
  */
 int ovpn_sockaddr_pair_from_skb(struct ovpn_sockaddr_pair *sapair,
 				struct sk_buff *skb)
 {
+	struct ovpn_sockaddr *local = &sapair->local;
+	struct ovpn_sockaddr *remote = &sapair->remote;
+
 	memset(sapair, 0, sizeof(*sapair));
+
+	sapair->skb_hash = skb_get_hash(skb);
+	sapair->skb_hash_defined = true;
+
 	switch (skb->protocol) {
 	case htons(ETH_P_IP):
 	{
 		if (unlikely(ip_hdr(skb)->protocol != IPPROTO_UDP))
 			return -OVPN_ERR_ADDR4_MUST_BE_UDP;
 
-		sapair->skb_hash = skb_get_hash(skb);
-		sapair->skb_hash_defined = true;
-		sapair->local.family = AF_INET;
-		sapair->local.u.in4.sin_addr.s_addr = ip_hdr(skb)->daddr;
-		sapair->local.u.in4.sin_port = udp_hdr(skb)->dest;
-		sapair->remote.family = AF_INET;
-		sapair->remote.u.in4.sin_addr.s_addr = ip_hdr(skb)->saddr;
-		sapair->remote.u.in4.sin_port = udp_hdr(skb)->source;
+		local->family = AF_INET;
+		local->u.in4.sin_addr.s_addr = ip_hdr(skb)->daddr;
+		local->u.in4.sin_port = udp_hdr(skb)->dest;
+		remote->family = AF_INET;
+		remote->u.in4.sin_addr.s_addr = ip_hdr(skb)->saddr;
+		remote->u.in4.sin_port = udp_hdr(skb)->source;
 
-		if (unlikely(!sapair->local.u.in4.sin_addr.s_addr &&
-			     !sapair->local.u.in4.sin_port &&
-			     !sapair->remote.u.in4.sin_addr.s_addr &&
-			     !sapair->remote.u.in4.sin_port))
+		if (unlikely(!local->u.in4.sin_addr.s_addr &&
+			     !local->u.in4.sin_port &&
+			     !remote->u.in4.sin_addr.s_addr &&
+			     !remote->u.in4.sin_port))
 			return -OVPN_ERR_ADDR4_ZERO;
 
 		return 0;
@@ -62,15 +61,13 @@ int ovpn_sockaddr_pair_from_skb(struct ovpn_sockaddr_pair *sapair,
 		if (unlikely(ipv6_hdr(skb)->nexthdr != IPPROTO_UDP))
 			return -OVPN_ERR_ADDR6_MUST_BE_UDP;
 
-		sapair->skb_hash = skb_get_hash(skb);
-		sapair->skb_hash_defined = true;
-		sapair->local.family = AF_INET6;
-		sapair->local.u.in6.sin6_addr = ipv6_hdr(skb)->daddr;
-		sapair->local.u.in6.sin6_port = udp_hdr(skb)->dest;
-		sapair->remote.family = AF_INET6;
-		sapair->remote.u.in6.sin6_addr = ipv6_hdr(skb)->saddr;
-		sapair->remote.u.in6.sin6_port = udp_hdr(skb)->source;
-		sapair->remote.u.in6.sin6_flowinfo = ip6_flowinfo(ipv6_hdr(skb));
+		local->family = AF_INET6;
+		local->u.in6.sin6_addr = ipv6_hdr(skb)->daddr;
+		local->u.in6.sin6_port = udp_hdr(skb)->dest;
+		remote->family = AF_INET6;
+		remote->u.in6.sin6_addr = ipv6_hdr(skb)->saddr;
+		remote->u.in6.sin6_port = udp_hdr(skb)->source;
+		remote->u.in6.sin6_flowinfo = ip6_flowinfo(ipv6_hdr(skb));
 
 		return 0;
 #endif
@@ -78,8 +75,7 @@ int ovpn_sockaddr_pair_from_skb(struct ovpn_sockaddr_pair *sapair,
 	return -OVPN_ERR_IPVER_NOTIMP;
 }
 
-/*
- * Construct an ovpn_sockaddr_pair object from src/dest addr/port
+/* Construct an ovpn_sockaddr_pair object from src/dest addr/port
  * addresses in a connected TCP/UDP socket.
  * For non-connected sockets, only touch sapair->local.
  * sapair is guaranteed not to be modified on error returns < 0.
@@ -101,8 +97,7 @@ int ovpn_sockaddr_pair_from_sock(struct ovpn_sockaddr_pair *sapair,
 
 	inet = inet_sk(sk);
 
-	switch (sk->sk_family)
-	{
+	switch (sk->sk_family) {
 	case PF_INET:
 	{
 		sapair->local.family = AF_INET;

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/*
- *  OpenVPN data channel accelerator
+/*  OpenVPN data channel accelerator
  *
  *  Copyright (C) 2020 OpenVPN, Inc.
  *
@@ -25,18 +24,11 @@
 #include <linux/skbuff.h>
 #include <linux/version.h>
 
-
-/*
- * Driver info
- */
+/* Driver info */
 #define DRV_NAME	"ovpn-dco"
 #define DRV_VERSION	OVPN_DCO_VERSION
 #define DRV_DESCRIPTION	"OpenVPN data channel offload (ovpn-dco)"
 #define DRV_COPYRIGHT	"(C) 2020 OpenVPN, Inc."
-
-/*
- * per-CPU stats
- */
 
 static void
 ovpn_get_stats64(struct net_device *dev, struct rtnl_link_stats64 *tot)
@@ -59,15 +51,9 @@ ovpn_get_stats64(struct net_device *dev, struct rtnl_link_stats64 *tot)
 	tot->tx_dropped = dev->stats.tx_dropped;
 }
 
-/*
- * ovpn_struct release methods
- */
-
 static void ovpn_struct_free(struct net_device *net)
 {
 	struct ovpn_struct *ovpn = netdev_priv(net);
-
-	ovpn_debug(KERN_INFO, "ovpn_struct_free()");
 
 	ovpn_sock_detach(ovpn->sock);
 
@@ -86,8 +72,7 @@ static struct lock_class_key ovpn_netdev_addr_lock_key;
 static struct lock_class_key ovpn_tx_busylock_key;
 
 static void ovpn_set_lockdep_class_one(struct net_device *dev,
-					struct netdev_queue *txq,
-					void *unused)
+				       struct netdev_queue *txq, void *unused)
 {
 	lockdep_set_class(&txq->_xmit_lock,
 			  &ovpn_netdev_xmit_lock_key);
@@ -146,16 +131,17 @@ static int ovpn_net_change_mtu(struct net_device *dev, int new_mtu)
  *******************************************/
 
 static int ovpn_get_link_ksettings(struct net_device *dev,
-				    struct ethtool_link_ksettings *cmd)
+				   struct ethtool_link_ksettings *cmd)
 {
 	ethtool_convert_legacy_u32_to_link_mode(cmd->link_modes.supported, 0);
 	ethtool_convert_legacy_u32_to_link_mode(cmd->link_modes.advertising, 0);
-	cmd->base.speed		= SPEED_1000;
-	cmd->base.duplex	= DUPLEX_FULL;
-	cmd->base.port		= PORT_TP;
-	cmd->base.phy_address	= 0;
-	cmd->base.transceiver	= XCVR_INTERNAL;
-	cmd->base.autoneg	= AUTONEG_DISABLE;
+	cmd->base.speed	= SPEED_1000;
+	cmd->base.duplex = DUPLEX_FULL;
+	cmd->base.port = PORT_TP;
+	cmd->base.phy_address = 0;
+	cmd->base.transceiver = XCVR_INTERNAL;
+	cmd->base.autoneg = AUTONEG_DISABLE;
+
 	return 0;
 }
 
@@ -256,8 +242,7 @@ static int __init ovpn_init(void)
 {
 	int err = 0;
 
-	printk(KERN_INFO "%s %s -- %s\n", DRV_DESCRIPTION, DRV_VERSION,
-	       DRV_COPYRIGHT);
+	pr_info("%s %s -- %s\n", DRV_DESCRIPTION, DRV_VERSION, DRV_COPYRIGHT);
 
 	/* init random secret used to prevent hash collision attacks */
 	ovpn_hash_secret_init();
@@ -265,13 +250,13 @@ static int __init ovpn_init(void)
 	/* init RTNL link ops */
 	err = rtnl_link_register(&ovpn_link_ops);
 	if (err) {
-		printk(KERN_ERR "ovpn: can't register RTNL link ops\n");
+		pr_err("ovpn: can't register RTNL link ops\n");
 		goto err;
 	}
 
 	err = ovpn_netlink_register();
 	if (err) {
-		printk(KERN_ERR "ovpn: can't register netlink family\n");
+		pr_err("ovpn: can't register netlink family\n");
 		goto err_rtnl_unregister;
 	}
 
@@ -280,13 +265,12 @@ static int __init ovpn_init(void)
 err_rtnl_unregister:
 	rtnl_link_unregister(&ovpn_link_ops);
 err:
-	printk(KERN_ERR "ovpn: initialization failed, error status=%d\n", err);
+	pr_err("ovpn: initialization failed, error status=%d\n", err);
 	return err;
 }
 
 static __exit void ovpn_cleanup(void)
 {
-	printk(KERN_INFO "ovpn cleanup\n");
 	ovpn_netlink_unregister();
 	rtnl_link_unregister(&ovpn_link_ops);
 	rcu_barrier(); /* because we use call_rcu */

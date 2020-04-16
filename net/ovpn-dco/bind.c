@@ -1,5 +1,5 @@
-/*
- *  OVPN -- OpenVPN protocol accelerator for Linux
+// SPDX-License-Identifier: GPL-2.0-only
+/*  OVPN -- OpenVPN protocol accelerator for Linux
  *  Copyright (C) 2012-2020 OpenVPN Technologies, Inc.
  *  All rights reserved.
  *  Author: James Yonan <james@openvpn.net>
@@ -14,8 +14,7 @@
 #include <net/route.h>
 #include <net/sock.h>
 
-/*
- * Given a remote/local sockaddr pair, compute the skb hash
+/* Given a remote/local sockaddr pair, compute the skb hash
  * and get a dst_entry so we can send packets to the remote.
  * Called from process context or softirq (must be indicated with
  * process_context bool).
@@ -30,7 +29,7 @@ ovpn_bind_from_sockaddr_pair(const struct ovpn_sockaddr_pair *pair)
 	if (err < 0)
 		return ERR_PTR(err);
 
-	bind = kmalloc(sizeof(struct ovpn_bind), GFP_KERNEL);
+	bind = kmalloc(sizeof(*bind), GFP_KERNEL);
 	if (unlikely(!bind))
 		return ERR_PTR(-ENOMEM);
 
@@ -47,6 +46,7 @@ static void ovpn_bind_release(struct ovpn_bind *bind)
 static void ovpn_bind_release_rcu(struct rcu_head *head)
 {
 	struct ovpn_bind *bind = container_of(head, struct ovpn_bind, rcu);
+
 	ovpn_bind_release(bind);
 }
 
@@ -63,8 +63,7 @@ void ovpn_bind_reset(struct ovpn_peer *peer, struct ovpn_bind *new)
 		call_rcu(&old->rcu, ovpn_bind_release_rcu);
 }
 
-/*
- * Save sockaddr of incoming packet.
+/* Save sockaddr of incoming packet.
  * rcu_read_lock must be held on entry but
  * will be released prior to exit.
  * Called in softirq context.
@@ -88,7 +87,7 @@ int ovpn_bind_record_peer(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 		return -OVPN_ERR_NO_TRANSPORT_SOCK;
 
 	bind = ovpn_bind_from_sockaddr_pair(&sapair);
-	if (unlikely(IS_ERR(bind)))
+	if (IS_ERR(bind))
 		return PTR_ERR(bind);
 
 	ovpn_bind_reset(peer, bind);
@@ -96,8 +95,7 @@ int ovpn_bind_record_peer(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	return 0;
 }
 
-/*
- * Get the the ovpn_sockaddr_pair of the current binding and
+/* Get the the ovpn_sockaddr_pair of the current binding and
  * save in sapair.  If binding is undefined, zero sapair.
  * Return true on success or false if binding is undefined.
  */
