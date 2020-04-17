@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/*
- *  OpenVPN data channel accelerator
+/*  OpenVPN data channel accelerator
  *
  *  Copyright (C) 2020 OpenVPN, Inc.
  *
@@ -8,17 +7,14 @@
  *		Antonio Quartulli <antonio@openvpn.net>
  */
 
-
 #include "main.h"
 #include "aead.h"
 #include "crypto.h"
-#include "debug.h"
 #include "peer.h"
 
 #include <uapi/linux/ovpn_dco.h>
 
-/*
- * Helper method for ovpn_crypto_state_reset to create a new
+/* Helper method for ovpn_crypto_state_reset to create a new
  * ovpn_crypto_context.
  */
 static struct ovpn_crypto_context *
@@ -28,25 +24,24 @@ ovpn_cc_new(const struct ovpn_crypto_ops *ops, const struct ovpn_key_config *kc,
 	return ops->new(kc, key_id, peer);
 }
 
-/*
- * Destroy an ovpn_crypto_context.
+/* Destroy an ovpn_crypto_context.
  * If object has been visible to RCU readers, this method
  * should only be called one RCU grace period after
  * visibility has been removed.
  */
 static void __ovpn_cc_destroy_rcu(struct rcu_head *head)
 {
-	struct ovpn_crypto_context *cc = container_of(head,
-						      struct ovpn_crypto_context,
-						      rcu);
+	struct ovpn_crypto_context *cc;
+
+	cc = container_of(head, struct ovpn_crypto_context, rcu);
 	cc->ops->destroy(cc);
 }
 
 void ovpn_crypto_context_release(struct kref *kref)
 {
-	struct ovpn_crypto_context *cc = container_of(kref,
-						      struct ovpn_crypto_context,
-						      refcount);
+	struct ovpn_crypto_context *cc;
+
+	cc = container_of(kref, struct ovpn_crypto_context, refcount);
 	call_rcu(&cc->rcu, __ovpn_cc_destroy_rcu);
 }
 
@@ -98,8 +93,7 @@ int ovpn_crypto_encap_overhead(const struct ovpn_crypto_state *cs)
 	return ret;
 }
 
-/*
- * Reset the ovpn_crypto_state object in a way that is atomic
+/* Reset the ovpn_crypto_state object in a way that is atomic
  * to RCU readers.  Should be called from user context
  * with peer->mutex held.
  */
@@ -114,11 +108,12 @@ int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
 
 	lockdep_assert_held(&peer->mutex);
 
-	newc = kzalloc(sizeof(struct ovpn_crypto_context_pair), GFP_KERNEL);
+	newc = kzalloc(sizeof(*newc), GFP_KERNEL);
 	if (unlikely(!newc))
 		return -ENOMEM;
 
-	newc->primary_key_id = newc->secondary_key_id = -1;
+	newc->primary_key_id = -1;
+	newc->secondary_key_id = -1;
 	oldc = rcu_dereference_protected(cs->ccp,
 					 lockdep_is_held(&peer->mutex));
 
@@ -142,8 +137,8 @@ int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
 		}
 	}
 
-	printk("*** NEW CRYPTO CONTEXT pri=%d sec=%d\n",
-	       newc->primary_key_id, newc->secondary_key_id);
+	pr_debug("*** NEW CRYPTO CONTEXT pri=%d sec=%d\n",
+		 newc->primary_key_id, newc->secondary_key_id);
 
 	rcu_assign_pointer(cs->ccp, newc);
 	if (oldc)

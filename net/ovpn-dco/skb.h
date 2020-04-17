@@ -1,21 +1,23 @@
-/*
- *  OVPN -- OpenVPN protocol accelerator for Linux
- *  Copyright (C) 2012-2020 OpenVPN Technologies, Inc.
- *  All rights reserved.
- *  Author: James Yonan <james@openvpn.net>
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*  OpenVPN data channel accelerator
+ *
+ *  Copyright (C) 2020 OpenVPN, Inc.
+ *
+ *  Author:	Antonio Quartulli <antonio@openvpn.net>
+ *		James Yonan <james@openvpn.net>
  */
 
-/*
- * READ_ONCE version of skb_queue_len()
+#ifndef _NET_OVPN_DCO_SKB_H_
+#define _NET_OVPN_DCO_SKB_H_
+
+/* READ_ONCE version of skb_queue_len()
  */
 static inline u32 ovpn_skb_queue_len(const struct sk_buff_head *list)
 {
 	return READ_ONCE(list->qlen);
 }
 
-
-/*
- * Scrub the skb when encapsulating/decapsulating
+/* Scrub the skb when encapsulating/decapsulating
  */
 static inline void ovpn_skb_scrub(struct sk_buff *skb)
 {
@@ -24,29 +26,27 @@ static inline void ovpn_skb_scrub(struct sk_buff *skb)
 	skb_set_queue_mapping(skb, 0);
 	skb->dev = NULL;
 	skb->protocol = 0;
-
-
 	/* skb->priority is intentionally passed through */
 }
 
-/*
- * Probe IP header and do basic sanity checking on
+/* Probe IP header and do basic sanity checking on
  * IP packet in skb.
  */
 
 /* flags */
-#define OVPN_PROBE_SET_SKB      (1<<0)  /* set skb parms and possibly stash shim */
+#define OVPN_PROBE_SET_SKB BIT(0) /* set skb parms and possibly stash shim */
 
 /* mask/flags in return value */
-#define OVPN_PROBE_IPVER_MASK   (0xF)
+#define OVPN_PROBE_IPVER_MASK (0xF)
 
 static inline int ovpn_ip_header_probe(struct sk_buff *skb,
 				       unsigned int flags) /* OVPN_PROBE_x */
 {
 	const struct iphdr *iph;
 
-	/* make sure that encapsulated packet is large enough
-	   to at least contain an IPv4 header */
+	/* make sure that encapsulated packet is large enough to at least
+	 * contain an IPv4 header
+	 */
 	if (unlikely(!pskb_may_pull(skb, sizeof(struct iphdr))))
 		return -OVPN_ERR_IP_HEADER_LEN;
 
@@ -55,7 +55,7 @@ static inline int ovpn_ip_header_probe(struct sk_buff *skb,
 	switch (iph->version) {
 	case 4:
 		/* make sure that IPv4 packet doesn't have a bogus length */
-		if (unlikely((iph->ihl<<2) < sizeof(struct iphdr)))
+		if (unlikely((iph->ihl << 2) < sizeof(struct iphdr)))
 			return -OVPN_ERR_BOGUS_PKT_LEN;
 		if (flags & OVPN_PROBE_SET_SKB) {
 			skb->protocol = htons(ETH_P_IP);
@@ -77,3 +77,5 @@ static inline int ovpn_ip_header_probe(struct sk_buff *skb,
 		return -OVPN_ERR_IPVER_NOTIMP;
 	}
 }
+
+#endif /* _NET_OVPN_DCO_SKB_H_ */

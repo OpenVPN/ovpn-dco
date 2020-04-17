@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/*
- *  OpenVPN data channel accelerator
+/*  OpenVPN data channel accelerator
  *
  *  Copyright (C) 2020 OpenVPN, Inc.
  *
@@ -9,7 +8,6 @@
 
 #include "main.h"
 #include "peer.h"
-#include "debug.h"
 #include "netlink.h"
 #include "ovpnstruct.h"
 
@@ -95,7 +93,7 @@ err_put_dev:
  * Return: 0 on success or negative error number in case of failure
  */
 static int ovpn_pre_doit(const struct genl_ops *ops, struct sk_buff *skb,
-			     struct genl_info *info)
+			 struct genl_info *info)
 {
 	struct net *net = genl_info_net(info);
 	struct net_device *dev;
@@ -116,7 +114,7 @@ static int ovpn_pre_doit(const struct genl_ops *ops, struct sk_buff *skb,
  * @info: receiver information
  */
 static void ovpn_post_doit(const struct genl_ops *ops, struct sk_buff *skb,
-			    struct genl_info *info)
+			   struct genl_info *info)
 {
 	struct ovpn_struct *ovpn;
 
@@ -129,7 +127,7 @@ static int ovpn_netlink_copy_key_dir(struct genl_info *info,
 				     enum ovpn_cipher_alg cipher,
 				     struct ovpn_key_direction *dir)
 {
-	struct nlattr *attrs[OVPN_KEY_DIR_ATTR_MAX + 1];
+	struct nlattr *attr, *attrs[OVPN_KEY_DIR_ATTR_MAX + 1];
 	int ret;
 
 	ret = nla_parse_nested(attrs, OVPN_KEY_DIR_ATTR_MAX, key,
@@ -144,19 +142,20 @@ static int ovpn_netlink_copy_key_dir(struct genl_info *info,
 	dir->cipher_key_size = nla_len(attrs[OVPN_KEY_DIR_ATTR_CIPHER_KEY]);
 
 	if (cipher != OVPN_CIPHER_ALG_AES_GCM) {
-		if (!attrs[OVPN_KEY_DIR_ATTR_HMAC_KEY])
+		attr = attrs[OVPN_KEY_DIR_ATTR_HMAC_KEY];
+		if (!attr)
 			return -EINVAL;
 
-		dir->hmac_key = nla_data(attrs[OVPN_KEY_DIR_ATTR_HMAC_KEY]);
-		dir->hmac_key_size = nla_len(attrs[OVPN_KEY_DIR_ATTR_HMAC_KEY]);
+		dir->hmac_key = nla_data(attr);
+		dir->hmac_key_size = nla_len(attr);
 	} else {
+		attr = attrs[OVPN_KEY_DIR_ATTR_NONCE_TAIL];
 		/* AES-256-GCM requires a 96bit nonce */
-		if (!attrs[OVPN_KEY_DIR_ATTR_NONCE_TAIL] ||
-		    nla_len(attrs[OVPN_KEY_DIR_ATTR_NONCE_TAIL]) != 12)
+		if (!attr || nla_len(attr) != 12)
 			return -EINVAL;
 
-		dir->nonce_tail = nla_data(attrs[OVPN_KEY_DIR_ATTR_NONCE_TAIL]);
-		dir->nonce_tail_size = nla_len(attrs[OVPN_KEY_DIR_ATTR_NONCE_TAIL]);
+		dir->nonce_tail = nla_data(attr);
+		dir->nonce_tail_size = nla_len(attr);
 	}
 
 	return 0;
@@ -249,11 +248,12 @@ static int ovpn_netlink_set_keys(struct sk_buff *skb, struct genl_info *info)
 	if (!peer)
 		return -ENOENT;
 
-	keys.primary_key_set = keys.secondary_key_set = false;
+	keys.primary_key_set = false;
+	keys.secondary_key_set = false;
 
 	ret = ovpn_netlink_copy_keys(&keys, info);
 	if (ret < 0) {
-		ovpn_debug(KERN_DEBUG, "cannot extract keys from netlink message\n");
+		pr_debug("cannot extract keys from netlink message\n");
 		goto release_peer;
 	}
 
@@ -263,13 +263,13 @@ static int ovpn_netlink_set_keys(struct sk_buff *skb, struct genl_info *info)
 	/* get crypto family and check for consistency */
 	ret = ovpn_crypto_state_select_family(peer, &keys);
 	if (ret < 0) {
-		ovpn_debug(KERN_DEBUG, "cannot select crypto family for peer\n");
+		pr_debug("cannot select crypto family for peer\n");
 		goto unlock_mutex;
 	}
 
 	ret = ovpn_crypto_state_reset(&peer->crypto, &keys, peer);
 
-	ovpn_debug(KERN_DEBUG, "ovpn_netlink_set_keys: ret %d\n", ret);
+	pr_debug("%s: ret %d\n", __func__, ret);
 
 unlock_mutex:
 	mutex_unlock(&peer->mutex);
@@ -289,8 +289,8 @@ static int ovpn_netlink_parse_sockaddr(struct genl_info *info,
 	err = nla_parse_nested(attrs, OVPN_SOCKADDR_ATTR_MAX, key,
 			       ovpn_netlink_policy_sockaddr, info->extack);
 	if (err) {
-		ovpn_debug(KERN_ERR, "error while parsing sockaddr: %s\n",
-			   info->extack ? info->extack->_msg : "null");
+		pr_err("error while parsing sockaddr: %s\n",
+		       info->extack ? info->extack->_msg : "null");
 		return -EINVAL;
 	}
 
@@ -316,6 +316,7 @@ static int ovpn_netlink_add_peer(struct sk_buff *skb, struct genl_info *info)
 	struct ovpn_struct *ovpn = info->user_ptr[0];
 	struct ovpn_sockaddr_pair pair;
 	struct ovpn_peer *old, *new;
+	struct nlattr *attr;
 	int ret;
 
 	if (!info->attrs[OVPN_ATTR_SOCKADDR_REMOTE] ||
@@ -324,24 +325,24 @@ static int ovpn_netlink_add_peer(struct sk_buff *skb, struct genl_info *info)
 
 	memset(&pair, 0, sizeof(pair));
 
-	pair.local.family = pair.remote.family = AF_INET;
-	ret = ovpn_netlink_parse_sockaddr(info,
-					  info->attrs[OVPN_ATTR_SOCKADDR_REMOTE],
-					  &pair.remote.u.in4);
+	pair.local.family = AF_INET;
+	pair.remote.family = AF_INET;
+
+	attr = info->attrs[OVPN_ATTR_SOCKADDR_REMOTE];
+	ret = ovpn_netlink_parse_sockaddr(info, attr, &pair.remote.u.in4);
 	if (ret < 0)
 		return ret;
 
-	ret = ovpn_netlink_parse_sockaddr(info,
-					  info->attrs[OVPN_ATTR_SOCKADDR_LOCAL],
-					  &pair.local.u.in4);
+	attr = info->attrs[OVPN_ATTR_SOCKADDR_LOCAL];
+	ret = ovpn_netlink_parse_sockaddr(info, attr, &pair.local.u.in4);
 	if (ret < 0)
 		return ret;
 
 	new = ovpn_peer_new_with_sockaddr(ovpn, &pair);
 	if (IS_ERR(new)) {
-		ovpn_debug(KERN_ERR, "cannot create peer object for %pI4:%u\n",
-			   &pair.remote.u.in4.sin_addr.s_addr,
-			   ntohs(pair.remote.u.in4.sin_port));
+		pr_err("cannot create peer object for %pI4:%u\n",
+		       &pair.remote.u.in4.sin_addr.s_addr,
+		       ntohs(pair.remote.u.in4.sin_port));
 		return PTR_ERR(new);
 	}
 
@@ -355,9 +356,9 @@ static int ovpn_netlink_add_peer(struct sk_buff *skb, struct genl_info *info)
 	rcu_assign_pointer(ovpn->peer, new);
 	spin_unlock(&ovpn->lock);
 
-	ovpn_debug(KERN_DEBUG, "ovpn_netlink_add_peer: added peer %pI4:%hu\n",
-		   &pair.remote.u.in4.sin_addr.s_addr,
-		   ntohs(pair.remote.u.in4.sin_port));
+	pr_debug("%s: added peer %pI4:%hu\n", __func__,
+		 &pair.remote.u.in4.sin_addr.s_addr,
+		 ntohs(pair.remote.u.in4.sin_port));
 
 	return 0;
 }
@@ -373,7 +374,7 @@ static int ovpn_netlink_start_vpn(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ovpn_struct *ovpn = info->user_ptr[0];
 	struct socket *sock;
-	uint32_t sockfd;
+	u32 sockfd;
 	int ret;
 
 	if (!info->attrs[OVPN_ATTR_SOCKET] ||
@@ -412,8 +413,7 @@ static int ovpn_netlink_start_vpn(struct sk_buff *skb, struct genl_info *info)
 
 	ovpn->sock = sock;
 
-	ovpn_debug(KERN_DEBUG, "ovpn_netlink_start_vpn: mode %u proto %u\n",
-		   ovpn->mode, ovpn->proto);
+	pr_debug("%s: mode %u proto %u\n", __func__, ovpn->mode, ovpn->proto);
 
 	return 0;
 

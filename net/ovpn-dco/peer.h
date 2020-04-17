@@ -1,6 +1,5 @@
-// SPDX-License-Identifier: GPL-2.0-only
-/*
- *  OpenVPN data channel accelerator
+/* SPDX-License-Identifier: GPL-2.0-only */
+/* OpenVPN data channel accelerator
  *
  *  Copyright (C) 2020 OpenVPN, Inc.
  *
@@ -29,11 +28,13 @@ struct ovpn_peer {
 	struct ovpn_bind __rcu *bind;
 
 	/* time in future when we will transmit a keepalive
-	   (subject to continuous change) */
+	 * (subject to continuous change)
+	 */
 	struct ovpn_timer keepalive_xmit;
 
 	/* time in future when we must have received a packet from
-	   peer or we will timeout session */
+	 * peer or we will timeout session
+	 */
 	struct ovpn_timer keepalive_expire;
 
 	/* OVPN_STATUS_(ACTIVE|KEEPALIVE_TIMEOUT|EXPLICIT_EXIT) */
@@ -94,7 +95,7 @@ int ovpn_peer_xmit_explicit_exit_notify(struct ovpn_peer *peer)
 	__must_hold(ovpn_config_mutex);
 
 void ovpn_peer_set_keepalive(struct ovpn_peer *peer,
-			     const unsigned keepalive_ping,
-			     const unsigned keepalive_timeout);
+			     const unsigned int keepalive_ping,
+			     const unsigned int keepalive_timeout);
 
 #endif /* _NET_OVPN_DCO_OVPNPEER_H_ */

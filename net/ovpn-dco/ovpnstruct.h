@@ -1,13 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0-only
-/*
- *  OpenVPN data channel accelerator
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*  OpenVPN data channel accelerator
  *
  *  Copyright (C) 2019-2020 OpenVPN, Inc.
  *
  *  Author:	James Yonan <james@openvpn.net>
  *		Antonio Quartulli <antonio@openvpn.net>
  */
-
 
 #ifndef _NET_OVPN_DCO_OVPNSTRUCT_H_
 #define _NET_OVPN_DCO_OVPNSTRUCT_H_
@@ -17,14 +15,14 @@
 #include <uapi/linux/ovpn_dco.h>
 #include <linux/spinlock.h>
 
-/*
- * Our state per ovpn interface, shared across all queues.
- */
+/* Our state per ovpn interface */
 struct ovpn_struct {
 	/* read-mostly objects in this section */
 	struct net_device *dev;
 
+	/* protect writing to the ovpn_struct object */
 	spinlock_t lock;
+
 	/* associated peer. in client mode we need only one peer. will be
 	 * extended with a table later
 	 */
@@ -33,7 +31,8 @@ struct ovpn_struct {
 	enum ovpn_mode mode;
 	enum ovpn_proto proto;
 
-	struct ovpn_stats_percpu __percpu *stats;  /* per-CPU dev stats */
+	/* per-CPU dev stats */
+	struct ovpn_stats_percpu __percpu *stats;
 
 	unsigned int max_tun_queue_len;
 
@@ -48,7 +47,7 @@ struct ovpn_struct {
 	int debug;
 #endif
 
-	uint32_t registered_nl_portid;
+	u32 registered_nl_portid;
 	bool registered_nl_portid_set;
 };
 

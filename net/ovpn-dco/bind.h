@@ -46,7 +46,7 @@ static inline bool ovpn_bind_skb_match(const struct ovpn_bind *bind,
 				       struct sk_buff *skb)
 {
 	const unsigned short family = skb_protocol_to_family(skb);
-	const struct sockaddr_pair *sap = &bind->sapair;
+	const struct ovpn_sockaddr_pair *sap = &bind->sapair;
 	const u32 hash_key = skb_get_hash(skb);
 
 	if (unlikely(!bind))

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/*
- *  OpenVPN data channel accelerator
+/*  OpenVPN data channel accelerator
  *
  *  Copyright (C) 2020 OpenVPN, Inc.
  *
@@ -8,20 +7,16 @@
  *		Antonio Quartulli <antonio@openvpn.net>
  */
 
-
 #include "main.h"
 #include "ovpn.h"
 #include "peer.h"
 #include "sock.h"
 #include "rcu.h"
-#include "debug.h"
 
 #include <net/udp.h>
 #include <net/udp_tunnel.h>
 
-/*
- * Detach socket from encapsulation handler and/or other callbacks
- */
+/* Detach socket from encapsulation handler and/or other callbacks */
 static void ovpn_sock_unset_udp_cb(struct sock *sk)
 {
 	write_lock_bh(&sk->sk_callback_lock);
@@ -34,9 +29,7 @@ static void ovpn_sock_unset_udp_cb(struct sock *sk)
 	write_unlock_bh(&sk->sk_callback_lock);
 }
 
-/*
- * Finalize release of socket, called after RCU grace period.
- */
+/* Finalize release of socket, called after RCU grace period */
 void ovpn_sock_detach(struct socket *sock)
 {
 	if (!sock)
@@ -48,8 +41,7 @@ void ovpn_sock_detach(struct socket *sock)
 	sockfd_put(sock);
 }
 
-/*
- * Tunnel socket destroy hook for UDP encapsulation.
+/* Tunnel socket destroy hook for UDP encapsulation.
  * Is currently a no-op.
  * See net/ipv[46]/udp.c.
  */
@@ -57,9 +49,7 @@ static void ovpn_udp_encap_destroy(struct sock *sk)
 {
 }
 
-/*
- * Set UDP encapsulation callbacks
- */
+/* Set UDP encapsulation callbacks */
 static int ovpn_sock_set_udp_cb(struct sock *sk, void *user_data)
 {
 	int err = 0;
@@ -68,14 +58,14 @@ static int ovpn_sock_set_udp_cb(struct sock *sk, void *user_data)
 
 	/* make sure no pre-existing encapsulation handler exists */
 	if (READ_ONCE(sk->sk_user_data)) {
-		ovpn_debug(KERN_ERR, "provided socket already taken by other user\n");
+		pr_err("provided socket already taken by other user\n");
 		err = -OVPN_ERR_SOCK_ENCAP_EXISTS;
 		goto unlock;
 	}
 
 	/* verify UDP socket */
 	if (sk->sk_protocol != IPPROTO_UDP) {
-		ovpn_debug(KERN_ERR, "expected UDP socket\n");
+		pr_err("expected UDP socket\n");
 		err = -OVPN_ERR_SOCK_MUST_BE_UDP;
 		goto unlock;
 	}
@@ -91,9 +81,7 @@ unlock:
 	return err;
 }
 
-/*
- * Return the encapsulation overhead of the socket.
- */
+/* Return the encapsulation overhead of the socket */
 int ovpn_sock_holder_encap_overhead(struct socket *sock)
 {
 	int ret;

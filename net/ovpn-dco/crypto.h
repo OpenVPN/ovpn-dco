@@ -1,13 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0-only
-/*
- *  OpenVPN data channel accelerator
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*  OpenVPN data channel accelerator
  *
  *  Copyright (C) 2020 OpenVPN, Inc.
  *
  *  Author:	James Yonan <james@openvpn.net>
  *		Antonio Quartulli <antonio@openvpn.net>
  */
-
 
 #ifndef _NET_OVPN_DCO_OVPNCRYPTO_H_
 #define _NET_OVPN_DCO_OVPNCRYPTO_H_
@@ -17,7 +15,6 @@
 
 #include <uapi/linux/ovpn_dco.h>
 #include <linux/skbuff.h>
-
 
 struct ovpn_peer;
 struct ovpn_crypto_context;
@@ -30,13 +27,13 @@ enum ovpn_crypto_families {
 
 /* info needed for both encrypt and decrypt directions */
 struct ovpn_key_direction {
-	const uint8_t *cipher_key;
+	const u8 *cipher_key;
 	size_t cipher_key_size;
-	const uint8_t *hmac_key;	/* not used for GCM modes */
-	size_t hmac_key_size;		/* not used for GCM modes */
-	const uint8_t *nonce_tail;	/* only needed for GCM modes */
-	size_t nonce_tail_size;		/* only needed for GCM modes */
-	u64 data_limit;                 /* per-key bytes limit if >0, not used for GCM modes */
+	const u8 *hmac_key; /* not used for GCM modes */
+	size_t hmac_key_size; /* not used for GCM modes */
+	const u8 *nonce_tail; /* only needed for GCM modes */
+	size_t nonce_tail_size; /* only needed for GCM modes */
+	u64 data_limit; /* per-key bytes limit if >0, not used for GCM modes */
 };
 
 /* all info for a particular symmetric key (primary or secondary) */
@@ -83,8 +80,8 @@ struct ovpn_crypto_ops {
 
 struct ovpn_crypto_context {
 	const struct ovpn_crypto_ops *ops;
-	struct ovpn_peer *peer;          /* backref to peer */
-	int remote_peer_id;              /* remote peer ID used to reference us (-1 to disable) */
+	struct ovpn_peer *peer;
+	int remote_peer_id;
 
 	union {
 		/* aead mode */
@@ -101,7 +98,7 @@ struct ovpn_crypto_context {
 			struct crypto_skcipher *cipher_decrypt;
 			struct crypto_ahash *hmac_encrypt;
 			struct crypto_ahash *hmac_decrypt;
-			struct ovpn_crypto_data_limit* data_limit;
+			struct ovpn_crypto_data_limit *data_limit;
 		} chm;
 	} u;
 
@@ -137,7 +134,7 @@ static inline void ovpn_crypto_state_init(struct ovpn_crypto_state *cs)
 
 static inline bool ovpn_crypto_state_defined(const struct ovpn_crypto_state *cs)
 {
-	return rcu_access_pointer(cs->ccp) != NULL;
+	return rcu_access_pointer(cs->ccp);
 }
 
 static inline struct ovpn_crypto_context *
@@ -169,6 +166,7 @@ ovpn_crypto_context_from_state(const struct ovpn_crypto_state *cs,
 			       const int key_id)
 {
 	const struct ovpn_crypto_context_pair *ccp = rcu_dereference(cs->ccp);
+
 	return ovpn_crypto_context_from_key_id(ccp, key_id);
 }
 
@@ -194,8 +192,7 @@ ovpn_crypto_context_primary(const struct ovpn_crypto_state *cs,
 	return cc;
 }
 
-/*
- * Return true if this crypto error should be considered fatal
+/* Return true if this crypto error should be considered fatal
  * for TCP transport sessions.
  */
 static inline bool ovpn_crypto_err_fatal_for_tcp(const int err)

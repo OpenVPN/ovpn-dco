@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/*
- *  OpenVPN data channel accelerator
+/*  OpenVPN data channel accelerator
  *
  *  Copyright (C) 2020 OpenVPN, Inc.
  *
@@ -11,13 +10,6 @@
 #include "ovpn.h"
 #include "bind.h"
 #include "crypto.h"
-//#include "ovpnerrcat.h"
-//#include "ovpnmisc.h"
-//#include "ovpnnotify.h"
-//#include "ovpnpeerid.h"
-//#include "ovpnrhash.h"
-//#include "route.h"
-//#include "ovpntcp.h"
 
 static void __ovpn_peer_timer_delete_all(struct ovpn_peer *peer);
 static void __ovpn_peer_keepalive_xmit_handler(struct timer_list *arg);
@@ -36,15 +28,13 @@ struct ovpn_peer *ovpn_peer_get(struct ovpn_struct *ovpn)
 	return peer;
 }
 
-/*
- * Construct a new peer.
- */
+/* Construct a new peer */
 static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 {
 	struct ovpn_peer *peer;
 
 	/* alloc and init peer object */
-        peer = kmalloc(sizeof(*peer), GFP_KERNEL);
+	peer = kmalloc(sizeof(*peer), GFP_KERNEL);
 	if (!peer)
 		return ERR_PTR(-ENOMEM);
 
@@ -69,9 +59,7 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 	return peer;
 }
 
-/*
- * Reset the ovpn_sockaddr_pair associated with a peer.
- */
+/* Reset the ovpn_sockaddr_pair associated with a peer */
 int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer,
 			     const struct ovpn_sockaddr_pair *sapair)
 {
@@ -79,7 +67,7 @@ int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer,
 
 	/* create new ovpn_bind object */
 	bind = ovpn_bind_from_sockaddr_pair(sapair);
-	if (unlikely(IS_ERR(bind)))
+	if (IS_ERR(bind))
 		return PTR_ERR(bind);
 
 	/* set binding */
@@ -103,22 +91,22 @@ void ovpn_peer_release(struct ovpn_peer *peer)
 static void ovpn_peer_release_rcu(struct rcu_head *head)
 {
 	struct ovpn_peer *peer = container_of(head, struct ovpn_peer, rcu);
+
 	ovpn_peer_release(peer);
 }
 
-/*
- * Use with kref_put calls, when releasing refcount
+/* Use with kref_put calls, when releasing refcount
  * on ovpn_peer objects.  This method should only
  * be called from process context with config_mutex held.
  */
 void ovpn_peer_release_kref(struct kref *kref)
 {
 	struct ovpn_peer *peer = container_of(kref, struct ovpn_peer, refcount);
+
 	call_rcu(&peer->rcu, ovpn_peer_release_rcu);
 }
 
-/*
- * Delete a peer, consuming the original +1 refcount that
+/* Delete a peer, consuming the original +1 refcount that
  * the object was created with.  Deletion may be deferred
  * if other objects hold references to the peer.
  */
@@ -131,7 +119,6 @@ void ovpn_peer_delete(struct ovpn_peer *peer)
 	ovpn_crypto_state_release(peer);
 	ovpn_peer_put(peer);
 }
-
 
 struct ovpn_peer *
 ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn,
@@ -155,10 +142,7 @@ ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn,
 	return peer;
 }
 
-/*
- * Keepalive timer delete/schedule.
- */
-
+/* Keepalive timer delete/schedule */
 static void __ovpn_peer_timer_delete(struct ovpn_peer *peer,
 				     struct ovpn_timer *t)
 {
@@ -173,8 +157,7 @@ static void __ovpn_peer_timer_delete_all(struct ovpn_peer *peer)
 }
 
 static void __ovpn_peer_timer_schedule(struct ovpn_peer *peer,
-				       struct ovpn_timer *t,
-				       int rcdelta)
+				       struct ovpn_timer *t, int rcdelta)
 {
 	if (!ovpn_timer_schedule(t, &peer->lock))
 		++rcdelta;
@@ -193,8 +176,7 @@ static void __ovpn_peer_timer_schedule(struct ovpn_peer *peer,
 	}
 }
 
-/*
- * keepalive timer callbacks.
+/* keepalive timer callbacks.
  * A reference is held on peer which the functions
  * may release prior to return.
  */
@@ -214,17 +196,12 @@ static void __ovpn_peer_keepalive_xmit_handler(struct timer_list *t)
 static void __ovpn_peer_keepalive_expire_handler(struct timer_list *t)
 {
 	struct ovpn_peer *peer = from_ovpn_timer(peer, t, keepalive_expire);
-#if DEBUG_PING
-	printk("KEEPALIVE EXPIRE\n");
-#endif
+
+	pr_debug("KEEPALIVE EXPIRE\n");
 	ovpn_peer_put(peer);
 }
 
-/*
- * Update keepalive timers.
- * Called from softirq context.
- */
-
+/* Update keepalive timers */
 void ovpn_peer_update_keepalive_xmit(struct ovpn_peer *peer)
 {
 // if DEBUG_PING >= 2, normal outgoing traffic doesn't reset xmit timer
@@ -233,14 +210,13 @@ void ovpn_peer_update_keepalive_xmit(struct ovpn_peer *peer)
 #endif
 }
 
-/*
- * Configure keepalive parameters.
+/* Configure keepalive parameters.
  * Called from process context.
  * Peer is generally held by RCU lock.
  */
 void ovpn_peer_set_keepalive(struct ovpn_peer *peer,
-			     const unsigned keepalive_ping,
-			     const unsigned keepalive_timeout)
+			     const unsigned int keepalive_ping,
+			     const unsigned int keepalive_timeout)
 {
 	ovpn_timer_set_period(&peer->keepalive_xmit, keepalive_ping);
 	__ovpn_peer_timer_schedule(peer, &peer->keepalive_xmit, 0);
@@ -249,8 +225,7 @@ void ovpn_peer_set_keepalive(struct ovpn_peer *peer,
 	__ovpn_peer_timer_schedule(peer, &peer->keepalive_expire, 0);
 }
 
-/*
- * Transmit explicit exit notification.
+/* Transmit explicit exit notification.
  * Called from process context.
  */
 int ovpn_peer_xmit_explicit_exit_notify(struct ovpn_peer *peer)

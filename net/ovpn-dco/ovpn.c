@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/*
- *  OpenVPN data channel accelerator
+/*  OpenVPN data channel accelerator
  *
  *  Copyright (C) 2019-2020 OpenVPN, Inc.
  *
  *  Author:	James Yonan <james@openvpn.net>
  *		Antonio Quartulli <antonio@openvpn.net>
  */
-
 
 #include "main.h"
 #include "bind.h"
@@ -25,7 +23,6 @@
 #include <net/ip6_checksum.h>
 #include <net/udp.h>
 #include <uapi/linux/if_ether.h>
-
 
 int ovpn_struct_init(struct net_device *dev)
 {
@@ -56,8 +53,7 @@ err_free_stats:
 	return err;
 }
 
-/*
- * Called after decrypt to write IP packet to tun netdev.
+/* Called after decrypt to write IP packet to tun netdev.
  * This method is expected to manage/free skb.
  */
 static int tun_netdev_write(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
@@ -67,13 +63,6 @@ static int tun_netdev_write(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	int ret;
 
 	rcu_read_lock();
-
-	/* check if we should record peer addr,
-	   so we know where to send return packets */
-	//if (unlikely(ovpn_bind_test_peer(&peer->bind, skb))) {
-	//	ovpn_bind_record_peer(ovpn, peer, skb, &peer->lock);
-	//	rcu_read_lock();
-	//}
 
 	/* note event of authenticated packet received for keepalive */
 	ovpn_peer_update_keepalive_expire(peer);
@@ -121,12 +110,12 @@ static int tun_netdev_write(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	/* skb hash for transport packet no longer valid after decapsulation */
 	skb_clear_hash(skb);
 
-	/* post-decrypt scrub -- prepare to inject encapsulated packet onto tun interface,
-	   based on __skb_tunnel_rx() in dst.h */
+	/* post-decrypt scrub -- prepare to inject encapsulated packet onto tun
+	 * interface, based on __skb_tunnel_rx() in dst.h
+	 */
 	skb->dev = ovpn->dev;
 	skb_set_queue_mapping(skb, 0);
 	skb_scrub_packet(skb, true);
-
 
 	/* set transport header */
 	skb->transport_header = 0;
@@ -177,8 +166,7 @@ static void post_decrypt_callback(struct sk_buff *skb, int err)
 		     work);
 }
 
-/*
- * Lookup ovpn_peer using incoming encrypted transport packet.
+/* Lookup ovpn_peer using incoming encrypted transport packet.
  * This is for looking up transport -> ovpn packets.
  */
 static struct ovpn_peer *
@@ -230,8 +218,7 @@ static int ovpn_transport_to_userspace(struct ovpn_struct *ovpn,
 	return 0;
 }
 
-/*
- * Receive an encrypted packet from transport (UDP or TCP).
+/* Receive an encrypted packet from transport (UDP or TCP).
  * Should be called with rcu_read_lock held, but will be released
  * before return.  Takes ownership of skb.
  */
@@ -246,9 +233,10 @@ static void ovpn_recv_crypto(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	OVPN_SKB_CB(skb)->rx_stats_size = skb->len;
 
 	/* we only handle OVPN_DATA_Vx packets from known peers here --
-	   all other packets are sent to userspace via the tun dev
-	   and are prepended with an ovpn_tun_head and possibly a
-	   ovpn_sockaddr_pair as well */
+	 * all other packets are sent to userspace via the tun dev
+	 * and are prepended with an ovpn_tun_head and possibly a
+	 * ovpn_sockaddr_pair as well
+	 */
 	if (unlikely(!peer || !ovpn_opcode_is_data(op))) {
 		ret = ovpn_transport_to_userspace(ovpn, peer, skb);
 		if (unlikely(ret < 0))
@@ -273,8 +261,7 @@ drop:
 	kfree_skb(skb);
 }
 
-/*
- * Dispatch received transport packet (UDP or TCP)
+/* Dispatch received transport packet (UDP or TCP)
  * to the appropriate handler (crypto or relay).
  * Should be called with rcu_read_lock held, but will be released
  * before return.  Takes ownership of skb.
@@ -285,8 +272,7 @@ static void ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	ovpn_recv_crypto(ovpn, peer, op, skb);
 }
 
-/*
- * UDP encapsulation receive handler.  See net/ipv[46]/udp.c.
+/* UDP encapsulation receive handler.  See net/ipv[46]/udp.c.
  * Here we look at an incoming OpenVPN UDP packet.  If we are able
  * to process it, we will send it directly to tun interface.
  * Otherwise, send it up to userspace.
@@ -303,7 +289,7 @@ int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 	struct ovpn_peer *peer;
 	unsigned int op;
 
-	/* need to ensure accurate L4 hash for packets assembled from IP fragments */
+	/* ensure accurate L4 hash for packets assembled from IP fragments */
 	skb_clear_hash_if_not_l4(skb);
 
 	/* pre-decrypt scrub */
@@ -347,7 +333,7 @@ static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 				   bind->sapair.local.u.in4.sin_port,
 				   sk->sk_protocol, RT_CONN_FLAGS(sk),
 				   sk->sk_bound_dev_if);
-	if (unlikely(IS_ERR(rt)))
+	if (IS_ERR(rt))
 		return -OVPN_ERR_ADDR4_BIND;
 
 	/* set dst from binding */
@@ -387,8 +373,7 @@ static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	iph->saddr = bind->sapair.local.u.in4.sin_addr.s_addr;
 	iph->daddr = bind->sapair.remote.u.in4.sin_addr.s_addr;
 
-	/*
-	 * Transmit IPv4 UDP packet using ip_local_out which
+	/* Transmit IPv4 UDP packet using ip_local_out which
 	 * will set iph->tot_len and iph->check.
 	 */
 	ip_local_out(dev_net(ovpn->dev), sk, skb);
@@ -460,11 +445,10 @@ static int ovpn_udp6_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	ip6->saddr = bind->sapair.local.u.in6.sin6_addr;
 	ip6->daddr = bind->sapair.remote.u.in6.sin6_addr;
 
-	/*
-	 * Transmit IPv6 UDP packet using ip6_local_out.
+	/* Transmit IPv6 UDP packet using ip6_local_out.
 	 * which will set ip6->payload_len.
 	 */
-        ip6_local_out(dev_net(ovpn->dev), sk, skb);
+	ip6_local_out(dev_net(ovpn->dev), sk, skb);
 	return 0;
 rel_dst:
 	dst_release(dst);
@@ -472,8 +456,7 @@ rel_dst:
 }
 #endif
 
-/*
- * Prepend UDP transport and IP headers to skb (using
+/* Prepend UDP transport and IP headers to skb (using
  * address/ports from binding) and transmit the packet
  * using ip_local_out.
  *
@@ -516,8 +499,7 @@ static int ovpn_udp_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	return ret;
 }
 
-/*
- * Called after encrypt to write IP packet to UDP port.
+/* Called after encrypt to write IP packet to UDP port.
  * This method is expected to manage/free skb.
  */
 static void ovpn_udp_write(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
@@ -532,7 +514,7 @@ static void ovpn_udp_write(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	if (unlikely(!sock))
 		return;
 
-	/* post-encrypt -- scrub packet prior to encapsulation in a UDP packet */
+	/* post-encrypt -- scrub packet prior to UDP encapsulation */
 	ovpn_skb_scrub(skb);
 
 	rcu_read_lock();
@@ -593,8 +575,7 @@ static void post_encrypt_callback(struct sk_buff *skb, int err)
 	post_encrypt(ovpn, peer, cc, skb, err, work);
 }
 
-/*
- * rcu_read_lock must be held on entry.
+/* rcu_read_lock must be held on entry.
  * On success, 0 is returned, skb ownership is transferred,
  * On error, a value < 0 is returned, the skb is not owned/released.
  */
@@ -648,11 +629,9 @@ drop:
 	rcu_read_unlock();
 	ovpn_peer_put(peer);
 	return ret;
-
 }
 
-/*
- * Net device start xmit
+/* Net device start xmit
  */
 netdev_tx_t ovpn_net_xmit(struct sk_buff *skb, struct net_device *dev)
 {
@@ -680,13 +659,12 @@ drop:
 	return NET_XMIT_DROP;
 }
 
-/*
- * Encrypt and transmit a special message to peer, such as keepalive
+/* Encrypt and transmit a special message to peer, such as keepalive
  * or explicit-exit-notify.  Called from softirq context.
  * Assumes that caller holds a reference to peer.
  */
- void ovpn_xmit_special(struct ovpn_peer *peer, const void *data,
-			const unsigned int len)
+void ovpn_xmit_special(struct ovpn_peer *peer, const void *data,
+		       const unsigned int len)
 {
 	struct ovpn_struct *ovpn;
 	struct sk_buff *skb;

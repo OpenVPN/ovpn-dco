@@ -224,10 +224,6 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_context *cc,
 	/* AEAD Additional data */
 	sg_set_buf(sg, skb->data, OVPN_OP_SIZE_V2 + NONCE_WIRE_SIZE);
 
-#if DEBUG_CRYPTO >= 1
-	ovpn_sg_dump("AEAD-E ", sg, nfrags + 2, true);
-#endif
-
 	/* finish workspace initialization and set pointer
 	 * in private skb control buffer
 	 */
@@ -383,10 +379,6 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_context *cc,
 	memcpy(wa_iv(work), skb->data + opsize, NONCE_WIRE_SIZE);
 	memcpy(wa_iv(work) + NONCE_WIRE_SIZE, cc->u.ae.nonce_tail_recv.u8,
 	       sizeof(struct ovpn_nonce_tail));
-
-#if DEBUG_CRYPTO >= 1
-	ovpn_sg_dump("AEAD-D ", sg, nfrags + 2, true);
-#endif
 
 	/* finish workspace initialization and set pointer
 	 * in private skb control buffer

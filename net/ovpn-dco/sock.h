@@ -1,6 +1,5 @@
-// SPDX-License-Identifier: GPL-2.0-only
-/*
- *  OpenVPN data channel accelerator
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*  OpenVPN data channel accelerator
  *
  *  Copyright (C) 2020 OpenVPN, Inc.
  *
@@ -27,8 +26,7 @@ static inline int ovpn_sock_encap_overhead(const struct sock *sk)
 	if (!sk)
 		return -OVPN_ERR_NO_TRANSPORT_SOCK;
 
-	switch (sk->sk_protocol)
-	{
+	switch (sk->sk_protocol) {
 	case IPPROTO_UDP:
 		ret = sizeof(struct udphdr);
 		break;

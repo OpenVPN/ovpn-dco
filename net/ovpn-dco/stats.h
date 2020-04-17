@@ -1,16 +1,18 @@
-/*
- *  OVPN -- OpenVPN protocol accelerator for Linux
- *  Copyright (C) 2012-2020 OpenVPN Technologies, Inc.
- *  All rights reserved.
- *  Author: James Yonan <james@openvpn.net>
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*  OpenVPN data channel accelerator
+ *
+ *  Copyright (C) 2020 OpenVPN, Inc.
+ *
+ *  Author:	James Yonan <james@openvpn.net>
+ *		Antonio Quartulli <antonio@openvpn.net>
  */
 
 #ifndef _NET_OVPN_DCO_OVPNSTATS_H_
 #define _NET_OVPN_DCO_OVPNSTATS_H_
 
-/*
- * per-CPU stats
- */
+#include <linux/u64_stats_sync.h>
+
+/* per-CPU stats */
 
 struct ovpn_struct;
 
@@ -26,23 +28,26 @@ struct ovpn_stats_percpu {
 	struct u64_stats_sync syncp;
 };
 
-/*
- * per-peer stats, measured on transport layer
- */
+/* per-peer stats, measured on transport layer */
 
 /* one stat */
 struct ovpn_peer_stat {
 	atomic64_t bytes;
-	u64 notify;       /* notify userspace when bytes exceeds this value */
+	/* notify userspace when bytes exceeds this value */
+	u64 notify;
 };
 
 /* rx and tx stats, enabled by notify_per != 0 or period != 0 */
 struct ovpn_peer_stats {
 	struct ovpn_peer_stat rx;
 	struct ovpn_peer_stat tx;
-	u64 notify_per;        /* configured bandwidth-triggered notification */
-	unsigned long period;  /* configured time-triggered notification (relative jiffies) */
-	unsigned long revisit; /* next timed notification (absolute jiffies) */
+	/* configured bandwidth-triggered notification */
+	u64 notify_per;
+	/* configured time-triggered notification (relative jiffies) */
+	unsigned long period;
+	/* next timed notification (absolute jiffies) */
+	unsigned long revisit;
+	/* protects the ovpn_peer_stats object */
 	spinlock_t lock;
 };
 
@@ -66,8 +71,10 @@ struct ovpn_err_stat {
 };
 
 struct ovpn_err_stats {
-	unsigned int total_stats;         /* total stats, returned by kovpn */
-	unsigned int n_stats;             /* number of stats dimensioned below */
+	/* total stats, returned by kovpn */
+	unsigned int total_stats;
+	/* number of stats dimensioned below */
+	unsigned int n_stats;
 	struct ovpn_err_stat stats[];
 };
 
@@ -79,9 +86,12 @@ struct ovpn_percpu_stat {
 };
 
 struct ovpn_percpu_stats {
-	unsigned int total_stats;         /* total stats, returned by kovpn */
-	unsigned int n_stats;             /* number of stats dimensioned below */
-	struct ovpn_percpu_stat stats[];  /* stats indexed by CPU number */
+	/* total stats, returned by kovpn */
+	unsigned int total_stats;
+	/* number of stats dimensioned below */
+	unsigned int n_stats;
+	/* stats indexed by CPU number */
+	struct ovpn_percpu_stat stats[];
 };
 
 void ovpn_stats_get(struct ovpn_struct *ovpn, struct ovpn_stats *ret);
