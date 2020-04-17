@@ -31,9 +31,6 @@ struct ovpn_struct {
 	enum ovpn_mode mode;
 	enum ovpn_proto proto;
 
-	/* per-CPU dev stats */
-	struct ovpn_stats_percpu __percpu *stats;
-
 	unsigned int max_tun_queue_len;
 
 	netdev_features_t set_features;

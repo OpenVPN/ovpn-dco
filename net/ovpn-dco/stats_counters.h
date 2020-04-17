@@ -11,47 +11,8 @@
 #define _NET_OVPN_DCO_OVPNSTATS_COUNTERS_H_
 
 #include "ovpn.h"
-#include "ovpnstruct.h"
-
-/* increment per-ovpn_struct TX stats */
-
-static inline void ovpn_increment_tx_stats(struct ovpn_struct *ovpn,
-					   unsigned int n)
-{
-	struct ovpn_stats_percpu *stats = this_cpu_ptr(ovpn->stats);
-
-	u64_stats_update_begin(&stats->syncp);
-	stats->s.tx_packets++;
-	stats->s.tx_bytes += n;
-	u64_stats_update_end(&stats->syncp);
-}
-
-static inline void ovpn_increment_tx_stats_by_peer(struct ovpn_peer *peer,
-						   unsigned int n)
-{
-	struct ovpn_struct *ovpn = peer->ovpn;
-
-	if (unlikely(!ovpn))
-		return;
-
-	ovpn_increment_tx_stats(ovpn, n);
-}
-
-/* increment per-ovpn_struct RX stats */
-
-static inline void ovpn_increment_rx_stats(struct ovpn_struct *ovpn,
-					   unsigned int n)
-{
-	struct ovpn_stats_percpu *stats = this_cpu_ptr(ovpn->stats);
-
-	u64_stats_update_begin(&stats->syncp);
-	stats->s.rx_packets++;
-	stats->s.rx_bytes += n;
-	u64_stats_update_end(&stats->syncp);
-}
 
 /* increment per-peer stats */
-
 static inline bool __ovpn_peer_stats_increment(struct ovpn_peer_stats *stats,
 					       struct ovpn_peer_stat *stat,
 					       const unsigned int n)

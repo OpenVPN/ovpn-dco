@@ -35,22 +35,14 @@ int ovpn_struct_init(struct net_device *dev)
 	spin_lock_init(&ovpn->lock);
 	RCU_INIT_POINTER(ovpn->peer, NULL);
 
-	ovpn->stats = alloc_percpu(struct ovpn_stats_percpu);
-	if (!ovpn->stats)
-		return -ENOMEM;
-
 	err = security_tun_dev_alloc_security(&ovpn->security);
 	if (err < 0)
-		goto err_free_stats;
+		return err;
 
 	/* kernel -> userspace tun queue length */
 	ovpn->max_tun_queue_len = OVPN_MAX_TUN_QUEUE_LEN;
 
 	return 0;
-
-err_free_stats:
-	free_percpu(ovpn->stats);
-	return err;
 }
 
 /* Called after decrypt to write IP packet to tun netdev.
@@ -69,7 +61,6 @@ static int tun_netdev_write(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 
 	/* increment RX stats */
 	rx_stats_size = OVPN_SKB_CB(skb)->rx_stats_size;
-	ovpn_increment_rx_stats(ovpn, rx_stats_size);
 	ovpn_peer_stats_increment_rx(peer, rx_stats_size);
 
 	/* verify IP header size, set skb->protocol,

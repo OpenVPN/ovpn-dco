@@ -32,15 +32,10 @@
 static void
 ovpn_get_stats64(struct net_device *dev, struct rtnl_link_stats64 *tot)
 {
-	struct ovpn_stats s;
-	struct ovpn_struct *ovpn = netdev_priv(dev);
-
-	ovpn_stats_get(ovpn, &s);
-
-	tot->rx_packets += s.rx_packets;
-	tot->tx_packets += s.tx_packets;
-	tot->rx_bytes += s.rx_bytes;
-	tot->tx_bytes += s.tx_bytes;
+	tot->rx_packets = dev->stats.rx_packets;
+	tot->tx_packets = dev->stats.tx_packets;
+	tot->rx_bytes = dev->stats.rx_bytes;
+	tot->tx_bytes = dev->stats.tx_bytes;
 
 	tot->rx_errors = dev->stats.rx_errors;
 	tot->rx_dropped = dev->stats.rx_dropped;
@@ -55,12 +50,7 @@ static void ovpn_struct_free(struct net_device *net)
 	struct ovpn_struct *ovpn = netdev_priv(net);
 
 	ovpn_sock_detach(ovpn->sock);
-
 	security_tun_dev_free_security(ovpn->security);
-
-	debug_log_stats64(ovpn);
-	free_percpu(ovpn->stats);
-
 	rcu_barrier();
 }
 
