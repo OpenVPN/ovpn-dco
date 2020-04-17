@@ -1,3 +1,5 @@
+== Building ==
+
 To build the ovpn-dco kernel module, just type:
 
 $ make
@@ -23,7 +25,45 @@ will install the ovpn-dco.ko kernel module in the updates/ subfolder of
 the kernel modules directory on your system.
 It normally means `/lib/modules/$(uname -r)/updates/`.
 
+
+== Testing ==
+
 A basic pre-shared-key client is also provided in the tests/ folder.
 It can be compiled by typing:
 
 $ make tests
+
+One way to test ovpn-dco is to run multiple tun interfaces on the same hosts
+separated by network namespaces.
+A script that takes care of setting up 2 NS and 2 interfaces is provided at
+`tests/netns-test.sh`.
+
+By running this script from the tests folder:
+
+$ cd tests
+$ ./netns-test.sh
+
+the host will configure a basic tunnel using a pre-shared key (the psk-client
+is used for this).
+
+The 2 namespaces are named `peer0` and `peer1`. Each interface is respectively
+configured with `5.5.5.1/24` and `5.5.5.2/24`.
+
+At this point it is possible to make a basic ping test by executing:
+
+$ ip netns exec peer0 ping 5.5.5.2
+
+If the command above works, it means that the 2 interfaces are exchanging
+traffic properly over the ovpn link.
+
+Note: running kernel must have network namespaces support compiled in, but it
+is fairly standard on modern Linux distros.
+
+For reference, a sample kernel config file is provided in tests/qemu/config.net-next.
+This config file is used for compiling a minimal kernel based on the net-next tree.
+
+
+To run net-next, it's better to rely on any VM, so that the developer does not need
+to worry about bugs or spurious kernel crashes. For this reason qemu is suggested
+(but any other VM is fine too). At `tests/qemu/launch_deb2.sh` a sample script
+can be found that shows how qemu can be launched for testing.
