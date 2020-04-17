@@ -6,7 +6,6 @@
  *  Author:	Antonio Quartulli <antonio@openvpn.net>
  */
 
-
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -31,7 +30,7 @@
  * parsing of the message
  */
 #define nla_nest_start(_msg, _type) \
-	nla_nest_start(_msg, _type | NLA_F_NESTED);
+	nla_nest_start(_msg, (_type) | NLA_F_NESTED)
 
 typedef int (*ovpn_nl_cb)(struct nl_msg *msg, void *arg);
 
@@ -265,7 +264,8 @@ static int ovpn_read_key(const char *file, struct ovpn_ctx *ctx)
 
 	ret = fread(ckey, 1, ckey_len, fp);
 	if (ret != ckey_len) {
-		fprintf(stderr, "couldn't read enough data from key file: %dbytes read\n",
+		fprintf(stderr,
+			"couldn't read enough data from key file: %dbytes read\n",
 			ret);
 		goto err;
 	}
@@ -276,7 +276,8 @@ static int ovpn_read_key(const char *file, struct ovpn_ctx *ctx)
 		char buf[256];
 
 		mbedtls_strerror(ret, buf, sizeof(buf));
-		fprintf(stderr, "unexpected base64 error1: %s (%d)\n", buf, ret);
+		fprintf(stderr, "unexpected base64 error1: %s (%d)\n", buf,
+			ret);
 
 		goto err;
 	}
@@ -292,13 +293,15 @@ static int ovpn_read_key(const char *file, struct ovpn_ctx *ctx)
 		char buf[256];
 
 		mbedtls_strerror(ret, buf, sizeof(buf));
-		fprintf(stderr, "unexpected base64 error2: %s (%d)\n", buf, ret);
+		fprintf(stderr, "unexpected base64 error2: %s (%d)\n", buf,
+			ret);
 
 		goto err;
 	}
 
 	if (olen < 2 * KEY_LEN + NONCE_LEN) {
-		fprintf(stderr, "not enough data in key file, found %zdB but needs %dB\n",
+		fprintf(stderr,
+			"not enough data in key file, found %zdB but needs %dB\n",
 			olen, 2 * KEY_LEN + NONCE_LEN);
 		goto err;
 	}
@@ -339,7 +342,8 @@ static int ovpn_read_key_direction(const char *dir, struct ovpn_ctx *ctx)
 		ctx->key_dir = in_dir;
 		break;
 	default:
-		fprintf(stderr, "invalid key direction provided. Can be 0 or 1 only\n");
+		fprintf(stderr,
+			"invalid key direction provided. Can be 0 or 1 only\n");
 		return -1;
 	}
 
@@ -482,9 +486,12 @@ nla_put_failure:
 static void usage(const char *cmd)
 {
 	fprintf(stderr, "Error: invalid arguments.\n\n");
-	fprintf(stderr, "Usage %s <iface> <key_dir> <key_file> <l-port> <r-addr> <r-port>\n\n", cmd);
+	fprintf(stderr,
+		"Usage %s <iface> <key_dir> <key_file> <l-port> <r-addr> <r-port>\n\n",
+		cmd);
 	fprintf(stderr, "\tiface: tun interface name\n");
-	fprintf(stderr, "\tkey_dir: key direction, must 0 on one host and 1 on the other\n");
+	fprintf(stderr,
+		"\tkey_dir: key direction, must 0 on one host and 1 on the other\n");
 	fprintf(stderr, "\tkey_file: file containing the pre-shared key\n");
 	fprintf(stderr, "\tlocal-addr: IP address of this peer\n");
 	fprintf(stderr, "\tlocal-port: UDP port to listen to\n");
