@@ -26,8 +26,6 @@
 #include <mbedtls/base64.h>
 #include <mbedtls/error.h>
 
-#define UNUSED(x) (x)__attribute__((unused))
-
 /* libnl < 3.5.0 does not set the NLA_F_NESTED on its own, therefore we
  * have to explicitly do it to prevent the kernel from failing upon
  * parsing of the message
@@ -167,7 +165,7 @@ static void nl_ctx_free(struct nl_ctx *ctx)
 	free(ctx);
 }
 
-static int ovpn_nl_cb_error(struct sockaddr_nl UNUSED(*nla),
+static int ovpn_nl_cb_error(struct sockaddr_nl (*nla)__attribute__((unused)),
 			    struct nlmsgerr *err, void *arg)
 {
 	struct nlmsghdr *nlh = (struct nlmsghdr *)err - 1;
@@ -202,7 +200,8 @@ static int ovpn_nl_cb_error(struct sockaddr_nl UNUSED(*nla),
 	return NL_STOP;
 }
 
-static int ovpn_nl_cb_finish(struct nl_msg UNUSED(*msg), void *arg)
+static int ovpn_nl_cb_finish(struct nl_msg (*msg)__attribute__((unused)),
+			     void *arg)
 {
 	int *status = arg;
 
