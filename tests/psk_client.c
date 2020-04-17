@@ -21,6 +21,7 @@
 #include <netlink/genl/ctrl.h>
 
 #include <linux/ovpn_dco.h>
+#include <linux/types.h>
 
 #include <mbedtls/base64.h>
 #include <mbedtls/error.h>
@@ -51,14 +52,14 @@ struct nl_ctx {
 };
 
 struct ovpn_ctx {
-	uint8_t key_enc[KEY_LEN];
-	uint8_t key_dec[KEY_LEN];
-	uint8_t nonce[NONCE_LEN];
+	__u8 key_enc[KEY_LEN];
+	__u8 key_dec[KEY_LEN];
+	__u8 nonce[NONCE_LEN];
 
 	struct in_addr local;
-	uint16_t lport;
+	__u16 lport;
 	struct in_addr remote;
-	uint16_t rport;
+	__u16 rport;
 
 	unsigned int ifindex;
 
@@ -237,7 +238,7 @@ static int ovpn_nl_msg_send(struct nl_ctx *ctx, ovpn_nl_cb cb)
 static int ovpn_read_key(const char *file, struct ovpn_ctx *ctx)
 {
 	int idx_enc, idx_dec, ret = -1;
-	uint8_t *bkey = NULL;
+	__u8 *bkey = NULL;
 	char *ckey = NULL;
 	size_t olen = 0;
 	long ckey_len;
