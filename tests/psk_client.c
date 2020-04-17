@@ -20,7 +20,7 @@
 #include <netlink/genl/family.h>
 #include <netlink/genl/ctrl.h>
 
-#include <uapi/linux/ovpn_dco.h>
+#include <linux/ovpn_dco.h>
 
 #include <mbedtls/base64.h>
 #include <mbedtls/error.h>

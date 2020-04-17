@@ -6,7 +6,7 @@
 RM ?= rm -f
 
 psk_client:
-	$(CC) $@.c -I../include `pkg-config --cflags --libs libnl-3.0 libnl-genl-3.0` \
+	$(CC) $@.c -I../include/uapi `pkg-config --cflags --libs libnl-3.0 libnl-genl-3.0` \
 		-lmbedtls -lmbedcrypto -o $@
 
 clean:
