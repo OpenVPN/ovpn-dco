@@ -511,10 +511,8 @@ static void ovpn_udp_write(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	rcu_read_lock();
 	/* get binding */
 	bind = rcu_dereference(peer->bind);
-	if (unlikely(!bind)) {
-		ret = -OVPN_ERR_NO_PEER_BINDING;
-		goto out;
-	}
+	if (unlikely(!bind))
+		goto out_unlock;
 
 	/* note event of authenticated packet xmit for keepalive */
 	ovpn_peer_update_keepalive_xmit(peer);
@@ -522,8 +520,9 @@ static void ovpn_udp_write(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	/* crypto layer -> transport (UDP) */
 	ret = ovpn_udp_output(ovpn, bind, sock->sk, skb);
 
-out:
+out_unlock:
 	rcu_read_unlock();
+out:
 	if (ret < 0)
 		kfree_skb(skb);
 }
