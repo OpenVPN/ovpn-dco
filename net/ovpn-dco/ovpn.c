@@ -300,8 +300,6 @@ int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 
 	/* lookup peer */
 	peer = ovpn_lookup_peer_via_transport(ovpn, skb);
-	if (!peer)
-		goto drop;
 
 	ovpn_recv(ovpn, peer, op, skb);
 	return 0;
