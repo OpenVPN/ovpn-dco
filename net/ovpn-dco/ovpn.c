@@ -498,12 +498,12 @@ static void ovpn_udp_write(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 {
 	struct ovpn_bind *bind;
 	struct socket *sock;
-	int ret;
+	int ret = -1;
 
 	/* get socket info */
 	sock = peer->sock;
 	if (unlikely(!sock))
-		return;
+		goto out;
 
 	/* post-encrypt -- scrub packet prior to UDP encapsulation */
 	ovpn_skb_scrub(skb);
