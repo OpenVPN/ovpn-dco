@@ -518,7 +518,7 @@ int ovpn_netlink_send_packet(struct ovpn_struct *ovpn, const uint8_t *buf,
 	if (!ovpn->registered_nl_portid_set)
 		return 0;
 
-	msg = nlmsg_new(100 + len, GFP_KERNEL);
+	msg = nlmsg_new(100 + len, GFP_ATOMIC);
 	if (!msg)
 		return -ENOMEM;
 
