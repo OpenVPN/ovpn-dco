@@ -28,6 +28,10 @@ ifneq ($(REVISION),)
 NOSTDINC_FLAGS += -DOVPN_DCO_VERSION=\"$(REVISION)\"
 endif
 
+ifeq ($(DEBUG),1)
+NOSTDINC_FLAGS += -DDEBUG=1
+endif
+
 obj-y += net/ovpn-dco/
 export ovpn-dco-y
 
