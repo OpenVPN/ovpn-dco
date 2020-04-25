@@ -7,12 +7,14 @@
  */
 
 #include "main.h"
+#include "ovpn.h"
 #include "peer.h"
 #include "netlink.h"
 #include "ovpnstruct.h"
 
 #include <uapi/linux/ovpn_dco.h>
 
+#include <linux/netdevice.h>
 #include <linux/netlink.h>
 #include <linux/rcupdate.h>
 #include <linux/types.h>
@@ -455,10 +457,43 @@ static int ovpn_netlink_register_packet(struct sk_buff *skb,
 	 * In case of double registration, the latter will cancel the previous
 	 * one
 	 */
+	if (ovpn->registered_nl_portid_set) {
+		pr_debug("%s: userspace listener already registered\n",
+			 __func__);
+		return -EBUSY;
+	}
+
+	pr_debug("%s: registering userspace at %u\n", __func__,
+		 info->snd_portid);
+
 	ovpn->registered_nl_portid = info->snd_portid;
 	ovpn->registered_nl_portid_set = true;
 
 	return 0;
+}
+
+static int ovpn_netlink_packet(struct sk_buff *skb, struct genl_info *info)
+{
+	struct ovpn_struct *ovpn = info->user_ptr[0];
+	const u8 *packet;
+	size_t len;
+
+	if (!info->attrs[OVPN_ATTR_PACKET]) {
+		pr_debug("received netlink packet with no payload\n");
+		return -EINVAL;
+	}
+
+	len = nla_len(info->attrs[OVPN_ATTR_PACKET]);
+	if (len > 1400) {
+		pr_debug("netlink packet too large\n");
+		return -EINVAL;
+	}
+
+	packet = nla_data(info->attrs[OVPN_ATTR_PACKET]);
+
+	pr_debug("%s: sending userspace packet to peer...\n", __func__);
+
+	return  ovpn_udp_send_data(ovpn, packet, len);
 }
 
 static const struct genl_ops ovpn_netlink_ops[] = {
@@ -492,6 +527,12 @@ static const struct genl_ops ovpn_netlink_ops[] = {
 		.flags = GENL_ADMIN_PERM,
 		.doit = ovpn_netlink_register_packet,
 	},
+	{
+		.cmd = OVPN_CMD_PACKET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
+		.flags = GENL_ADMIN_PERM,
+		.doit = ovpn_netlink_packet,
+	},
 };
 
 static struct genl_family ovpn_netlink_family __ro_after_init = {
@@ -515,8 +556,14 @@ int ovpn_netlink_send_packet(struct ovpn_struct *ovpn, const uint8_t *buf,
 	void *hdr;
 	int ret;
 
-	if (!ovpn->registered_nl_portid_set)
+	if (!ovpn->registered_nl_portid_set) {
+		pr_warn_ratelimited("%s: no userspace listener\n", __func__);
 		return 0;
+	}
+
+	pr_debug("%s: sending packet to userspace, len: %zd\n", __func__, len);
+	print_hex_dump(KERN_DEBUG, "data: ", DUMP_PREFIX_NONE, 32, 1, buf, len,
+		       true);
 
 	msg = nlmsg_new(100 + len, GFP_ATOMIC);
 	if (!msg)
@@ -544,12 +591,74 @@ err_free_msg:
 	return ret;
 }
 
+static int ovpn_netlink_notify(struct notifier_block *nb, unsigned long state,
+			       void *_notify)
+{
+	struct netlink_notify *notify = _notify;
+	struct ovpn_struct *ovpn;
+	struct net_device *dev;
+	struct net *netns;
+	bool found = false;
+
+	if (state != NETLINK_URELEASE || notify->protocol != NETLINK_GENERIC)
+		return NOTIFY_DONE;
+
+	rcu_read_lock();
+	for_each_net_rcu(netns) {
+		for_each_netdev_rcu(netns, dev) {
+			if (!ovpn_dev_is_valid(dev))
+				continue;
+
+			ovpn = netdev_priv(dev);
+			if (notify->portid != ovpn->registered_nl_portid)
+				continue;
+
+			found = true;
+			pr_debug("%s: deregistering userspace listener\n",
+				 __func__);
+			ovpn->registered_nl_portid_set = false;
+			break;
+		}
+	}
+	rcu_read_unlock();
+
+	/* if no interface matched our purposes, pass the notification along */
+	if (!found)
+		return NOTIFY_DONE;
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block ovpn_netlink_notifier = {
+	.notifier_call = ovpn_netlink_notify,
+};
+
+int ovpn_netlink_init(struct ovpn_struct *ovpn)
+{
+	ovpn->registered_nl_portid_set = false;
+
+	return 0;
+}
+
 /**
  * ovpn_netlink_register() - register the ovpn genl netlink family
  */
 int __init ovpn_netlink_register(void)
 {
-	return genl_register_family(&ovpn_netlink_family);
+	int ret;
+
+	ret = genl_register_family(&ovpn_netlink_family);
+	if (ret)
+		return ret;
+
+	ret = netlink_register_notifier(&ovpn_netlink_notifier);
+	if (ret)
+		goto err;
+
+	return 0;
+err:
+	genl_unregister_family(&ovpn_netlink_family);
+	return ret;
 }
 
 /**
@@ -557,5 +666,6 @@ int __init ovpn_netlink_register(void)
  */
 void __exit ovpn_netlink_unregister(void)
 {
+	netlink_unregister_notifier(&ovpn_netlink_notifier);
 	genl_unregister_family(&ovpn_netlink_family);
 }
