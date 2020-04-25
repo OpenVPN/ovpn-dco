@@ -4,6 +4,8 @@
 #
 #  Author:	Antonio Quartulli <antonio@openvpn.net>
 
+OVPN_CLI=./ovpn-cli
+
 function create_ns() {
 	ip -n peer$1 link del tun0
 	ip -n peer$1 link del veth$1
@@ -20,7 +22,9 @@ function setup_ns() {
 	ip -n peer$1 addr add $3 dev tun0
 	ip -n peer$1 link set tun0 up
 
-	ip netns exec peer$1 ./psk_client tun0 $1 data64.key $2 $4 $5 $6
+	ip netns exec peer$1 $OVPN_CLI tun0 start $4
+	ip netns exec peer$1 $OVPN_CLI tun0 add_peer $2 $4 $5 $6
+	ip netns exec peer$1 $OVPN_CLI tun0 set_key $1 data64.key
 }
 
 create_ns 0

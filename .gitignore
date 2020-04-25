@@ -12,4 +12,4 @@
 /net/ovpn-dco/*.o
 /net/ovpn-dco/.*.o.cmd
 /.tmp_versions
-/tests/psk_client
+/tests/ovpn-cli

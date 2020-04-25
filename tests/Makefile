@@ -4,12 +4,13 @@
 #  Author:	Antonio Quartulli <antonio@openvpn.net>
 
 RM ?= rm -f
+CFLAGS = -Wall
 
-psk_client:
-	$(CC) $@.c -I../include/uapi `pkg-config --cflags --libs libnl-3.0 libnl-genl-3.0` \
+
+ovpn-cli: ovpn-cli.c
+	$(CC) $(CFLAGS) $@.c -I../include/uapi \
+		`pkg-config --cflags --libs libnl-3.0 libnl-genl-3.0` \
 		-lmbedtls -lmbedcrypto -o $@
 
 clean:
-	$(RM) psk_client
-
-.PHONY: all
+	$(RM) ovpn-cli

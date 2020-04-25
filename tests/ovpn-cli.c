@@ -67,7 +67,7 @@ struct ovpn_ctx {
 	enum ovpn_key_direction key_dir;
 };
 
-static void ovpn_nl_recvmsgs(struct nl_ctx *ctx)
+static int ovpn_nl_recvmsgs(struct nl_ctx *ctx)
 {
 	int ret;
 
@@ -87,10 +87,12 @@ static void ovpn_nl_recvmsgs(struct nl_ctx *ctx)
 		break;
 	default:
 		if (ret)
-			fprintf(stderr, "netlink reports error: %d\n",
-				ret);
+			fprintf(stderr, "netlink reports error (%d): %s\n",
+				ret, nl_geterror(-ret));
 		break;
 	}
+
+	return ret;
 }
 
 static struct nl_ctx *nl_ctx_alloc(struct ovpn_ctx *ovpn,
@@ -223,7 +225,6 @@ static int ovpn_nl_msg_send(struct nl_ctx *ctx, ovpn_nl_cb cb)
 
 	nl_send_auto_complete(ctx->nl_sock, ctx->nl_msg);
 
-	//nl_wait_for_ack(ctx->nl_sock);
 	while (status == 1)
 		ovpn_nl_recvmsgs(ctx);
 
@@ -237,8 +238,8 @@ static int ovpn_nl_msg_send(struct nl_ctx *ctx, ovpn_nl_cb cb)
 static int ovpn_read_key(const char *file, struct ovpn_ctx *ctx)
 {
 	int idx_enc, idx_dec, ret = -1;
+	unsigned char *ckey = NULL;
 	__u8 *bkey = NULL;
-	char *ckey = NULL;
 	size_t olen = 0;
 	long ckey_len;
 	FILE *fp;
@@ -288,7 +289,7 @@ static int ovpn_read_key(const char *file, struct ovpn_ctx *ctx)
 		goto err;
 	}
 
-	ret = mbedtls_base64_decode(bkey, olen, &olen, ckey, strlen(ckey));
+	ret = mbedtls_base64_decode(bkey, olen, &olen, ckey, ckey_len);
 	if (ret) {
 		char buf[256];
 
@@ -465,7 +466,6 @@ nla_put_failure:
 
 static int ovpn_set_keys(struct ovpn_ctx *ovpn)
 {
-	struct nlattr *primary;
 	struct nl_ctx *ctx;
 	int ret = -1;
 
@@ -483,28 +483,117 @@ nla_put_failure:
 	return ret;
 }
 
+static int ovpn_send_data(struct ovpn_ctx *ovpn, const void *data, size_t len)
+{
+	struct nl_ctx *ctx;
+	int ret = -1;
+
+	ctx = nl_ctx_alloc(ovpn, OVPN_CMD_PACKET);
+	if (!ctx)
+		return -ENOMEM;
+
+	NLA_PUT(ctx->nl_msg, OVPN_ATTR_PACKET, len, data);
+
+	ret = ovpn_nl_msg_send(ctx, NULL);
+nla_put_failure:
+	nl_ctx_free(ctx);
+	return ret;
+}
+
+static int ovpn_handle_packet(struct nl_msg *msg, void *arg)
+{
+	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
+	struct nlattr *attrs[OVPN_ATTR_MAX + 1];
+	const __u8 *data;
+	size_t i, len;
+
+	fprintf(stderr, "received message\n");
+
+	nla_parse(attrs, OVPN_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
+		  genlmsg_attrlen(gnlh, 0), NULL);
+
+	if (!attrs[OVPN_ATTR_PACKET]) {
+		fprintf(stderr, "no packet content in netlink message\n");;
+		return NL_SKIP;
+	}
+
+	len = nla_len(attrs[OVPN_ATTR_PACKET]);
+	data = nla_data(attrs[OVPN_ATTR_PACKET]);
+
+	fprintf(stderr, "received message, len=%zd:\n", len);
+	for (i = 0; i < len; i++) {
+		if (i && !(i % 16))
+			fprintf(stderr, "\n");
+		fprintf(stderr, "%.2x ", data[i]);
+	}
+	fprintf(stderr, "\n");
+
+	return NL_SKIP;
+}
+
+static int nl_seq_check(struct nl_msg *msg, void *arg)
+{
+	return NL_OK;
+}
+
+static struct nl_ctx *ovpn_register(struct ovpn_ctx *ovpn)
+{
+	struct nl_ctx *ctx;
+	int ret;
+
+	ctx = nl_ctx_alloc(ovpn, OVPN_CMD_REGISTER_PACKET);
+	if (!ctx)
+		return NULL;
+
+	nl_cb_set(ctx->nl_cb, NL_CB_SEQ_CHECK, NL_CB_CUSTOM, nl_seq_check,
+		  NULL);
+
+	ret = ovpn_nl_msg_send(ctx, ovpn_handle_packet);
+	if (ret < 0) {
+		nl_ctx_free(ctx);
+		return NULL;
+	}
+
+	return ctx;
+}
+
 static void usage(const char *cmd)
 {
 	fprintf(stderr, "Error: invalid arguments.\n\n");
 	fprintf(stderr,
-		"Usage %s <iface> <key_dir> <key_file> <l-port> <r-addr> <r-port>\n\n",
+		"Usage %s <iface> <start|add_peer|set_key|recv|send> [arguments..]\n",
 		cmd);
-	fprintf(stderr, "\tiface: tun interface name\n");
+	fprintf(stderr, "\tiface: tun interface name\n\n");
+
+	fprintf(stderr, "* start <lport>: start VPN session on port\n");
+	fprintf(stderr, "\tlocal-port: UDP port to listen to\n\n");
+
+	fprintf(stderr,
+		"* add_peer <laddr> <lport> <raddr> <rport>: set peer link\n");
+	fprintf(stderr, "\tlocal-addr: src IP address\n");
+	fprintf(stderr, "\tlocal-port: src UDP port\n");
+	fprintf(stderr, "\tremote-addr: peer IP address\n");
+	fprintf(stderr, "\tremote-port: peer UDP port\n\n");
+
+	fprintf(stderr,
+		"* set_key <key_dir> <key_file>: set data channel key\n");
 	fprintf(stderr,
 		"\tkey_dir: key direction, must 0 on one host and 1 on the other\n");
-	fprintf(stderr, "\tkey_file: file containing the pre-shared key\n");
-	fprintf(stderr, "\tlocal-addr: IP address of this peer\n");
-	fprintf(stderr, "\tlocal-port: UDP port to listen to\n");
-	fprintf(stderr, "\tremote-addr: IP address of the other peer\n");
-	fprintf(stderr, "\tremote-port: UDP port of the other peer\n");
+	fprintf(stderr, "\tkey_file: file containing the pre-shared key\n\n");
+
+	fprintf(stderr, "* recv: receive packet and exit\n\n");
+
+	fprintf(stderr, "* send <string>: send packet with string\n");
+	fprintf(stderr, "\tstring: message to send to the peer\n");
 }
 
 int main(int argc, char *argv[])
 {
 	struct ovpn_ctx ovpn;
+	struct nl_ctx *ctx;
 	int ret;
 
-	if (argc < 7) {
+	if (argc < 3) {
 		usage(argv[0]);
 		return -1;
 	}
@@ -513,65 +602,106 @@ int main(int argc, char *argv[])
 
 	ovpn.ifindex = if_nametoindex(argv[1]);
 	if (!ovpn.ifindex) {
-		fprintf(stderr, "cannot resolve interface name: %s\n",
+		fprintf(stderr, "cannot find interface: %s\n",
 			strerror(errno));
 		return -1;
 	}
 
-	ret = ovpn_read_key_direction(argv[2], &ovpn);
-	if (ret < 0)
-		return ret;
+	if (!strcmp(argv[2], "start")) {
+		if (argc < 4) {
+			usage(argv[0]);
+			return -1;
+		}
 
-	ret = ovpn_read_key(argv[3], &ovpn);
-	if (ret)
-		return ret;
+		ovpn.lport = strtoul(argv[3], NULL, 10);
+		if (errno == ERANGE || ovpn.lport > 65535) {
+			fprintf(stderr, "lport value out of range\n");
+			return -1;
+		}
 
-	ret = inet_pton(AF_INET, argv[4], &ovpn.local);
-	if (!ret) {
-		fprintf(stderr, "invalid local address\n");
-		return ret;
+		ret = ovpn_socket(&ovpn);
+		if (ret < 0)
+			return ret;
+
+		ret = ovpn_start(&ovpn);
+		if (ret < 0) {
+			fprintf(stderr, "cannot start VPN\n");
+			close(ovpn.socket);
+			return ret;
+		}
+	} else if (!strcmp(argv[2], "add_peer")) {
+		if (argc < 7) {
+			usage(argv[0]);
+			return -1;
+		}
+
+		ret = inet_pton(AF_INET, argv[3], &ovpn.local);
+		if (!ret) {
+			fprintf(stderr, "invalid local address\n");
+			return ret;
+		}
+
+		ovpn.lport = strtoul(argv[4], NULL, 10);
+		if (errno == ERANGE || ovpn.lport > 65535) {
+			fprintf(stderr, "lport value out of range\n");
+			return -1;
+		}
+
+		ret = inet_pton(AF_INET, argv[5], &ovpn.remote);
+		if (!ret) {
+			fprintf(stderr, "invalid remote address\n");
+			return ret;
+		}
+
+		ovpn.rport = strtoul(argv[6], NULL, 10);
+		if (errno == ERANGE || ovpn.rport > 65535) {
+			fprintf(stderr, "rport value out of range\n");
+			return -1;
+		}
+
+		ret = ovpn_add_peer(&ovpn);
+		if (ret < 0) {
+			fprintf(stderr, "cannot add peer to VPN\n");
+			return ret;
+		}
+	} else if (!strcmp(argv[2], "set_key")) {
+		if (argc < 5) {
+			usage(argv[0]);
+			return -1;
+		}
+
+		ret = ovpn_read_key_direction(argv[3], &ovpn);
+		if (ret < 0)
+			return ret;
+
+		ret = ovpn_read_key(argv[4], &ovpn);
+		if (ret)
+			return ret;
+
+		ret = ovpn_set_keys(&ovpn);
+		if (ret < 0) {
+			fprintf(stderr, "cannot set keys\n");
+			return ret;
+		}
+	} else if (!strcmp(argv[2], "recv")) {
+		ctx = ovpn_register(&ovpn);
+		if (!ctx) {
+			fprintf(stderr, "cannot register for packets\n");
+			return -1;
+		}
+
+		ret = ovpn_nl_recvmsgs(ctx);
+		nl_ctx_free(ctx);
+	} else if (!strcmp(argv[2], "send")) {
+		if (argc < 4) {
+			usage(argv[0]);
+			return -1;
+		}
+
+		ret = ovpn_send_data(&ovpn, argv[3], strlen(argv[3]) + 1);
+		if (ret < 0)
+			fprintf(stderr, "cannot send data\n");
 	}
 
-	ovpn.lport = strtoul(argv[5], NULL, 10);
-	if (errno == ERANGE || ovpn.lport > 65535) {
-		fprintf(stderr, "lport value out of range\n");
-		return ret;
-	}
-
-	ret = inet_pton(AF_INET, argv[6], &ovpn.remote);
-	if (!ret) {
-		fprintf(stderr, "invalid remote address\n");
-		return ret;
-	}
-
-	ovpn.rport = strtoul(argv[7], NULL, 10);
-	if (errno == ERANGE || ovpn.rport > 65535) {
-		fprintf(stderr, "rport value out of range\n");
-		return ret;
-	}
-
-	ret = ovpn_socket(&ovpn);
-	if (ret < 0)
-		return ret;
-
-	ret = ovpn_start(&ovpn);
-	if (ret < 0) {
-		fprintf(stderr, "cannot start VPN\n");
-		close(ovpn.socket);
-		return ret;
-	}
-
-	ret = ovpn_add_peer(&ovpn);
-	if (ret < 0) {
-		fprintf(stderr, "cannot add peer to VPN\n");
-		return ret;
-	}
-
-	ret = ovpn_set_keys(&ovpn);
-	if (ret < 0) {
-		fprintf(stderr, "cannot set keys\n");
-		return ret;
-	}
-
-	return 0;
+	return ret;
 }
