@@ -103,9 +103,9 @@ static inline int ovpn_pktid_xmit_next(struct ovpn_pktid_xmit *pid, u32 *pktid)
 	*pktid = (u32)seq_num;
 	if (unlikely(seq_num >= PKTID_WRAP_WARN)) {
 		if (seq_num >= 0x100000000ULL)
-			return -OVPN_ERR_PKTID_WRAP;
+			return -E2BIG;
 		if (seq_num == PKTID_WRAP_WARN)
-			return -OVPN_ERR_PKTID_WRAP_WARN;
+			return -1;
 	}
 	return 0;
 }

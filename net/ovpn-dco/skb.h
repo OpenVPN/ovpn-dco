@@ -48,7 +48,7 @@ static inline int ovpn_ip_header_probe(struct sk_buff *skb,
 	 * contain an IPv4 header
 	 */
 	if (unlikely(!pskb_may_pull(skb, sizeof(struct iphdr))))
-		return -OVPN_ERR_IP_HEADER_LEN;
+		return -EINVAL;
 
 	/* verify specific IP version */
 	iph = (struct iphdr *)skb->data;
@@ -56,7 +56,7 @@ static inline int ovpn_ip_header_probe(struct sk_buff *skb,
 	case 4:
 		/* make sure that IPv4 packet doesn't have a bogus length */
 		if (unlikely((iph->ihl << 2) < sizeof(struct iphdr)))
-			return -OVPN_ERR_BOGUS_PKT_LEN;
+			return -EINVAL;
 		if (flags & OVPN_PROBE_SET_SKB) {
 			skb->protocol = htons(ETH_P_IP);
 			skb_reset_network_header(skb);
@@ -66,7 +66,7 @@ static inline int ovpn_ip_header_probe(struct sk_buff *skb,
 	case 6:
 		/* for IPv6, check for larger header size */
 		if (unlikely(!pskb_may_pull(skb, sizeof(struct ipv6hdr))))
-			return -OVPN_ERR_IP_HEADER_LEN;
+			return -EINVAL;
 		if (flags & OVPN_PROBE_SET_SKB) {
 			skb->protocol = htons(ETH_P_IPV6);
 			skb_reset_network_header(skb);
@@ -74,7 +74,7 @@ static inline int ovpn_ip_header_probe(struct sk_buff *skb,
 		return 6;
 #endif
 	default:
-		return -OVPN_ERR_IPVER_NOTIMP;
+		return -EOPNOTSUPP;
 	}
 }
 

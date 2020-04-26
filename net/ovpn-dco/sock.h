@@ -24,14 +24,14 @@ static inline int ovpn_sock_encap_overhead(const struct sock *sk)
 	int ret;
 
 	if (!sk)
-		return -OVPN_ERR_NO_TRANSPORT_SOCK;
+		return -ENODEV;
 
 	switch (sk->sk_protocol) {
 	case IPPROTO_UDP:
 		ret = sizeof(struct udphdr);
 		break;
 	default:
-		return -OVPN_ERR_BAD_SOCK;
+		return -EOPNOTSUPP;
 	}
 
 	switch (sk->sk_family) {
@@ -44,7 +44,7 @@ static inline int ovpn_sock_encap_overhead(const struct sock *sk)
 		break;
 #endif
 	default:
-		return -OVPN_ERR_IPVER_NOTIMP;
+		return -EOPNOTSUPP;
 	}
 
 	return ret;

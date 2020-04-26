@@ -74,7 +74,7 @@ static int tun_netdev_write(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	if (unlikely(ret < 0)) {
 		/* check if null packet */
 		if (unlikely(!pskb_may_pull(skb, 1))) {
-			ret = -OVPN_ERR_NULL_IP_PKT;
+			ret = -EINVAL;
 			goto drop;
 		}
 
@@ -329,7 +329,7 @@ static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 				   sk->sk_protocol, RT_CONN_FLAGS(sk),
 				   sk->sk_bound_dev_if);
 	if (IS_ERR(rt))
-		return -OVPN_ERR_ADDR4_BIND;
+		return -EHOSTUNREACH;
 
 	/* set dst from binding */
 	skb_dst_set(skb, &rt->dst);
@@ -352,7 +352,7 @@ static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	if (unlikely(skb_headroom(skb)
 		     < sizeof(struct iphdr) + sizeof(struct ethhdr))) {
 		ip_rt_put(rt);
-		return -OVPN_ERR_SKB_NOT_ENOUGH_HEADROOM;
+		return -ENOBUFS;
 	}
 
 	__skb_push(skb, sizeof(struct iphdr));
@@ -401,7 +401,7 @@ static int ovpn_udp6_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 
 	dst = ip6_route_output(sock_net(sk), sk, &fl6);
 	if (unlikely(dst->error < 0)) {
-		ret = -OVPN_ERR_ADDR6_BIND;
+		ret = dst->error;
 		goto rel_dst;
 	}
 
@@ -425,7 +425,7 @@ static int ovpn_udp6_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	/* setup IPv6 header */
 	if (unlikely(skb_headroom(skb)
 		     < sizeof(struct ipv6hdr) + sizeof(struct ethhdr))) {
-		ret = -OVPN_ERR_SKB_NOT_ENOUGH_HEADROOM;
+		ret = -ENOBUFS;
 		goto rel_dst;
 	}
 	__skb_push(skb, sizeof(struct ipv6hdr));
@@ -472,7 +472,7 @@ static int ovpn_udp_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 
 	/* grab headroom for UDP header */
 	if (unlikely(skb_headroom(skb) < sizeof(struct udphdr)))
-		return -OVPN_ERR_SKB_NOT_ENOUGH_HEADROOM;
+		return -ENOBUFS;
 
 	__skb_push(skb, sizeof(struct udphdr));
 	skb_reset_transport_header(skb);

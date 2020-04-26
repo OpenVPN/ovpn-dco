@@ -158,7 +158,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_context *cc,
 	 * encapsulation, after adding network header and encryption overhead
 	 */
 	if (unlikely(skb_cow_head(skb, net_headroom + head_size))) {
-		err = -OVPN_ERR_ENCRYPT_COW_HEAD;
+		err = -ENOBUFS;
 		goto error;
 	}
 
@@ -189,7 +189,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_context *cc,
 	/* build scatterlist to encrypt packet payload */
 	nfrags_check = skb_to_sgvec_nomark(skb, sg + 1, 0, skb->len);
 	if (unlikely(nfrags != nfrags_check)) {
-		err = -OVPN_ERR_NFRAGS;
+		err = -EINVAL;
 		goto error_free;
 	}
 
@@ -204,7 +204,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_context *cc,
 	__skb_push(skb, NONCE_WIRE_SIZE);
 	err = ovpn_pktid_xmit_next(&cc->pid_xmit, &pktid);
 	if (unlikely(err < 0)) {
-		if (err != -OVPN_ERR_PKTID_WRAP_WARN)
+		if (err != -1)
 			goto error_free;
 		//ovpn_notify_pktid_wrap_pc(cc->peer, key_id);
 	}
@@ -266,7 +266,7 @@ static struct ovpn_aead_work *ovpn_aead_decrypt_done2(struct sk_buff *skb,
 	/* get crypto context */
 	cc = work->w.cc;
 	if (unlikely(!cc)) {
-		*err = -OVPN_ERR_NO_CRYPTO_CONTEXT;
+		*err = -ENOENT;
 		return work;
 	}
 
@@ -317,7 +317,7 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_context *cc,
 	} else if (opcode == OVPN_DATA_V1) {
 		opsize = OVPN_OP_SIZE_V1;
 	} else {
-		ret = -OVPN_ERR_DATA_V1_V2_REQUIRED;
+		ret = -EINVAL;
 		goto error;
 	}
 
@@ -326,7 +326,7 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_context *cc,
 
 	/* sanity check on packet size, payload size must be >= 0 */
 	if (unlikely(payload_len < 0 || !pskb_may_pull(skb, payload_offset))) {
-		ret = -OVPN_ERR_DECRYPT_PKT_SIZE;
+		ret = -EINVAL;
 		goto error;
 	}
 
@@ -367,7 +367,7 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_context *cc,
 	nfrags_check = skb_to_sgvec_nomark(skb, sg + 1, payload_offset,
 					   payload_len);
 	if (unlikely(nfrags != nfrags_check)) {
-		ret = -OVPN_ERR_NFRAGS;
+		ret = -EINVAL;
 		goto error_free;
 	}
 
@@ -449,7 +449,7 @@ static struct crypto_aead *ovpn_aead_init(const char *title,
 	/* basic AEAD assumption */
 	if (crypto_aead_ivsize(aead) != EXPECTED_IV_SIZE) {
 		pr_err("%s IV size must be %d\n", title, EXPECTED_IV_SIZE);
-		ret = -OVPN_ERR_IV_SIZE;
+		ret = -EINVAL;
 		goto error;
 	}
 

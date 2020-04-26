@@ -59,14 +59,14 @@ static int ovpn_sock_set_udp_cb(struct sock *sk, void *user_data)
 	/* make sure no pre-existing encapsulation handler exists */
 	if (READ_ONCE(sk->sk_user_data)) {
 		pr_err("provided socket already taken by other user\n");
-		err = -OVPN_ERR_SOCK_ENCAP_EXISTS;
+		err = -EBUSY;
 		goto unlock;
 	}
 
 	/* verify UDP socket */
 	if (sk->sk_protocol != IPPROTO_UDP) {
 		pr_err("expected UDP socket\n");
-		err = -OVPN_ERR_SOCK_MUST_BE_UDP;
+		err = -EINVAL;
 		goto unlock;
 	}
 

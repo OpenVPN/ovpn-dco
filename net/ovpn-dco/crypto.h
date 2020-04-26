@@ -192,22 +192,6 @@ ovpn_crypto_context_primary(const struct ovpn_crypto_state *cs,
 	return cc;
 }
 
-/* Return true if this crypto error should be considered fatal
- * for TCP transport sessions.
- */
-static inline bool ovpn_crypto_err_fatal_for_tcp(const int err)
-{
-	switch (-err) {
-	case OVPN_ERR_DECRYPTION_FAILED:
-	case OVPN_ERR_HMAC:
-	case OVPN_ERR_PKCS7_PADDING:
-	case OVPN_ERR_PKTID_WRAP:
-		return true;
-	default:
-		return false;
-	}
-}
-
 void ovpn_crypto_context_release(struct kref *kref);
 
 static inline void ovpn_crypto_context_put(struct ovpn_crypto_context *cc)

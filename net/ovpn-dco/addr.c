@@ -39,7 +39,7 @@ int ovpn_sockaddr_pair_from_skb(struct ovpn_sockaddr_pair *sapair,
 	case htons(ETH_P_IP):
 	{
 		if (unlikely(ip_hdr(skb)->protocol != IPPROTO_UDP))
-			return -OVPN_ERR_ADDR4_MUST_BE_UDP;
+			return -EINVAL;
 
 		local->family = AF_INET;
 		local->u.in4.sin_addr.s_addr = ip_hdr(skb)->daddr;
@@ -52,14 +52,14 @@ int ovpn_sockaddr_pair_from_skb(struct ovpn_sockaddr_pair *sapair,
 			     !local->u.in4.sin_port &&
 			     !remote->u.in4.sin_addr.s_addr &&
 			     !remote->u.in4.sin_port))
-			return -OVPN_ERR_ADDR4_ZERO;
+			return -EINVAL;
 
 		return 0;
 	}
 #if IS_ENABLED(CONFIG_IPV6)
 	case htons(ETH_P_IPV6):
 		if (unlikely(ipv6_hdr(skb)->nexthdr != IPPROTO_UDP))
-			return -OVPN_ERR_ADDR6_MUST_BE_UDP;
+			return -EINVAL;
 
 		local->family = AF_INET6;
 		local->u.in6.sin6_addr = ipv6_hdr(skb)->daddr;
@@ -72,7 +72,7 @@ int ovpn_sockaddr_pair_from_skb(struct ovpn_sockaddr_pair *sapair,
 		return 0;
 #endif
 	}
-	return -OVPN_ERR_IPVER_NOTIMP;
+	return -EOPNOTSUPP;
 }
 
 /* Construct an ovpn_sockaddr_pair object from src/dest addr/port
@@ -89,10 +89,10 @@ int ovpn_sockaddr_pair_from_sock(struct ovpn_sockaddr_pair *sapair,
 	/* verify socket type */
 	if (tcp) {
 		if (!sk || sk->sk_protocol != IPPROTO_TCP)
-			return -OVPN_ERR_SOCK_MUST_BE_TCP;
+			return -EINVAL;
 	} else {
 		if (!sk || sk->sk_protocol != IPPROTO_UDP)
-			return -OVPN_ERR_SOCK_MUST_BE_UDP;
+			return -EINVAL;
 	}
 
 	inet = inet_sk(sk);
@@ -124,6 +124,6 @@ int ovpn_sockaddr_pair_from_sock(struct ovpn_sockaddr_pair *sapair,
 	}
 #endif
 	default:
-		return -OVPN_ERR_IPVER_NOTIMP;
+		return -EOPNOTSUPP;
 	}
 }

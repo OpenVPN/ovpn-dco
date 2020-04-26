@@ -84,7 +84,7 @@ int ovpn_bind_record_peer(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 
 	sock = peer->sock;
 	if (unlikely(!sock))
-		return -OVPN_ERR_NO_TRANSPORT_SOCK;
+		return -ENODEV;
 
 	bind = ovpn_bind_from_sockaddr_pair(&sapair);
 	if (IS_ERR(bind))

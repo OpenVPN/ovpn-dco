@@ -80,12 +80,12 @@ int ovpn_crypto_encap_overhead(const struct ovpn_crypto_state *cs)
 	ccp = rcu_dereference(cs->ccp);
 	if (!ccp) {
 		rcu_read_unlock();
-		return -OVPN_ERR_NO_CRYPTO_CONTEXT;
+		return -ENOENT;
 	}
 	cc = ccp->primary;
 	if (!cc) {
 		rcu_read_unlock();
-		return -OVPN_ERR_NO_CRYPTO_CONTEXT;
+		return -ENOENT;
 	}
 	ret = cc->ops->encap_overhead(cc);
 

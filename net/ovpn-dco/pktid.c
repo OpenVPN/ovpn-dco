@@ -40,7 +40,7 @@ static int __ovpn_pktid_recv(struct ovpn_pktid_recv *pr, u32 pkt_id,
 
 	/* ID must not be zero */
 	if (unlikely(pkt_id == 0))
-		return -OVPN_ERR_PKTID_ID_ZERO;
+		return -EINVAL;
 
 	/* time changed? */
 	if (unlikely(pkt_time != pr->time)) {
@@ -53,7 +53,7 @@ static int __ovpn_pktid_recv(struct ovpn_pktid_recv *pr, u32 pkt_id,
 			pr->id_floor = 0;
 		} else {
 			/* time moved backward, reject */
-			return -OVPN_ERR_PKTID_TIME_BACKTRACK;
+			return -ETIME;
 		}
 	}
 
@@ -102,13 +102,13 @@ static int __ovpn_pktid_recv(struct ovpn_pktid_recv *pr, u32 pkt_id,
 				const u8 mask = (1 << (ri % 8));
 
 				if (*p & mask)
-					return -OVPN_ERR_PKTID_REPLAY;
+					return -EINVAL;
 				*p |= mask;
 			} else {
-				return -OVPN_ERR_PKTID_EXPIRE;
+				return -EINVAL;
 			}
 		} else {
-			return -OVPN_ERR_PKTID_ID_BACKTRACK;
+			return -EINVAL;
 		}
 	}
 

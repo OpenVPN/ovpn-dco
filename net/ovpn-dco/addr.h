@@ -143,7 +143,7 @@ static inline int
 ovpn_sockaddr_pair_validate(const struct ovpn_sockaddr_pair *p)
 {
 	if (p->local.family != p->remote.family)
-		return -OVPN_ERR_IPVER_INCONSISTENT;
+		return -EINVAL;
 
 	switch (p->local.family) {
 	case AF_INET:
@@ -152,7 +152,7 @@ ovpn_sockaddr_pair_validate(const struct ovpn_sockaddr_pair *p)
 #endif
 		return 0;
 	default:
-		return -OVPN_ERR_IPVER_NOTIMP;
+		return -EOPNOTSUPP;
 	}
 }
 
