@@ -10,6 +10,7 @@
 #ifndef _NET_OVPN_DCO_OVPNSTATS_H_
 #define _NET_OVPN_DCO_OVPNSTATS_H_
 
+#include <linux/jiffies.h>
 #include <linux/u64_stats_sync.h>
 
 /* per-CPU stats */
