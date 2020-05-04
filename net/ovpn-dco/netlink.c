@@ -455,10 +455,7 @@ static int ovpn_netlink_register_packet(struct sk_buff *skb,
 {
 	struct ovpn_struct *ovpn = info->user_ptr[0];
 
-	/* Only one registered process per interface is allowed for now.
-	 * In case of double registration, the latter will cancel the previous
-	 * one
-	 */
+	/* only one registered process per interface is allowed for now */
 	if (ovpn->registered_nl_portid_set) {
 		pr_debug("%s: userspace listener already registered\n",
 			 __func__);
