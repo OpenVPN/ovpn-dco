@@ -17,10 +17,12 @@
 #include <linux/netdevice.h>
 #include <linux/netlink.h>
 #include <linux/rcupdate.h>
+#include <linux/socket.h>
 #include <linux/types.h>
 #include <linux/spinlock.h>
 #include <net/genetlink.h>
 #include <uapi/linux/in.h>
+#include <uapi/linux/in6.h>
 
 static const struct nla_policy
 ovpn_netlink_policy_key_dir[OVPN_KEY_DIR_ATTR_MAX + 1] = {
@@ -43,7 +45,7 @@ ovpn_netlink_policy_key[OVPN_KEY_ATTR_MAX + 1] = {
 static const struct nla_policy
 ovpn_netlink_policy_sockaddr[OVPN_SOCKADDR_ATTR_MAX + 1] = {
 	/* IPv4 only supported for now */
-	[OVPN_SOCKADDR_ATTR_ADDRESS] = NLA_POLICY_EXACT_LEN(4),
+	[OVPN_SOCKADDR_ATTR_ADDRESS] = NLA_POLICY_MIN_LEN(4),
 	[OVPN_SOCKADDR_ATTR_PORT] = { .type = NLA_U16 },
 };
 
@@ -280,17 +282,41 @@ release_peer:
 	return ret;
 }
 
+static void ovpn_netlink_parse_sockaddr4(struct genl_info *info,
+					 struct nlattr *attrs[],
+					 struct sockaddr_in *sin)
+{
+	__be32 *addr;
+
+	sin->sin_family = AF_INET;
+	sin->sin_port = htons(nla_get_u16(attrs[OVPN_SOCKADDR_ATTR_PORT]));
+	addr = nla_data(attrs[OVPN_SOCKADDR_ATTR_ADDRESS]);
+	sin->sin_addr.s_addr = *addr;
+}
+
+#if IS_ENABLED(CONFIG_IPV6)
+static void ovpn_netlink_parse_sockaddr6(struct genl_info *info,
+					 struct nlattr *attrs[],
+					 struct sockaddr_in6 *sin)
+{
+	sin->sin6_family = AF_INET6;
+	sin->sin6_port = htons(nla_get_u16(attrs[OVPN_SOCKADDR_ATTR_PORT]));
+	memcpy(&sin->sin6_addr, nla_data(attrs[OVPN_SOCKADDR_ATTR_ADDRESS]),
+	       sizeof(sin->sin6_addr));
+}
+#endif
+
 static int ovpn_netlink_parse_sockaddr(struct genl_info *info,
 				       struct nlattr *key,
-				       struct sockaddr_in *sin)
+				       struct ovpn_sockaddr *sa)
 {
 	struct nlattr *attrs[OVPN_SOCKADDR_ATTR_MAX + 1];
-	__be32 *addr;
-	int err;
+	size_t addr_len;
+	int ret;
 
-	err = nla_parse_nested(attrs, OVPN_SOCKADDR_ATTR_MAX, key,
+	ret = nla_parse_nested(attrs, OVPN_SOCKADDR_ATTR_MAX, key,
 			       ovpn_netlink_policy_sockaddr, info->extack);
-	if (err) {
+	if (ret) {
 		pr_err("error while parsing sockaddr: %s\n",
 		       info->extack ? info->extack->_msg : "null");
 		return -EINVAL;
@@ -300,17 +326,22 @@ static int ovpn_netlink_parse_sockaddr(struct genl_info *info,
 	    !attrs[OVPN_SOCKADDR_ATTR_PORT])
 		return -EINVAL;
 
-	/* assume IPv4 as that's the only supported family for now */
-	sin->sin_family = AF_INET;
-	sin->sin_port = htons(nla_get_u16(attrs[OVPN_SOCKADDR_ATTR_PORT]));
+	/* decide address family based on address length */
+	addr_len = nla_len(attrs[OVPN_SOCKADDR_ATTR_ADDRESS]);
+	switch (addr_len) {
+	case sizeof(struct in_addr):
+		sa->family = AF_INET;
+		ovpn_netlink_parse_sockaddr4(info, attrs, &sa->u.in4);
+		return 0;
+#if IS_ENABLED(CONFIG_IPV6)
+	case sizeof(struct in6_addr):
+		sa->family = AF_INET6;
+		ovpn_netlink_parse_sockaddr6(info, attrs, &sa->u.in6);
+		return 0;
+#endif
+	}
 
-	if (nla_len(attrs[OVPN_SOCKADDR_ATTR_ADDRESS]) != 4)
-		return -EINVAL;
-
-	addr = nla_data(attrs[OVPN_SOCKADDR_ATTR_ADDRESS]);
-	sin->sin_addr.s_addr = *addr;
-
-	return 0;
+	return -EOPNOTSUPP;
 }
 
 static int ovpn_netlink_add_peer(struct sk_buff *skb, struct genl_info *info)
@@ -327,24 +358,24 @@ static int ovpn_netlink_add_peer(struct sk_buff *skb, struct genl_info *info)
 
 	memset(&pair, 0, sizeof(pair));
 
-	pair.local.family = AF_INET;
-	pair.remote.family = AF_INET;
-
 	attr = info->attrs[OVPN_ATTR_SOCKADDR_REMOTE];
-	ret = ovpn_netlink_parse_sockaddr(info, attr, &pair.remote.u.in4);
+	ret = ovpn_netlink_parse_sockaddr(info, attr, &pair.remote);
 	if (ret < 0)
 		return ret;
 
 	attr = info->attrs[OVPN_ATTR_SOCKADDR_LOCAL];
-	ret = ovpn_netlink_parse_sockaddr(info, attr, &pair.local.u.in4);
+	ret = ovpn_netlink_parse_sockaddr(info, attr, &pair.local);
 	if (ret < 0)
 		return ret;
 
+	/* local and remote endpoint must be both IPv4 or IPv6 */
+	if (pair.remote.family != pair.local.family)
+		return -EINVAL;
+
 	new = ovpn_peer_new_with_sockaddr(ovpn, &pair);
 	if (IS_ERR(new)) {
-		pr_err("cannot create peer object for %pI4:%u\n",
-		       &pair.remote.u.in4.sin_addr.s_addr,
-		       ntohs(pair.remote.u.in4.sin_port));
+		pr_err("cannot create new peer object for %pIScp\n",
+		       &pair.remote.u);
 		return PTR_ERR(new);
 	}
 
@@ -358,11 +389,8 @@ static int ovpn_netlink_add_peer(struct sk_buff *skb, struct genl_info *info)
 	rcu_assign_pointer(ovpn->peer, new);
 	spin_unlock(&ovpn->lock);
 
-	pr_debug("%s: added peer %pI4:%hu <-> %pI4:%hu\n", __func__,
-		 &pair.local.u.in4.sin_addr.s_addr,
-		 ntohs(pair.local.u.in4.sin_port),
-		 &pair.remote.u.in4.sin_addr.s_addr,
-		 ntohs(pair.remote.u.in4.sin_port));
+	pr_debug("%s: added peer %pIScp <-> %pIScp\n", __func__,
+		 &pair.local.u, &pair.remote.u);
 
 	return 0;
 }
