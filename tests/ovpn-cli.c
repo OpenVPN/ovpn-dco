@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
+#include <netinet/in.h>
 
 #include <netlink/socket.h>
 #include <netlink/netlink.h>
@@ -55,9 +56,18 @@ struct ovpn_ctx {
 	__u8 key_dec[KEY_LEN];
 	__u8 nonce[NONCE_LEN];
 
-	struct in_addr local;
+	sa_family_t sa_family;
+
+	union {
+		struct in_addr in4;
+		struct in6_addr in6;
+	} local;
 	__u16 lport;
-	struct in_addr remote;
+
+	union {
+		struct in_addr in4;
+		struct in6_addr in6;
+	} remote;
 	__u16 rport;
 
 	unsigned int ifindex;
@@ -351,12 +361,15 @@ static int ovpn_read_key_direction(const char *dir, struct ovpn_ctx *ctx)
 	return 0;
 }
 
-static int ovpn_socket(struct ovpn_ctx *ctx)
+static int ovpn_socket(struct ovpn_ctx *ctx, sa_family_t family)
 {
-	struct sockaddr_in local_sock;
+	struct sockaddr local_sock;
+	struct sockaddr_in6 *in6;
+	struct sockaddr_in *in;
+	size_t sock_len;
 	int ret, s;
 
-	s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	s = socket(family, SOCK_DGRAM, IPPROTO_UDP);
 	if (s < 0) {
 		perror("cannot create socket");
 		return -1;
@@ -364,11 +377,26 @@ static int ovpn_socket(struct ovpn_ctx *ctx)
 
 	memset((char *)&local_sock, 0, sizeof(local_sock));
 
-	local_sock.sin_family = AF_INET;
-	local_sock.sin_port = htons(ctx->lport);
-	local_sock.sin_addr.s_addr = htonl(INADDR_ANY);
+	switch (family) {
+	case AF_INET:
+		in = (struct sockaddr_in *)&local_sock;
+		in->sin_family = family;
+		in->sin_port = htons(ctx->lport);
+		in->sin_addr.s_addr = htonl(INADDR_ANY);
+		sock_len = sizeof(*in);
+		break;
+	case AF_INET6:
+		in6 = (struct sockaddr_in6 *)&local_sock;
+		in6->sin6_family = family;
+		in6->sin6_port = htons(ctx->lport);
+		in6->sin6_addr = in6addr_any;
+		sock_len = sizeof(*in6);
+		break;
+	default:
+		return -1;
+	}
 
-	ret = bind(s, (struct sockaddr *)&local_sock, sizeof(local_sock));
+	ret = bind(s, &local_sock, sock_len);
 	if (ret < 0) {
 		perror("cannot bind socket");
 		goto err_socket;
@@ -405,7 +433,20 @@ static int ovpn_add_peer(struct ovpn_ctx *ovpn)
 {
 	struct nlattr *addr;
 	struct nl_ctx *ctx;
+	size_t alen;
 	int ret = -1;
+
+	switch (ovpn->sa_family) {
+	case AF_INET:
+		alen = sizeof(struct in_addr);
+		break;
+	case AF_INET6:
+		alen = sizeof(struct in6_addr);
+		break;
+	default:
+		fprintf(stderr, "Invalid family for local/remote address\n");
+		return -1;
+	}
 
 	ctx = nl_ctx_alloc(ovpn, OVPN_CMD_ADD_PEER);
 	if (!ctx)
@@ -413,14 +454,14 @@ static int ovpn_add_peer(struct ovpn_ctx *ovpn)
 
 	addr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_SOCKADDR_REMOTE);
 
-	NLA_PUT(ctx->nl_msg, OVPN_SOCKADDR_ATTR_ADDRESS, 4, &ovpn->remote);
+	NLA_PUT(ctx->nl_msg, OVPN_SOCKADDR_ATTR_ADDRESS, alen, &ovpn->remote);
 	NLA_PUT_U16(ctx->nl_msg, OVPN_SOCKADDR_ATTR_PORT, ovpn->rport);
 
 	nla_nest_end(ctx->nl_msg, addr);
 
 	addr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_SOCKADDR_LOCAL);
 
-	NLA_PUT(ctx->nl_msg, OVPN_SOCKADDR_ATTR_ADDRESS, 4, &ovpn->local);
+	NLA_PUT(ctx->nl_msg, OVPN_SOCKADDR_ATTR_ADDRESS, alen, &ovpn->local);
 	NLA_PUT_U16(ctx->nl_msg, OVPN_SOCKADDR_ATTR_PORT, ovpn->lport);
 
 	nla_nest_end(ctx->nl_msg, addr);
@@ -587,8 +628,64 @@ static void usage(const char *cmd)
 	fprintf(stderr, "\tstring: message to send to the peer\n");
 }
 
+static int ovpn_parse_add_peer(struct ovpn_ctx *ovpn, int argc, char *argv[])
+{
+	int ret;
+
+	if (argc < 7) {
+		usage(argv[0]);
+		return -1;
+	}
+
+	/* assume IPv4 unless parsing fallsback to IPv6 */
+	ovpn->sa_family = AF_INET;
+
+	ret = inet_pton(AF_INET, argv[3], &ovpn->local);
+	if (ret < 1) {
+		/* parsing IPv4 failed, try with IPv6 */
+		ret = inet_pton(AF_INET6, argv[3], &ovpn->local);
+		if (ret < 1) {
+			fprintf(stderr, "invalid local address\n");
+			return -1;
+		}
+
+		/* valid IPv6 found */
+		ovpn->sa_family = AF_INET6;
+	}
+
+	ovpn->lport = strtoul(argv[4], NULL, 10);
+	if (errno == ERANGE || ovpn->lport > 65535) {
+		fprintf(stderr, "lport value out of range\n");
+		return -1;
+	}
+
+	ret = inet_pton(AF_INET, argv[5], &ovpn->remote);
+	if (ret < 1) {
+		ret = inet_pton(AF_INET6, argv[5], &ovpn->remote);
+		if (ret < 1) {
+			fprintf(stderr, "invalid remote address\n");
+			return -1;
+		}
+
+		/* make sure we had already switched to IPv6 for the local
+		 * address
+		 */
+		if (ovpn->sa_family != AF_INET6)
+			return -1;
+	}
+
+	ovpn->rport = strtoul(argv[6], NULL, 10);
+	if (errno == ERANGE || ovpn->rport > 65535) {
+		fprintf(stderr, "rport value out of range\n");
+		return -1;
+	}
+
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
+	sa_family_t family = AF_INET;
 	struct ovpn_ctx ovpn;
 	struct nl_ctx *ctx;
 	int ret;
@@ -619,7 +716,10 @@ int main(int argc, char *argv[])
 			return -1;
 		}
 
-		ret = ovpn_socket(&ovpn);
+		if (argc > 4 && !strcmp(argv[4], "ipv6"))
+			family = AF_INET6;
+
+		ret = ovpn_socket(&ovpn, family);
 		if (ret < 0)
 			return ret;
 
@@ -630,34 +730,9 @@ int main(int argc, char *argv[])
 			return ret;
 		}
 	} else if (!strcmp(argv[2], "add_peer")) {
-		if (argc < 7) {
-			usage(argv[0]);
-			return -1;
-		}
-
-		ret = inet_pton(AF_INET, argv[3], &ovpn.local);
-		if (ret < 1) {
-			fprintf(stderr, "invalid local address\n");
-			return -1;
-		}
-
-		ovpn.lport = strtoul(argv[4], NULL, 10);
-		if (errno == ERANGE || ovpn.lport > 65535) {
-			fprintf(stderr, "lport value out of range\n");
-			return -1;
-		}
-
-		ret = inet_pton(AF_INET, argv[5], &ovpn.remote);
-		if (ret < 1) {
-			fprintf(stderr, "invalid remote address\n");
-			return -1;
-		}
-
-		ovpn.rport = strtoul(argv[6], NULL, 10);
-		if (errno == ERANGE || ovpn.rport > 65535) {
-			fprintf(stderr, "rport value out of range\n");
-			return -1;
-		}
+		ret = ovpn_parse_add_peer(&ovpn, argc, argv);
+		if (ret < 0)
+			return ret;
 
 		ret = ovpn_add_peer(&ovpn);
 		if (ret < 0) {
