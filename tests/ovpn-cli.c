@@ -636,9 +636,9 @@ int main(int argc, char *argv[])
 		}
 
 		ret = inet_pton(AF_INET, argv[3], &ovpn.local);
-		if (!ret) {
+		if (ret < 1) {
 			fprintf(stderr, "invalid local address\n");
-			return ret;
+			return -1;
 		}
 
 		ovpn.lport = strtoul(argv[4], NULL, 10);
@@ -648,9 +648,9 @@ int main(int argc, char *argv[])
 		}
 
 		ret = inet_pton(AF_INET, argv[5], &ovpn.remote);
-		if (!ret) {
+		if (ret < 1) {
 			fprintf(stderr, "invalid remote address\n");
-			return ret;
+			return -1;
 		}
 
 		ovpn.rport = strtoul(argv[6], NULL, 10);
