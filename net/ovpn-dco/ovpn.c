@@ -320,6 +320,7 @@ static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	struct udphdr *uh;
 	struct rtable *rt;
 	struct iphdr *iph;
+	int ret;
 
 	rt = ip_route_output_ports(sock_net(sk), &inet->cork.fl.u.ip4, sk,
 				   bind->sapair.remote.u.in4.sin_addr.s_addr,
@@ -371,7 +372,9 @@ static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	/* Transmit IPv4 UDP packet using ip_local_out which
 	 * will set iph->tot_len and iph->check.
 	 */
-	ip_local_out(dev_net(ovpn->dev), sk, skb);
+	ret = ip_local_out(dev_net(ovpn->dev), sk, skb);
+	if (!dev_xmit_complete(ret))
+		kfree_skb(skb);
 	return 0;
 }
 
@@ -443,7 +446,9 @@ static int ovpn_udp6_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	/* Transmit IPv6 UDP packet using ip6_local_out.
 	 * which will set ip6->payload_len.
 	 */
-	ip6_local_out(dev_net(ovpn->dev), sk, skb);
+	ret = ip6_local_out(dev_net(ovpn->dev), sk, skb);
+	if (!dev_xmit_complete(ret))
+		kfree_skb(skb);
 	return 0;
 rel_dst:
 	dst_release(dst);
