@@ -358,7 +358,9 @@ static int ovpn_netlink_add_peer(struct sk_buff *skb, struct genl_info *info)
 	rcu_assign_pointer(ovpn->peer, new);
 	spin_unlock(&ovpn->lock);
 
-	pr_debug("%s: added peer %pI4:%hu\n", __func__,
+	pr_debug("%s: added peer %pI4:%hu <-> %pI4:%hu\n", __func__,
+		 &pair.local.u.in4.sin_addr.s_addr,
+		 ntohs(pair.local.u.in4.sin_port),
 		 &pair.remote.u.in4.sin_addr.s_addr,
 		 ntohs(pair.remote.u.in4.sin_port));
 
