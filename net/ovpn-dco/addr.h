@@ -152,7 +152,7 @@ ovpn_sockaddr_pair_validate(const struct ovpn_sockaddr_pair *p)
 #endif
 		return 0;
 	default:
-		return -EOPNOTSUPP;
+		return -EAFNOSUPPORT;
 	}
 }
 

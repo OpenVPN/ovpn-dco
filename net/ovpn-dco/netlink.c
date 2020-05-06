@@ -341,7 +341,7 @@ static int ovpn_netlink_parse_sockaddr(struct genl_info *info,
 #endif
 	}
 
-	return -EOPNOTSUPP;
+	return -EAFNOSUPPORT;
 }
 
 static int ovpn_netlink_add_peer(struct sk_buff *skb, struct genl_info *info)

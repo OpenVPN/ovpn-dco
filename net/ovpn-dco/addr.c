@@ -72,7 +72,7 @@ int ovpn_sockaddr_pair_from_skb(struct ovpn_sockaddr_pair *sapair,
 		return 0;
 #endif
 	}
-	return -EOPNOTSUPP;
+	return -EAFNOSUPPORT;
 }
 
 /* Construct an ovpn_sockaddr_pair object from src/dest addr/port
@@ -124,6 +124,6 @@ int ovpn_sockaddr_pair_from_sock(struct ovpn_sockaddr_pair *sapair,
 	}
 #endif
 	default:
-		return -EOPNOTSUPP;
+		return -EAFNOSUPPORT;
 	}
 }

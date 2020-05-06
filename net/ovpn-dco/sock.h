@@ -44,7 +44,7 @@ static inline int ovpn_sock_encap_overhead(const struct sock *sk)
 		break;
 #endif
 	default:
-		return -EOPNOTSUPP;
+		return -EAFNOSUPPORT;
 	}
 
 	return ret;
