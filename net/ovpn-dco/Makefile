@@ -18,3 +18,4 @@ ovpn-dco-y += stats.o
 ovpn-dco-y += netlink.o
 ovpn-dco-y += aead.o
 ovpn-dco-y += pktid.o
+ovpn-dco-y += udp.o

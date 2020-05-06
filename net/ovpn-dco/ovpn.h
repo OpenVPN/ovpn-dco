@@ -30,8 +30,7 @@ void ovpn_xmit_special(struct ovpn_peer *peer, const void *data,
 
 netdev_tx_t ovpn_net_xmit(struct sk_buff *skb, struct net_device *dev);
 
-int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb);
-
-int ovpn_udp_send_data(struct ovpn_struct *ovpn, const u8 *data, size_t len);
+void ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
+	       const unsigned int op, struct sk_buff *skb);
 
 #endif /* _NET_OVPN_DCO_OVPN_H_ */

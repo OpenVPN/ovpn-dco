@@ -12,6 +12,7 @@
 #include "peer.h"
 #include "sock.h"
 #include "rcu.h"
+#include "udp.h"
 
 #include <net/udp.h>
 #include <net/udp_tunnel.h>

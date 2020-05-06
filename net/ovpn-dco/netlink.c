@@ -11,6 +11,7 @@
 #include "peer.h"
 #include "netlink.h"
 #include "ovpnstruct.h"
+#include "udp.h"
 
 #include <uapi/linux/ovpn_dco.h>
 
