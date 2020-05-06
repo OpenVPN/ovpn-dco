@@ -234,10 +234,11 @@ static void ovpn_recv_crypto(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	 */
 	if (unlikely(!peer || !ovpn_opcode_is_data(op))) {
 		ret = ovpn_transport_to_userspace(ovpn, peer, skb);
-		if (peer)
-			ovpn_peer_put(peer);
 		if (ret < 0)
 			goto drop;
+
+		if (peer)
+			ovpn_peer_put(peer);
 		return;
 	}
 
@@ -255,6 +256,8 @@ static void ovpn_recv_crypto(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	return;
 
 drop:
+	if (peer)
+		ovpn_peer_put(peer);
 	kfree_skb(skb);
 }
 
