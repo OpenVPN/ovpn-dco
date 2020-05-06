@@ -38,11 +38,9 @@ static inline int ovpn_sock_encap_overhead(const struct sock *sk)
 	case PF_INET:
 		ret += sizeof(struct iphdr);
 		break;
-#if IS_ENABLED(CONFIG_IPV6)
 	case PF_INET6:
 		ret += sizeof(struct ipv6hdr);
 		break;
-#endif
 	default:
 		return -EAFNOSUPPORT;
 	}

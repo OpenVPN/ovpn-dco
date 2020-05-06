@@ -50,7 +50,6 @@ static inline int ovpn_ip_header_probe(struct sk_buff *skb,
 			skb_reset_network_header(skb);
 		}
 		return 4;
-#if IS_ENABLED(CONFIG_IPV6)
 	case 6:
 		/* for IPv6, check for larger header size */
 		if (unlikely(!pskb_may_pull(skb, sizeof(struct ipv6hdr))))
@@ -60,7 +59,6 @@ static inline int ovpn_ip_header_probe(struct sk_buff *skb,
 			skb_reset_network_header(skb);
 		}
 		return 6;
-#endif
 	default:
 		return -EOPNOTSUPP;
 	}

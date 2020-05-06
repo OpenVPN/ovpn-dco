@@ -111,7 +111,6 @@ static inline bool ovpn_sockaddr_pair_eq(const struct ovpn_sockaddr_pair *p1,
 		if (p1->remote.u.in4.sin_port != p2->remote.u.in4.sin_port)
 			return false;
 		break;
-#if IS_ENABLED(CONFIG_IPV6)
 	case AF_INET6:
 		if (!ipv6_addr_equal(&p1->local.u.in6.sin6_addr,
 				     &p2->local.u.in6.sin6_addr))
@@ -127,7 +126,6 @@ static inline bool ovpn_sockaddr_pair_eq(const struct ovpn_sockaddr_pair *p1,
 		if (p1->remote.u.in6.sin6_port != p2->remote.u.in6.sin6_port)
 			return false;
 		break;
-#endif
 	default:
 		return false;
 	}
@@ -147,9 +145,7 @@ ovpn_sockaddr_pair_validate(const struct ovpn_sockaddr_pair *p)
 
 	switch (p->local.family) {
 	case AF_INET:
-#if IS_ENABLED(CONFIG_IPV6)
 	case AF_INET6:
-#endif
 		return 0;
 	default:
 		return -EAFNOSUPPORT;
@@ -162,10 +158,8 @@ static inline unsigned short skb_protocol_to_family(const struct sk_buff *skb)
 	switch (skb->protocol) {
 	case htons(ETH_P_IP):
 		return AF_INET;
-#if IS_ENABLED(CONFIG_IPV6)
 	case htons(ETH_P_IPV6):
 		return AF_INET6;
-#endif
 	default:
 		return 0;
 	}
@@ -177,10 +171,8 @@ static inline int skb_protocol_to_ip_ver(const struct sk_buff *skb)
 	switch (skb->protocol) {
 	case htons(ETH_P_IP):
 		return 4;
-#if IS_ENABLED(CONFIG_IPV6)
 	case htons(ETH_P_IPV6):
 		return 6;
-#endif
 	default:
 		return 0;
 	}

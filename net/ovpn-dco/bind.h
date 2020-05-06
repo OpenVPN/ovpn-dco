@@ -31,12 +31,10 @@ static inline int ovpn_bind_udp_encap_overhead(const struct ovpn_bind *bind,
 		return sizeof(struct iphdr)
 			+ sizeof(struct udphdr)
 			+ hw_head_size;
-#if IS_ENABLED(CONFIG_IPV6)
 	case AF_INET6:
 		return sizeof(struct ipv6hdr)
 			+ sizeof(struct udphdr)
 			+ hw_head_size;
-#endif
 	default:
 		return -EAFNOSUPPORT;
 	}
@@ -76,7 +74,6 @@ static inline bool ovpn_bind_skb_match(const struct ovpn_bind *bind,
 			     udp_hdr(skb)->source))
 			return false;
 		break;
-#if IS_ENABLED(CONFIG_IPV6)
 	case AF_INET6:
 		if (unlikely(!ipv6_addr_equal(&sap->local.u.in6.sin6_addr,
 					      &ipv6_hdr(skb)->daddr)))
@@ -93,7 +90,6 @@ static inline bool ovpn_bind_skb_match(const struct ovpn_bind *bind,
 			     udp_hdr(skb)->source))
 			return false;
 		break;
-#endif
 	default:
 		return false;
 	}

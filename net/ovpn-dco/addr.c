@@ -56,7 +56,6 @@ int ovpn_sockaddr_pair_from_skb(struct ovpn_sockaddr_pair *sapair,
 
 		return 0;
 	}
-#if IS_ENABLED(CONFIG_IPV6)
 	case htons(ETH_P_IPV6):
 		if (unlikely(ipv6_hdr(skb)->nexthdr != IPPROTO_UDP))
 			return -EINVAL;
@@ -70,7 +69,6 @@ int ovpn_sockaddr_pair_from_skb(struct ovpn_sockaddr_pair *sapair,
 		remote->u.in6.sin6_flowinfo = ip6_flowinfo(ipv6_hdr(skb));
 
 		return 0;
-#endif
 	}
 	return -EAFNOSUPPORT;
 }
@@ -107,7 +105,6 @@ int ovpn_sockaddr_pair_from_sock(struct ovpn_sockaddr_pair *sapair,
 		sapair->skb_hash_defined = false;
 		return 0;
 	}
-#if IS_ENABLED(CONFIG_IPV6)
 	case PF_INET6:
 	{
 		/* loosely modeled on inet6_getname */
@@ -122,7 +119,6 @@ int ovpn_sockaddr_pair_from_sock(struct ovpn_sockaddr_pair *sapair,
 		sapair->skb_hash_defined = false;
 		return 0;
 	}
-#endif
 	default:
 		return -EAFNOSUPPORT;
 	}
