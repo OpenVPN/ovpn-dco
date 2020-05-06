@@ -21,7 +21,7 @@
 #include <net/route.h>
 #include <net/ip6_route.h>
 #include <net/ip6_checksum.h>
-#include <net/udp.h>
+#include <net/udp_tunnel.h>
 #include <uapi/linux/if_ether.h>
 
 int ovpn_struct_init(struct net_device *dev)
@@ -314,58 +314,28 @@ drop:
 static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 			    struct sock *sk, struct sk_buff *skb)
 {
-	struct inet_sock *inet = inet_sk(sk);
-	struct udphdr *uh;
+	struct flowi4 fl = {
+		.saddr = bind->sapair.local.u.in4.sin_addr.s_addr,
+		.daddr = bind->sapair.remote.u.in4.sin_addr.s_addr,
+		.fl4_sport = bind->sapair.local.u.in4.sin_port,
+		.fl4_dport = bind->sapair.remote.u.in4.sin_port,
+		.flowi4_proto = sk->sk_protocol,
+		.flowi4_mark = sk->sk_mark,
+		.flowi4_oif = sk->sk_bound_dev_if,
+	};
 	struct rtable *rt;
-	struct iphdr *iph;
-	int ret;
 
-	rt = ip_route_output_ports(sock_net(sk), &inet->cork.fl.u.ip4, sk,
-				   bind->sapair.remote.u.in4.sin_addr.s_addr,
-				   bind->sapair.local.u.in4.sin_addr.s_addr,
-				   bind->sapair.remote.u.in4.sin_port,
-				   bind->sapair.local.u.in4.sin_port,
-				   sk->sk_protocol, RT_CONN_FLAGS(sk),
-				   sk->sk_bound_dev_if);
-	if (IS_ERR(rt))
+	rt = ip_route_output_flow(sock_net(sk), &fl, sk);
+	if (IS_ERR(rt)) {
+		net_dbg_ratelimited("%s: no route to host %pISpc\n",
+				    ovpn->dev->name,
+				    &bind->sapair.remote.u.in4);
 		return -EHOSTUNREACH;
+	}
 
-	/* set dst from binding */
-	skb_dst_set(skb, &rt->dst);
-
-	uh = udp_hdr(skb);
-
-	/* UDP header */
-	uh->source = bind->sapair.local.u.in4.sin_port;
-	uh->dest = bind->sapair.remote.u.in4.sin_port;
-	uh->len = htons(skb->len);
-
-	/* UDP checksum */
-	skb->ip_summed = CHECKSUM_NONE;
-	udp_set_csum(sk->sk_no_check_tx, skb,
-		     bind->sapair.local.u.in4.sin_addr.s_addr,
-		     bind->sapair.remote.u.in4.sin_addr.s_addr,
-		     skb->len);
-
-	__skb_push(skb, sizeof(struct iphdr));
-	skb_reset_network_header(skb);
-	iph = ip_hdr(skb);
-	iph->version = 4;
-	iph->ihl = sizeof(struct iphdr) >> 2;
-	iph->tos = 0;
-	iph->id = 0;
-	iph->frag_off = 0;
-	iph->ttl = 64;
-	iph->protocol = IPPROTO_UDP;
-	iph->saddr = bind->sapair.local.u.in4.sin_addr.s_addr;
-	iph->daddr = bind->sapair.remote.u.in4.sin_addr.s_addr;
-
-	/* Transmit IPv4 UDP packet using ip_local_out which
-	 * will set iph->tot_len and iph->check.
-	 */
-	ret = ip_local_out(dev_net(ovpn->dev), sk, skb);
-	if (!dev_xmit_complete(ret))
-		kfree_skb(skb);
+	udp_tunnel_xmit_skb(rt, sk, skb, fl.saddr, fl.daddr, 0,
+			    ip4_dst_hoplimit(&rt->dst), 0, fl.fl4_sport,
+			    fl.fl4_dport, false, sk->sk_no_check_tx);
 	return 0;
 }
 
@@ -374,70 +344,34 @@ static int ovpn_udp6_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 			    struct sock *sk, struct sk_buff *skb)
 {
 	struct dst_entry *dst;
-	struct ipv6hdr *ip6;
-	struct udphdr *uh;
 	int ret;
 
-	struct flowi6 fl6 = {
-		.flowi6_proto = sk->sk_protocol,
-		.daddr = bind->sapair.remote.u.in6.sin6_addr,
+	struct flowi6 fl = {
 		.saddr = bind->sapair.local.u.in6.sin6_addr,
-		.fl6_dport = bind->sapair.remote.u.in6.sin6_port,
+		.daddr = bind->sapair.remote.u.in6.sin6_addr,
 		.fl6_sport = bind->sapair.local.u.in6.sin6_port,
+		.fl6_dport = bind->sapair.remote.u.in6.sin6_port,
+		.flowi6_proto = sk->sk_protocol,
 		.flowi6_mark = sk->sk_mark,
 		.flowi6_oif = sk->sk_bound_dev_if,
 	};
 
 	/* based on scope ID usage from net/ipv6/udp.c */
 	if (bind->sapair.remote.u.in6.sin6_scope_id &&
-	    __ipv6_addr_needs_scope_id(__ipv6_addr_type(&fl6.daddr)))
-		fl6.flowi6_oif = bind->sapair.remote.u.in6.sin6_scope_id;
+	    __ipv6_addr_needs_scope_id(__ipv6_addr_type(&fl.daddr)))
+		fl.flowi6_oif = bind->sapair.remote.u.in6.sin6_scope_id;
 
-	dst = ip6_route_output(sock_net(sk), sk, &fl6);
+	dst = ip6_route_output(sock_net(sk), sk, &fl);
 	if (unlikely(dst->error < 0)) {
 		ret = dst->error;
-		goto rel_dst;
+		dst_release(dst);
+		return ret;
 	}
 
-	/* set dst from binding */
-	skb_dst_set(skb, dst);
-
-	uh = udp_hdr(skb);
-
-	/* UDP header */
-	uh->source = bind->sapair.local.u.in6.sin6_port;
-	uh->dest = bind->sapair.remote.u.in6.sin6_port;
-	uh->len = htons(skb->len);
-
-	/* UDP checksum */
-	skb->ip_summed = CHECKSUM_NONE;
-	udp6_set_csum(udp_get_no_check6_tx(sk), skb,
-		      &bind->sapair.local.u.in6.sin6_addr,
-		      &bind->sapair.remote.u.in6.sin6_addr,
-		      skb->len);
-
-	__skb_push(skb, sizeof(struct ipv6hdr));
-	skb_reset_network_header(skb);
-
-	ip6 = ipv6_hdr(skb);
-	ip6->version = 6;
-	ip6->priority = 0;
-	memset(ip6->flow_lbl, 0, sizeof(ip6->flow_lbl));
-	ip6->nexthdr = IPPROTO_UDP;
-	ip6->hop_limit = 64;
-	ip6->saddr = bind->sapair.local.u.in6.sin6_addr;
-	ip6->daddr = bind->sapair.remote.u.in6.sin6_addr;
-
-	/* Transmit IPv6 UDP packet using ip6_local_out.
-	 * which will set ip6->payload_len.
-	 */
-	ret = ip6_local_out(dev_net(ovpn->dev), sk, skb);
-	if (!dev_xmit_complete(ret))
-		kfree_skb(skb);
+	udp_tunnel6_xmit_skb(dst, sk, skb, skb->dev, &fl.saddr, &fl.daddr, 0,
+			     ip6_dst_hoplimit(dst), 0, fl.fl6_sport,
+			     fl.fl6_dport, udp_get_no_check6_tx(sk));
 	return 0;
-rel_dst:
-	dst_release(dst);
-	return ret;
 }
 #endif
 
@@ -459,9 +393,6 @@ static int ovpn_udp_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	/* set sk to null if skb is already orphaned */
 	if (!skb->destructor)
 		skb->sk = NULL;
-
-	__skb_push(skb, sizeof(struct udphdr));
-	skb_reset_transport_header(skb);
 
 	switch (bind->sapair.local.family) {
 	case AF_INET:
@@ -490,13 +421,12 @@ static void ovpn_udp_write(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	struct socket *sock;
 	int ret = -1;
 
+	skb->dev = ovpn->dev;
+
 	/* get socket info */
 	sock = peer->sock;
 	if (unlikely(!sock))
 		goto out;
-
-	/* post-encrypt -- scrub packet prior to UDP encapsulation */
-	ovpn_skb_scrub(skb);
 
 	rcu_read_lock();
 	/* get binding */

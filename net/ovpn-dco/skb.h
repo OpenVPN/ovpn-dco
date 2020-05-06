@@ -17,18 +17,6 @@ static inline u32 ovpn_skb_queue_len(const struct sk_buff_head *list)
 	return READ_ONCE(list->qlen);
 }
 
-/* Scrub the skb when encapsulating/decapsulating
- */
-static inline void ovpn_skb_scrub(struct sk_buff *skb)
-{
-	skb_scrub_packet(skb, true);
-	skb_clear_hash(skb);
-	skb_set_queue_mapping(skb, 0);
-	skb->dev = NULL;
-	skb->protocol = 0;
-	/* skb->priority is intentionally passed through */
-}
-
 /* Probe IP header and do basic sanity checking on
  * IP packet in skb.
  */
