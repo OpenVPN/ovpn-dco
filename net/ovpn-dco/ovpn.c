@@ -196,7 +196,6 @@ err:
 }
 
 static int ovpn_transport_to_userspace(struct ovpn_struct *ovpn,
-				       struct ovpn_peer *peer,
 				       struct sk_buff *skb)
 {
 	int ret;
@@ -232,7 +231,7 @@ static void ovpn_recv_crypto(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	 * all other packets are sent to userspace via netlink
 	 */
 	if (unlikely(!peer || !ovpn_opcode_is_data(op))) {
-		ret = ovpn_transport_to_userspace(ovpn, peer, skb);
+		ret = ovpn_transport_to_userspace(ovpn, skb);
 		if (ret < 0)
 			goto drop;
 
