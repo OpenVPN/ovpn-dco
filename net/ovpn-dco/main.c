@@ -187,7 +187,6 @@ static void ovpn_setup(struct net_device *dev)
 	/* Zero header length */
 	dev->type = ARPHRD_NONE;
 	dev->flags = IFF_POINTOPOINT | IFF_NOARP | IFF_MULTICAST;
-	dev->tx_queue_len = OVPN_MAX_DEV_TX_QUEUE_LEN;
 
 	dev->features |= feat;
 	dev->hw_features |= feat;
