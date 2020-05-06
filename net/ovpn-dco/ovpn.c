@@ -30,7 +30,6 @@ int ovpn_struct_init(struct net_device *dev)
 	int err;
 
 	ovpn->dev = dev;
-	ovpn->omit_csum = true;
 
 	err = ovpn_netlink_init(ovpn);
 	if (err < 0)
@@ -94,13 +93,11 @@ static int tun_netdev_write(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	ovpn_dbg_kovpn_in(skb, peer);
 #endif
 
-	/* omit_csum tells us to neither calculate nor verify the checksum */
-	if (ovpn->omit_csum) {
-		skb->ip_summed = CHECKSUM_UNNECESSARY;
-		skb->csum_level = 3;
-	} else {
-		skb->ip_summed = CHECKSUM_NONE;
-	}
+	/* packet integrity was verified on the VPN layer - no need to perform
+	 * any additional check along the stack
+	 */
+	skb->ip_summed = CHECKSUM_UNNECESSARY;
+	skb->csum_level = ~0;
 
 	/* skb hash for transport packet no longer valid after decapsulation */
 	skb_clear_hash(skb);
