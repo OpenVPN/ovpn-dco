@@ -55,6 +55,13 @@ static const unsigned char ovpn_explicit_exit_notify_message[] = {
 
 void ovpn_release_lock(struct kref *kref);
 
+#define SKB_HEADER_LEN                                       \
+	(max(sizeof(struct iphdr), sizeof(struct ipv6hdr)) + \
+	 sizeof(struct udphdr) + NET_SKB_PAD)
+
+#define OVPN_HEAD_ROOM ALIGN(16 + SKB_HEADER_LEN, 4)
+#define OVPN_MAX_PADDING 16
+
 /* max allowed parameter values */
 #define OVPN_MAX_PEERS                1000000
 #define OVPN_MAX_DEV_QUEUES           0x1000

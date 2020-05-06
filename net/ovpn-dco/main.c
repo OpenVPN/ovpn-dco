@@ -191,6 +191,9 @@ static void ovpn_setup(struct net_device *dev)
 	dev->features |= feat;
 	dev->hw_features |= feat;
 	dev->hw_enc_features |= feat;
+
+	dev->needed_headroom = OVPN_HEAD_ROOM;
+	dev->needed_tailroom = OVPN_MAX_PADDING;
 }
 
 static void ovpn_dellink(struct net_device *dev, struct list_head *head)

@@ -347,13 +347,6 @@ static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 		     bind->sapair.remote.u.in4.sin_addr.s_addr,
 		     skb->len);
 
-	/* setup IPv4 header */
-	if (unlikely(skb_headroom(skb)
-		     < sizeof(struct iphdr) + sizeof(struct ethhdr))) {
-		ip_rt_put(rt);
-		return -ENOBUFS;
-	}
-
 	__skb_push(skb, sizeof(struct iphdr));
 	skb_reset_network_header(skb);
 	iph = ip_hdr(skb);
@@ -423,12 +416,6 @@ static int ovpn_udp6_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 		      &bind->sapair.remote.u.in6.sin6_addr,
 		      skb->len);
 
-	/* setup IPv6 header */
-	if (unlikely(skb_headroom(skb)
-		     < sizeof(struct ipv6hdr) + sizeof(struct ethhdr))) {
-		ret = -ENOBUFS;
-		goto rel_dst;
-	}
 	__skb_push(skb, sizeof(struct ipv6hdr));
 	skb_reset_network_header(skb);
 
@@ -472,10 +459,6 @@ static int ovpn_udp_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	/* set sk to null if skb is already orphaned */
 	if (!skb->destructor)
 		skb->sk = NULL;
-
-	/* grab headroom for UDP header */
-	if (unlikely(skb_headroom(skb) < sizeof(struct udphdr)))
-		return -ENOBUFS;
 
 	__skb_push(skb, sizeof(struct udphdr));
 	skb_reset_transport_header(skb);
@@ -533,10 +516,6 @@ out:
 	if (ret < 0)
 		kfree_skb(skb);
 }
-
-#define SKB_HEADER_LEN                                       \
-	(max(sizeof(struct iphdr), sizeof(struct ipv6hdr)) + \
-	 sizeof(struct udphdr) + NET_SKB_PAD)
 
 int ovpn_udp_send_data(struct ovpn_struct *ovpn, const u8 *data, size_t len)
 {
