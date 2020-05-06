@@ -227,10 +227,9 @@ static void ovpn_recv_crypto(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	/* save original packet size for stats accounting */
 	OVPN_SKB_CB(skb)->rx_stats_size = skb->len;
 
-	/* we only handle OVPN_DATA_Vx packets from known peers here --
-	 * all other packets are sent to userspace via the tun dev
-	 * and are prepended with an ovpn_tun_head and possibly a
-	 * ovpn_sockaddr_pair as well
+	/* we only handle OVPN_DATA_Vx packets from known peers here.
+	 *
+	 * all other packets are sent to userspace via netlink
 	 */
 	if (unlikely(!peer || !ovpn_opcode_is_data(op))) {
 		ret = ovpn_transport_to_userspace(ovpn, peer, skb);
