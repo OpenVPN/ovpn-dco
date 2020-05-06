@@ -169,6 +169,9 @@ static const struct ethtool_ops ovpn_ethtool_ops = {
 
 static void ovpn_setup(struct net_device *dev)
 {
+	netdev_features_t feat = NETIF_F_SG | NETIF_F_FRAGLIST |
+				 NETIF_F_HW_CSUM;
+
 	dev->ethtool_ops = &ovpn_ethtool_ops;
 	dev->needs_free_netdev = true;
 
@@ -186,9 +189,9 @@ static void ovpn_setup(struct net_device *dev)
 	dev->flags = IFF_POINTOPOINT | IFF_NOARP | IFF_MULTICAST;
 	dev->tx_queue_len = OVPN_MAX_DEV_TX_QUEUE_LEN;
 
-	dev->hw_features = NETIF_F_SG | NETIF_F_FRAGLIST;
-	dev->hw_features |= NETIF_F_HW_CSUM;
-	dev->features = dev->hw_features;
+	dev->features |= feat;
+	dev->hw_features |= feat;
+	dev->hw_enc_features |= feat;
 }
 
 static void ovpn_dellink(struct net_device *dev, struct list_head *head)
