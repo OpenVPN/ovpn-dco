@@ -13,9 +13,9 @@
 #include "ovpn.h"
 
 /* increment per-peer stats */
-static inline bool __ovpn_peer_stats_increment(struct ovpn_peer_stats *stats,
-					       struct ovpn_peer_stat *stat,
-					       const unsigned int n)
+static inline bool ovpn_peer_stats_increment(struct ovpn_peer_stats *stats,
+					     struct ovpn_peer_stat *stat,
+					     const unsigned int n)
 {
 	const u64 newval = atomic64_add_return(n, &stat->bytes);
 	bool notify_trigger = false;
@@ -55,13 +55,13 @@ static inline bool __ovpn_peer_stats_increment(struct ovpn_peer_stats *stats,
 static inline void ovpn_peer_stats_increment_rx(struct ovpn_peer *peer,
 						const unsigned int n)
 {
-	__ovpn_peer_stats_increment(&peer->stats, &peer->stats.rx, n);
+	ovpn_peer_stats_increment(&peer->stats, &peer->stats.rx, n);
 }
 
 static inline void ovpn_peer_stats_increment_tx(struct ovpn_peer *peer,
 						const unsigned int n)
 {
-	__ovpn_peer_stats_increment(&peer->stats, &peer->stats.tx, n);
+	ovpn_peer_stats_increment(&peer->stats, &peer->stats.tx, n);
 }
 
 static inline u64 ovpn_peer_stats_get_rx(struct ovpn_peer *peer)

@@ -11,9 +11,9 @@
 #include "bind.h"
 #include "crypto.h"
 
-static void __ovpn_peer_timer_delete_all(struct ovpn_peer *peer);
-static void __ovpn_peer_keepalive_xmit_handler(struct timer_list *arg);
-static void __ovpn_peer_keepalive_expire_handler(struct timer_list *arg);
+static void ovpn_peer_timer_delete_all(struct ovpn_peer *peer);
+static void ovpn_peer_keepalive_xmit_handler(struct timer_list *arg);
+static void ovpn_peer_keepalive_expire_handler(struct timer_list *arg);
 
 struct ovpn_peer *ovpn_peer_get(struct ovpn_struct *ovpn)
 {
@@ -52,9 +52,9 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 
 	/* init keepalive timers */
 	ovpn_timer_init(&peer->keepalive_xmit,
-			__ovpn_peer_keepalive_xmit_handler);
+			ovpn_peer_keepalive_xmit_handler);
 	ovpn_timer_init(&peer->keepalive_expire,
-			__ovpn_peer_keepalive_expire_handler);
+			ovpn_peer_keepalive_expire_handler);
 
 	return peer;
 }
@@ -79,7 +79,7 @@ int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer,
 void ovpn_peer_release(struct ovpn_peer *peer)
 {
 	ovpn_bind_reset(peer, NULL);
-	__ovpn_peer_timer_delete_all(peer);
+	ovpn_peer_timer_delete_all(peer);
 	ovpn_crypto_state_release(peer);
 
 	dev_put(peer->ovpn->dev);
@@ -143,20 +143,20 @@ ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn,
 }
 
 /* Keepalive timer delete/schedule */
-static void __ovpn_peer_timer_delete(struct ovpn_peer *peer,
+static void ovpn_peer_timer_delete(struct ovpn_peer *peer,
 				     struct ovpn_timer *t)
 {
 	if (ovpn_timer_delete(t, &peer->lock))
 		ovpn_peer_put(peer);
 }
 
-static void __ovpn_peer_timer_delete_all(struct ovpn_peer *peer)
+static void ovpn_peer_timer_delete_all(struct ovpn_peer *peer)
 {
-	__ovpn_peer_timer_delete(peer, &peer->keepalive_xmit);
-	__ovpn_peer_timer_delete(peer, &peer->keepalive_expire);
+	ovpn_peer_timer_delete(peer, &peer->keepalive_xmit);
+	ovpn_peer_timer_delete(peer, &peer->keepalive_expire);
 }
 
-static void __ovpn_peer_timer_schedule(struct ovpn_peer *peer,
+static void ovpn_peer_timer_schedule(struct ovpn_peer *peer,
 				       struct ovpn_timer *t, int rcdelta)
 {
 	if (!ovpn_timer_schedule(t, &peer->lock))
@@ -181,7 +181,7 @@ static void __ovpn_peer_timer_schedule(struct ovpn_peer *peer,
  * may release prior to return.
  */
 
-static void __ovpn_peer_keepalive_xmit_handler(struct timer_list *t)
+static void ovpn_peer_keepalive_xmit_handler(struct timer_list *t)
 {
 	struct ovpn_peer *peer = from_ovpn_timer(peer, t, keepalive_xmit);
 
@@ -190,10 +190,10 @@ static void __ovpn_peer_keepalive_xmit_handler(struct timer_list *t)
 #endif
 	ovpn_xmit_special(peer, ovpn_keepalive_message,
 			  sizeof(ovpn_keepalive_message));
-	__ovpn_peer_timer_schedule(peer, &peer->keepalive_xmit, -1);
+	ovpn_peer_timer_schedule(peer, &peer->keepalive_xmit, -1);
 }
 
-static void __ovpn_peer_keepalive_expire_handler(struct timer_list *t)
+static void ovpn_peer_keepalive_expire_handler(struct timer_list *t)
 {
 	struct ovpn_peer *peer = from_ovpn_timer(peer, t, keepalive_expire);
 
@@ -219,10 +219,10 @@ void ovpn_peer_set_keepalive(struct ovpn_peer *peer,
 			     const unsigned int keepalive_timeout)
 {
 	ovpn_timer_set_period(&peer->keepalive_xmit, keepalive_ping);
-	__ovpn_peer_timer_schedule(peer, &peer->keepalive_xmit, 0);
+	ovpn_peer_timer_schedule(peer, &peer->keepalive_xmit, 0);
 
 	ovpn_timer_set_period(&peer->keepalive_expire, keepalive_timeout);
-	__ovpn_peer_timer_schedule(peer, &peer->keepalive_expire, 0);
+	ovpn_peer_timer_schedule(peer, &peer->keepalive_expire, 0);
 }
 
 /* Transmit explicit exit notification.

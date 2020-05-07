@@ -31,7 +31,7 @@ struct ovpn_timer {
 				  typeof(*(var)), ovpn_timer_fieldname)
 
 /* When should we mod timer again? */
-static inline unsigned long __ovpn_timer_next_revisit(void)
+static inline unsigned long ovpn_timer_next_revisit(void)
 {
 	unsigned long rv = jiffies + HZ;
 
@@ -53,7 +53,7 @@ static inline void ovpn_timer_event(struct ovpn_timer *t)
 		return;
 
 	/* schedule next timer adjustment */
-	WRITE_ONCE(t->revisit, __ovpn_timer_next_revisit());
+	WRITE_ONCE(t->revisit, ovpn_timer_next_revisit());
 
 	/* will not re-activate and modify already deleted timers */
 	mod_timer_pending(&t->timer, jiffies + READ_ONCE(t->period));
@@ -73,7 +73,7 @@ static inline int ovpn_timer_schedule(struct ovpn_timer *t,
 	spin_lock_bh(lock); /* prevent race between schedule and delete */
 	period = t->period;
 	if (period) {
-		t->revisit = __ovpn_timer_next_revisit();
+		t->revisit = ovpn_timer_next_revisit();
 		ret = mod_timer(&t->timer, jiffies + period);
 	}
 	spin_unlock_bh(lock);

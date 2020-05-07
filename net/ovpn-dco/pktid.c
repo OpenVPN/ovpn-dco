@@ -29,8 +29,8 @@ void ovpn_pktid_recv_init(struct ovpn_pktid_recv *pr)
 /* Packet replay detection.
  * Allows ID backtrack of up to REPLAY_WINDOW_SIZE - 1.
  */
-static int __ovpn_pktid_recv(struct ovpn_pktid_recv *pr, u32 pkt_id,
-			     u32 pkt_time)
+static int ovpn_pktid_recv_locked(struct ovpn_pktid_recv *pr, u32 pkt_id,
+				  u32 pkt_time)
 {
 	const unsigned long now = jiffies;
 
@@ -124,7 +124,7 @@ int ovpn_pktid_recv(struct ovpn_pktid_recv *pr, u32 pkt_id, u32 pkt_time)
 
 #if ENABLE_REPLAY_PROTECTION
 	spin_lock(&pr->lock);
-	ret = __ovpn_pktid_recv(pr, pkt_id, pkt_time);
+	ret = ovpn_pktid_recv_locked(pr, pkt_id, pkt_time);
 	spin_unlock(&pr->lock);
 #endif
 
