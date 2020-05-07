@@ -207,6 +207,8 @@ void ovpn_udp_send_skb(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	int ret = -1;
 
 	skb->dev = ovpn->dev;
+	/* no checksum performed at this layer */
+	skb->ip_summed = CHECKSUM_NONE;
 
 	/* get socket info */
 	sock = peer->sock;
