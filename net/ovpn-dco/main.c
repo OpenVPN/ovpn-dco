@@ -72,7 +72,7 @@ static void ovpn_set_lockdep_class(struct net_device *dev)
 	lockdep_set_class(&dev->addr_list_lock,
 			  &ovpn_netdev_addr_lock_key);
 	netdev_for_each_tx_queue(dev, ovpn_set_lockdep_class_one, NULL);
-	dev->qdisc_tx_busylock_key = ovpn_tx_busylock_key;
+	dev->qdisc_tx_busylock = &ovpn_tx_busylock_key;
 }
 
 static int ovpn_net_init(struct net_device *dev)
