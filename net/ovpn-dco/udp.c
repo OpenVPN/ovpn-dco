@@ -99,6 +99,7 @@ drop:
 static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 			    struct sock *sk, struct sk_buff *skb)
 {
+	struct rtable *rt;
 	struct flowi4 fl = {
 		.saddr = bind->sapair.local.u.in4.sin_addr.s_addr,
 		.daddr = bind->sapair.remote.u.in4.sin_addr.s_addr,
@@ -108,7 +109,6 @@ static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 		.flowi4_mark = sk->sk_mark,
 		.flowi4_oif = sk->sk_bound_dev_if,
 	};
-	struct rtable *rt;
 
 	rt = ip_route_output_flow(sock_net(sk), &fl, sk);
 	if (IS_ERR(rt)) {
