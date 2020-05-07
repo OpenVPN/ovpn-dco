@@ -177,8 +177,8 @@ static int ovpn_transport_to_userspace(struct ovpn_struct *ovpn,
  * Should be called with rcu_read_lock held, but will be released
  * before return.  Takes ownership of skb.
  */
-static void ovpn_recv_crypto(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
-			     const unsigned int op, struct sk_buff *skb)
+void ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
+	       const unsigned int op, struct sk_buff *skb)
 {
 	struct ovpn_crypto_context *cc;
 	int key_id;
@@ -219,17 +219,6 @@ drop:
 	if (peer)
 		ovpn_peer_put(peer);
 	kfree_skb(skb);
-}
-
-/* Dispatch received transport packet (UDP or TCP)
- * to the appropriate handler (crypto or relay).
- * Should be called with rcu_read_lock held, but will be released
- * before return.  Takes ownership of skb.
- */
-void ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
-	       const unsigned int op, struct sk_buff *skb)
-{
-	ovpn_recv_crypto(ovpn, peer, op, skb);
 }
 
 static void ovpn_post_encrypt(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
