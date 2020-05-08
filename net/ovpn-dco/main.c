@@ -169,7 +169,7 @@ static const struct ethtool_ops ovpn_ethtool_ops = {
 
 static void ovpn_setup(struct net_device *dev)
 {
-	netdev_features_t feat = NETIF_F_SG | NETIF_F_FRAGLIST |
+	netdev_features_t feat = NETIF_F_SG | NETIF_F_FRAGLIST | NETIF_F_LLTX |
 				 NETIF_F_HW_CSUM | NETIF_F_RXCSUM;
 
 	dev->ethtool_ops = &ovpn_ethtool_ops;
