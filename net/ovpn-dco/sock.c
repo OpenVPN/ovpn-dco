@@ -18,16 +18,11 @@
 #include <net/udp_tunnel.h>
 
 /* Detach socket from encapsulation handler and/or other callbacks */
-static void ovpn_sock_unset_udp_cb(struct sock *sk)
+static void ovpn_sock_unset_udp_cb(struct socket *sock)
 {
-	write_lock_bh(&sk->sk_callback_lock);
+	struct udp_tunnel_sock_cfg cfg = { };
 
-	udp_sk(sk)->encap_type = 0;
-	udp_sk(sk)->encap_rcv = NULL;
-	udp_sk(sk)->encap_destroy = NULL;
-	rcu_assign_sk_user_data(sk, NULL);
-
-	write_unlock_bh(&sk->sk_callback_lock);
+	setup_udp_tunnel_sock(sock_net(sock->sk), sock, &cfg);
 }
 
 /* Finalize release of socket, called after RCU grace period */
@@ -36,50 +31,36 @@ void ovpn_sock_detach(struct socket *sock)
 	if (!sock)
 		return;
 
-	ovpn_sock_unset_udp_cb(sock->sk);
+	ovpn_sock_unset_udp_cb(sock);
 
 	sock_put(sock->sk);
 	sockfd_put(sock);
 }
 
-/* Tunnel socket destroy hook for UDP encapsulation.
- * Is currently a no-op.
- * See net/ipv[46]/udp.c.
- */
-static void ovpn_udp_encap_destroy(struct sock *sk)
-{
-}
-
 /* Set UDP encapsulation callbacks */
-static int ovpn_sock_set_udp_cb(struct sock *sk, void *user_data)
+static int ovpn_sock_set_udp_cb(struct socket *sock, void *user_data)
 {
-	int err = 0;
-
-	write_lock_bh(&sk->sk_callback_lock);
+	struct udp_tunnel_sock_cfg cfg = {
+		.sk_user_data = user_data,
+		.encap_type = UDP_ENCAP_OVPNINUDP,
+		.encap_rcv = ovpn_udp_encap_recv,
+	};
 
 	/* make sure no pre-existing encapsulation handler exists */
-	if (READ_ONCE(sk->sk_user_data)) {
+	if (rcu_dereference_sk_user_data(sock->sk)) {
 		pr_err("provided socket already taken by other user\n");
-		err = -EBUSY;
-		goto unlock;
+		return -EBUSY;
 	}
 
 	/* verify UDP socket */
-	if (sk->sk_protocol != IPPROTO_UDP) {
+	if (sock->sk->sk_protocol != IPPROTO_UDP) {
 		pr_err("expected UDP socket\n");
-		err = -EINVAL;
-		goto unlock;
+		return -EINVAL;
 	}
 
-	udp_sk(sk)->encap_type = UDP_ENCAP_OVPNINUDP;
-	udp_sk(sk)->encap_rcv = ovpn_udp_encap_recv;
-	udp_sk(sk)->encap_destroy = ovpn_udp_encap_destroy;
+	setup_udp_tunnel_sock(sock_net(sock->sk), sock, &cfg);
 
-	rcu_assign_sk_user_data(sk, user_data);
-
-unlock:
-	write_unlock_bh(&sk->sk_callback_lock);
-	return err;
+	return 0;
 }
 
 /* Return the encapsulation overhead of the socket */
@@ -100,14 +81,11 @@ int ovpn_sock_attach_udp(struct ovpn_struct *ovpn, struct socket *sock)
 
 	sock_hold(sock->sk);
 
-	ret = ovpn_sock_set_udp_cb(sock->sk, ovpn);
+	ret = ovpn_sock_set_udp_cb(sock, ovpn);
 	if (ret < 0) {
 		sock_put(sock->sk);
 		return ret;
 	}
-
-	/* Enable global kernel-wide UDP encapsulation callback */
-	udp_tunnel_encap_enable(sock);
 
 	return 0;
 }
