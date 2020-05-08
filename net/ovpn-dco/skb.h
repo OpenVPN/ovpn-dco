@@ -20,48 +20,53 @@ static inline u32 ovpn_skb_queue_len(const struct sk_buff_head *list)
 /* Probe IP header and do basic sanity checking on
  * IP packet in skb.
  */
-
-/* flags */
-#define OVPN_PROBE_SET_SKB BIT(0) /* set skb parms and possibly stash shim */
-
-/* mask/flags in return value */
-#define OVPN_PROBE_IPVER_MASK (0xF)
-
-static inline int ovpn_ip_header_probe(struct sk_buff *skb,
-				       unsigned int flags) /* OVPN_PROBE_x */
+static inline __be16 ovpn_ip_get_protocol(struct sk_buff *skb)
 {
 	const struct iphdr *iph;
 
-	/* make sure that encapsulated packet is large enough to at least
-	 * contain an IPv4 header
-	 */
 	if (unlikely(!pskb_may_pull(skb, sizeof(struct iphdr))))
-		return -EINVAL;
+		return 0;
 
-	/* verify specific IP version */
-	iph = (struct iphdr *)skb->data;
+	iph = ip_hdr(skb);
 	switch (iph->version) {
 	case 4:
 		/* make sure that IPv4 packet doesn't have a bogus length */
 		if (unlikely((iph->ihl << 2) < sizeof(struct iphdr)))
-			return -EINVAL;
-		if (flags & OVPN_PROBE_SET_SKB) {
-			skb->protocol = htons(ETH_P_IP);
-			skb_reset_network_header(skb);
-		}
-		return 4;
+			return 0;
+		return htons(ETH_P_IP);
 	case 6:
 		/* for IPv6, check for larger header size */
 		if (unlikely(!pskb_may_pull(skb, sizeof(struct ipv6hdr))))
-			return -EINVAL;
-		if (flags & OVPN_PROBE_SET_SKB) {
-			skb->protocol = htons(ETH_P_IPV6);
-			skb_reset_network_header(skb);
-		}
-		return 6;
+			return 0;
+		return htons(ETH_P_IPV6);
 	default:
-		return -EOPNOTSUPP;
+		return 0;
 	}
+}
+
+
+static inline int ovpn_ip_check_protocol(struct sk_buff *skb)
+{
+	__be16 proto = ovpn_ip_get_protocol(skb);
+
+	if (unlikely(!proto))
+		return -EPROTONOSUPPORT;
+
+	if (unlikely(skb->protocol != proto))
+		return -EINVAL;
+
+	return 0;
+}
+
+static inline int ovpn_ip_header_probe(struct sk_buff *skb)
+{
+	__be16 proto = ovpn_ip_get_protocol(skb);
+
+	if (!proto)
+		return -EPROTONOSUPPORT;
+
+	skb->protocol = proto;
+	return 0;
 }
 
 #endif /* _NET_OVPN_DCO_SKB_H_ */

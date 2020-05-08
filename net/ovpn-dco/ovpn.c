@@ -66,7 +66,8 @@ static int tun_netdev_write(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	/* verify IP header size, set skb->protocol,
 	 * set skb network header, and possibly stash shim
 	 */
-	ret = ovpn_ip_header_probe(skb, OVPN_PROBE_SET_SKB);
+	skb_reset_network_header(skb);
+	ret = ovpn_ip_header_probe(skb);
 	if (unlikely(ret < 0)) {
 		/* check if null packet */
 		if (unlikely(!pskb_may_pull(skb, 1))) {
@@ -264,8 +265,7 @@ static void ovpn_post_encrypt_callback(struct sk_buff *skb, int err)
  * On success, 0 is returned, skb ownership is transferred,
  * On error, a value < 0 is returned, the skb is not owned/released.
  */
-static int ovpn_net_xmit_skb(struct ovpn_struct *ovpn, struct sk_buff *skb,
-			     const bool is_ip_packet)
+static int ovpn_net_xmit_skb(struct ovpn_struct *ovpn, struct sk_buff *skb)
 {
 	struct ovpn_crypto_context *cc;
 	struct ovpn_peer *peer;
@@ -325,14 +325,16 @@ netdev_tx_t ovpn_net_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	/* reset netfilter state */
 	nf_reset_ct(skb);
+
 	/* verify IP header size in network packet */
-	ret = ovpn_ip_header_probe(skb, 0);
-	if (unlikely(ret < 0))
+	ret = ovpn_ip_check_protocol(skb);
+	if (unlikely(ret < 0)) {
+		net_dbg_ratelimited("%s: dropping malformed payload packet\n",
+				    dev->name);
 		goto drop;
+	}
 
-	skb_reset_network_header(skb);
-
-	ret = ovpn_net_xmit_skb(ovpn, skb, true);
+	ret = ovpn_net_xmit_skb(ovpn, skb);
 	if (unlikely(ret < 0))
 		goto drop;
 
@@ -367,7 +369,7 @@ void ovpn_xmit_special(struct ovpn_peer *peer, const void *data,
 	skb->priority = TC_PRIO_BESTEFFORT;
 	memcpy(__skb_put(skb, len), data, len);
 
-	err = ovpn_net_xmit_skb(ovpn, skb, false);
+	err = ovpn_net_xmit_skb(ovpn, skb);
 	if (likely(err < 0))
 		kfree_skb(skb);
 }
