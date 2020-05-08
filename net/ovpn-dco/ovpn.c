@@ -298,6 +298,13 @@ static int ovpn_net_xmit_skb(struct ovpn_struct *ovpn, struct sk_buff *skb)
 	}
 	rcu_read_unlock();
 
+	/* HW checksum offload is set, therefore attempt computing the checksum
+	 * of the inner packet
+	 */
+	if (unlikely(skb->ip_summed == CHECKSUM_PARTIAL &&
+		     skb_checksum_help(skb)))
+		return -EINVAL;
+
 	/* init packet ID to undef in case we err before setting real value */
 	OVPN_SKB_CB(skb)->pktid = 0;
 
