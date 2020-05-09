@@ -55,6 +55,7 @@ static const struct nla_policy ovpn_netlink_policy[OVPN_ATTR_MAX + 1] = {
 	[OVPN_ATTR_MODE] = { .type = NLA_U8 },
 	[OVPN_ATTR_SOCKET] = { .type = NLA_U32 },
 	[OVPN_ATTR_PROTO] = { .type = NLA_U8 },
+	[OVPN_ATTR_REMOTE_PEER_ID] = { .type = NLA_U32 },
 	[OVPN_ATTR_KEY_PRIMARY] = NLA_POLICY_NESTED(ovpn_netlink_policy_key),
 	[OVPN_ATTR_KEY_SECONDARY] = NLA_POLICY_NESTED(ovpn_netlink_policy_key),
 	[OVPN_ATTR_SOCKADDR_REMOTE] =
@@ -247,6 +248,7 @@ static int ovpn_netlink_set_keys(struct sk_buff *skb, struct genl_info *info)
 	struct ovpn_struct *ovpn = info->user_ptr[0];
 	struct ovpn_peer_keys_reset keys;
 	struct ovpn_peer *peer;
+	struct nlattr *attr;
 	int ret;
 
 	peer = ovpn_peer_get(ovpn);
@@ -255,6 +257,12 @@ static int ovpn_netlink_set_keys(struct sk_buff *skb, struct genl_info *info)
 
 	keys.primary_key_set = false;
 	keys.secondary_key_set = false;
+
+	attr = info->attrs[OVPN_ATTR_REMOTE_PEER_ID];
+	if (!attr)
+		return -EINVAL;
+
+	keys.remote_peer_id = nla_get_u32(attr);
 
 	ret = ovpn_netlink_copy_keys(&keys, info);
 	if (ret < 0) {

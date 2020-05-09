@@ -47,6 +47,7 @@ struct ovpn_key_config {
 
 /* used to pass settings from netlink to the crypto engine */
 struct ovpn_peer_keys_reset {
+	u32 remote_peer_id;
 	enum ovpn_crypto_families crypto_family;
 	bool primary_key_set;
 	struct ovpn_key_config primary;

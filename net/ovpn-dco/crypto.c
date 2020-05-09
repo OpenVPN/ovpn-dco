@@ -125,6 +125,7 @@ int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
 			newc->primary = NULL;
 			goto free_cc;
 		}
+		newc->primary->remote_peer_id = pkr->remote_peer_id;
 	}
 
 	if (pkr->secondary_key_set) {
@@ -135,10 +136,12 @@ int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
 			newc->secondary = NULL;
 			goto free_cc;
 		}
+		newc->secondary->remote_peer_id = pkr->remote_peer_id;
 	}
 
-	pr_debug("*** NEW CRYPTO CONTEXT pri=%d sec=%d\n",
-		 newc->primary_key_id, newc->secondary_key_id);
+	pr_debug("*** NEW CRYPTO CONTEXT pri=%d sec=%d remote_pid=%u\n",
+		 newc->primary_key_id, newc->secondary_key_id,
+		 pkr->remote_peer_id);
 
 	rcu_assign_pointer(cs->ccp, newc);
 	if (oldc)

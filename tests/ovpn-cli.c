@@ -479,6 +479,7 @@ static int ovpn_set_single_key(struct ovpn_ctx *ovpn, struct nl_ctx *ctx,
 
 	key = nla_nest_start(ctx->nl_msg, type);
 
+	NLA_PUT_U32(ctx->nl_msg, OVPN_KEY_ATTR_REMOTE_PEER_ID, 0);
 	NLA_PUT_U16(ctx->nl_msg, OVPN_KEY_ATTR_CIPHER_ALG,
 		    OVPN_CIPHER_ALG_AES_GCM);
 	NLA_PUT_U16(ctx->nl_msg, OVPN_KEY_ATTR_ID, 0);
