@@ -54,10 +54,10 @@ void ovpn_bind_reset(struct ovpn_peer *peer, struct ovpn_bind *new)
 {
 	struct ovpn_bind *old;
 
-	spin_lock(&peer->lock);
+	spin_lock_bh(&peer->lock);
 	old = rcu_dereference_protected(peer->bind, true);
 	rcu_assign_pointer(peer->bind, new);
-	spin_unlock(&peer->lock);
+	spin_unlock_bh(&peer->lock);
 
 	if (old)
 		call_rcu(&old->rcu, ovpn_bind_release_rcu);
