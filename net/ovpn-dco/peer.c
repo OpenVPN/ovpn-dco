@@ -80,7 +80,6 @@ void ovpn_peer_release(struct ovpn_peer *peer)
 {
 	ovpn_bind_reset(peer, NULL);
 	ovpn_peer_timer_delete_all(peer);
-	ovpn_crypto_state_release(peer);
 
 	dev_put(peer->ovpn->dev);
 
