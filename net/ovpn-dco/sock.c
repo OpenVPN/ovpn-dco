@@ -45,9 +45,13 @@ static int ovpn_sock_set_udp_cb(struct socket *sock, void *user_data)
 		.encap_type = UDP_ENCAP_OVPNINUDP,
 		.encap_rcv = ovpn_udp_encap_recv,
 	};
+	void *old_data;
 
 	/* make sure no pre-existing encapsulation handler exists */
-	if (rcu_dereference_sk_user_data(sock->sk)) {
+	rcu_read_lock();
+	old_data = rcu_dereference_sk_user_data(sock->sk);
+	rcu_read_unlock();
+	if (old_data) {
 		pr_err("provided socket already taken by other user\n");
 		return -EBUSY;
 	}
