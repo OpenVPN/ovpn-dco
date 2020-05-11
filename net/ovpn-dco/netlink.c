@@ -404,6 +404,11 @@ static int ovpn_netlink_add_peer(struct sk_buff *skb, struct genl_info *info)
 	return 0;
 }
 
+static int ovpn_netlink_set_peer(struct sk_buff *skb, struct genl_info *info)
+{
+	return -EOPNOTSUPP;
+}
+
 /**
  * ovpn_netlink_start_vpn() - Start VPN session
  * @skb: Netlink message with request data
@@ -550,6 +555,12 @@ static const struct genl_ops ovpn_netlink_ops[] = {
 		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.flags = GENL_ADMIN_PERM,
 		.doit = ovpn_netlink_add_peer,
+	},
+	{
+		.cmd = OVPN_CMD_SET_PEER,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
+		.flags = GENL_ADMIN_PERM,
+		.doit = ovpn_netlink_set_peer,
 	},
 	{
 		.cmd = OVPN_CMD_SET_KEYS,

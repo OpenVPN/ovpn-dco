@@ -38,6 +38,11 @@ enum ovpn_nl_commands {
 	OVPN_CMD_ADD_PEER,
 
 	/**
+	 * @OVPN_CMD_SET_PEER: Tweak parameters for an existing peer
+	 */
+	OVPN_CMD_SET_PEER,
+
+	/**
 	 * @OVPN_CMD_DEL_PEER: Remove peer from internal table
 	 */
 	OVPN_CMD_DEL_PEER,
