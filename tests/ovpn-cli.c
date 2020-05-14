@@ -429,7 +429,7 @@ nla_put_failure:
 	return ret;
 }
 
-static int ovpn_add_peer(struct ovpn_ctx *ovpn)
+static int ovpn_new_peer(struct ovpn_ctx *ovpn)
 {
 	struct nlattr *addr;
 	struct nl_ctx *ctx;
@@ -448,7 +448,7 @@ static int ovpn_add_peer(struct ovpn_ctx *ovpn)
 		return -1;
 	}
 
-	ctx = nl_ctx_alloc(ovpn, OVPN_CMD_ADD_PEER);
+	ctx = nl_ctx_alloc(ovpn, OVPN_CMD_NEW_PEER);
 	if (!ctx)
 		return -ENOMEM;
 
@@ -604,7 +604,7 @@ static void usage(const char *cmd)
 {
 	fprintf(stderr, "Error: invalid arguments.\n\n");
 	fprintf(stderr,
-		"Usage %s <iface> <start|add_peer|new_key|recv|send> [arguments..]\n",
+		"Usage %s <iface> <start|new_peer|new_key|recv|send> [arguments..]\n",
 		cmd);
 	fprintf(stderr, "\tiface: tun interface name\n\n");
 
@@ -612,7 +612,7 @@ static void usage(const char *cmd)
 	fprintf(stderr, "\tlocal-port: UDP port to listen to\n\n");
 
 	fprintf(stderr,
-		"* add_peer <laddr> <lport> <raddr> <rport>: set peer link\n");
+		"* new_peer <laddr> <lport> <raddr> <rport>: set peer link\n");
 	fprintf(stderr, "\tlocal-addr: src IP address\n");
 	fprintf(stderr, "\tlocal-port: src UDP port\n");
 	fprintf(stderr, "\tremote-addr: peer IP address\n");
@@ -630,7 +630,7 @@ static void usage(const char *cmd)
 	fprintf(stderr, "\tstring: message to send to the peer\n");
 }
 
-static int ovpn_parse_add_peer(struct ovpn_ctx *ovpn, int argc, char *argv[])
+static int ovpn_parse_new_peer(struct ovpn_ctx *ovpn, int argc, char *argv[])
 {
 	int ret;
 
@@ -731,12 +731,12 @@ int main(int argc, char *argv[])
 			close(ovpn.socket);
 			return ret;
 		}
-	} else if (!strcmp(argv[2], "add_peer")) {
-		ret = ovpn_parse_add_peer(&ovpn, argc, argv);
+	} else if (!strcmp(argv[2], "new_peer")) {
+		ret = ovpn_parse_new_peer(&ovpn, argc, argv);
 		if (ret < 0)
 			return ret;
 
-		ret = ovpn_add_peer(&ovpn);
+		ret = ovpn_new_peer(&ovpn);
 		if (ret < 0) {
 			fprintf(stderr, "cannot add peer to VPN\n");
 			return ret;

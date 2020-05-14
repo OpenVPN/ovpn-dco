@@ -33,9 +33,9 @@ enum ovpn_nl_commands {
 	OVPN_CMD_STOP_VPN,
 
 	/**
-	 * @OVPN_CMD_ADD_PEER: Configure peer with its crypto keys
+	 * @OVPN_CMD_NEW_PEER: Configure peer with its crypto keys
 	 */
-	OVPN_CMD_ADD_PEER,
+	OVPN_CMD_NEW_PEER,
 
 	/**
 	 * @OVPN_CMD_SET_PEER: Tweak parameters for an existing peer

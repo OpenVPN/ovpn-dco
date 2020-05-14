@@ -304,7 +304,7 @@ static int ovpn_netlink_parse_sockaddr(struct genl_info *info,
 	return -EAFNOSUPPORT;
 }
 
-static int ovpn_netlink_add_peer(struct sk_buff *skb, struct genl_info *info)
+static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ovpn_struct *ovpn = info->user_ptr[0];
 	struct ovpn_sockaddr_pair pair;
@@ -502,10 +502,10 @@ static const struct genl_ops ovpn_netlink_ops[] = {
 		.doit = ovpn_netlink_stop_vpn,
 	},
 	{
-		.cmd = OVPN_CMD_ADD_PEER,
+		.cmd = OVPN_CMD_NEW_PEER,
 		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.flags = GENL_ADMIN_PERM,
-		.doit = ovpn_netlink_add_peer,
+		.doit = ovpn_netlink_new_peer,
 	},
 	{
 		.cmd = OVPN_CMD_SET_PEER,
