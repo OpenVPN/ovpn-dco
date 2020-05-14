@@ -261,8 +261,7 @@ static void ovpn_post_encrypt_callback(struct sk_buff *skb, int err)
 	ovpn_post_encrypt(ovpn, peer, cc, skb, err, work);
 }
 
-/* rcu_read_lock must be held on entry.
- * On success, 0 is returned, skb ownership is transferred,
+/* On success, 0 is returned, skb ownership is transferred,
  * On error, a value < 0 is returned, the skb is not owned/released.
  */
 static int ovpn_net_xmit_skb(struct ovpn_struct *ovpn, struct sk_buff *skb)
