@@ -472,53 +472,36 @@ nla_put_failure:
 	return ret;
 }
 
-static int ovpn_set_single_key(struct ovpn_ctx *ovpn, struct nl_ctx *ctx,
-			       int type)
+static int ovpn_new_key(struct ovpn_ctx *ovpn)
 {
-	struct nlattr *key, *key_dir;
+	struct nlattr *key_dir;
+	struct nl_ctx *ctx;
+	int ret = -1;
 
-	key = nla_nest_start(ctx->nl_msg, type);
+	ctx = nl_ctx_alloc(ovpn, OVPN_CMD_NEW_KEY);
+	if (!ctx)
+		return -ENOMEM;
 
-	NLA_PUT_U16(ctx->nl_msg, OVPN_KEY_ATTR_CIPHER_ALG,
+	NLA_PUT_U32(ctx->nl_msg, OVPN_ATTR_REMOTE_PEER_ID, 0);
+	NLA_PUT_U8(ctx->nl_msg, OVPN_ATTR_KEY_SLOT, OVPN_KEY_SLOT_PRIMARY);
+	NLA_PUT_U16(ctx->nl_msg, OVPN_ATTR_KEY_ID, 0);
+
+	NLA_PUT_U16(ctx->nl_msg, OVPN_ATTR_CIPHER_ALG,
 		    OVPN_CIPHER_ALG_AES_GCM);
-	NLA_PUT_U16(ctx->nl_msg, OVPN_KEY_ATTR_ID, 0);
 
-	key_dir = nla_nest_start(ctx->nl_msg, OVPN_KEY_ATTR_ENCRYPT);
+	key_dir = nla_nest_start(ctx->nl_msg, OVPN_ATTR_ENCRYPT_KEY);
 	NLA_PUT(ctx->nl_msg, OVPN_KEY_DIR_ATTR_CIPHER_KEY, KEY_LEN,
 		ovpn->key_enc);
 	NLA_PUT(ctx->nl_msg, OVPN_KEY_DIR_ATTR_NONCE_TAIL, NONCE_LEN,
 		ovpn->nonce);
 	nla_nest_end(ctx->nl_msg, key_dir);
 
-	key_dir = nla_nest_start(ctx->nl_msg, OVPN_KEY_ATTR_DECRYPT);
+	key_dir = nla_nest_start(ctx->nl_msg, OVPN_ATTR_DECRYPT_KEY);
 	NLA_PUT(ctx->nl_msg, OVPN_KEY_DIR_ATTR_CIPHER_KEY, KEY_LEN,
 		ovpn->key_dec);
 	NLA_PUT(ctx->nl_msg, OVPN_KEY_DIR_ATTR_NONCE_TAIL, NONCE_LEN,
 		ovpn->nonce);
 	nla_nest_end(ctx->nl_msg, key_dir);
-
-	nla_nest_end(ctx->nl_msg, key);
-
-	return 0;
-
-nla_put_failure:
-	return -1;
-}
-
-static int ovpn_set_keys(struct ovpn_ctx *ovpn)
-{
-	struct nl_ctx *ctx;
-	int ret = -1;
-
-	ctx = nl_ctx_alloc(ovpn, OVPN_CMD_SET_KEYS);
-	if (!ctx)
-		return -ENOMEM;
-
-	NLA_PUT_U32(ctx->nl_msg, OVPN_ATTR_REMOTE_PEER_ID, 0);
-
-	ret = ovpn_set_single_key(ovpn, ctx, OVPN_ATTR_KEY_PRIMARY);
-	if (ret < 0)
-		goto nla_put_failure;
 
 	ret = ovpn_nl_msg_send(ctx, NULL);
 nla_put_failure:
@@ -604,7 +587,7 @@ static void usage(const char *cmd)
 {
 	fprintf(stderr, "Error: invalid arguments.\n\n");
 	fprintf(stderr,
-		"Usage %s <iface> <start|add_peer|set_key|recv|send> [arguments..]\n",
+		"Usage %s <iface> <start|add_peer|new_key|recv|send> [arguments..]\n",
 		cmd);
 	fprintf(stderr, "\tiface: tun interface name\n\n");
 
@@ -619,7 +602,7 @@ static void usage(const char *cmd)
 	fprintf(stderr, "\tremote-port: peer UDP port\n\n");
 
 	fprintf(stderr,
-		"* set_key <key_dir> <key_file>: set data channel key\n");
+		"* new_key <key_dir> <key_file>: set data channel key\n");
 	fprintf(stderr,
 		"\tkey_dir: key direction, must 0 on one host and 1 on the other\n");
 	fprintf(stderr, "\tkey_file: file containing the pre-shared key\n\n");
@@ -741,7 +724,7 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "cannot add peer to VPN\n");
 			return ret;
 		}
-	} else if (!strcmp(argv[2], "set_key")) {
+	} else if (!strcmp(argv[2], "new_key")) {
 		if (argc < 5) {
 			usage(argv[0]);
 			return -1;
@@ -755,7 +738,7 @@ int main(int argc, char *argv[])
 		if (ret)
 			return ret;
 
-		ret = ovpn_set_keys(&ovpn);
+		ret = ovpn_new_key(&ovpn);
 		if (ret < 0) {
 			fprintf(stderr, "cannot set keys\n");
 			return ret;
@@ -778,6 +761,9 @@ int main(int argc, char *argv[])
 		ret = ovpn_send_data(&ovpn, argv[3], strlen(argv[3]) + 1);
 		if (ret < 0)
 			fprintf(stderr, "cannot send data\n");
+	} else {
+		usage(argv[0]);
+		return -1;
 	}
 
 	return ret;
