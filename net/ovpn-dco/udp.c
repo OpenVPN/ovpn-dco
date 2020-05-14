@@ -30,17 +30,17 @@ ovpn_lookup_peer_via_transport(struct ovpn_struct *ovpn,
 
 	rcu_read_lock();
 	peer = ovpn_peer_get(ovpn);
-	if (!peer)
+	if (unlikely(!peer))
 		goto err;
 
 	bind = rcu_dereference(peer->bind);
-	if (!bind)
+	if (unlikely(!bind))
 		goto err;
 
 	/* only one peer is supported at the moment. check if it's the one the
 	 * skb was received from and return it
 	 */
-	if (!ovpn_bind_skb_match(bind, skb))
+	if (unlikely(!ovpn_bind_skb_match(bind, skb)))
 		goto err;
 
 	rcu_read_unlock();
@@ -79,7 +79,7 @@ int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 	__skb_pull(skb, sizeof(struct udphdr));
 
 	ovpn = ovpn_from_udp_sock(sk);
-	if (!ovpn)
+	if (unlikely(!ovpn))
 		goto drop;
 
 	/* get opcode */
