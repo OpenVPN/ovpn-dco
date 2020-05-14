@@ -125,7 +125,7 @@ free_key:
 void ovpn_crypto_key_slot_delete(struct ovpn_peer *peer,
 				 enum ovpn_key_slot slot)
 {
-	struct ovpn_crypto_key_slot *ks;
+	struct ovpn_crypto_key_slot *ks = NULL;
 
 	mutex_lock(&peer->mutex);
 	switch (slot) {
