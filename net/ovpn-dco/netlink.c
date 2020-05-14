@@ -33,17 +33,6 @@ ovpn_netlink_policy_key_dir[OVPN_KEY_DIR_ATTR_MAX + 1] = {
 };
 
 static const struct nla_policy
-ovpn_netlink_policy_key[OVPN_KEY_ATTR_MAX + 1] = {
-	[OVPN_KEY_ATTR_CIPHER_ALG] = { .type = NLA_U16 },
-	[OVPN_KEY_ATTR_HMAC_ALG] = { .type = NLA_U16 },
-	[OVPN_KEY_ATTR_ENCRYPT] =
-		NLA_POLICY_NESTED(ovpn_netlink_policy_key_dir),
-	[OVPN_KEY_ATTR_DECRYPT] =
-		NLA_POLICY_NESTED(ovpn_netlink_policy_key_dir),
-	[OVPN_KEY_ATTR_ID] = { .type = NLA_U16 },
-};
-
-static const struct nla_policy
 ovpn_netlink_policy_sockaddr[OVPN_SOCKADDR_ATTR_MAX + 1] = {
 	/* IPv4 only supported for now */
 	[OVPN_SOCKADDR_ATTR_ADDRESS] = NLA_POLICY_MIN_LEN(4),
@@ -56,8 +45,15 @@ static const struct nla_policy ovpn_netlink_policy[OVPN_ATTR_MAX + 1] = {
 	[OVPN_ATTR_SOCKET] = { .type = NLA_U32 },
 	[OVPN_ATTR_PROTO] = { .type = NLA_U8 },
 	[OVPN_ATTR_REMOTE_PEER_ID] = { .type = NLA_U32 },
-	[OVPN_ATTR_KEY_PRIMARY] = NLA_POLICY_NESTED(ovpn_netlink_policy_key),
-	[OVPN_ATTR_KEY_SECONDARY] = NLA_POLICY_NESTED(ovpn_netlink_policy_key),
+	[OVPN_ATTR_KEY_SLOT] = NLA_POLICY_RANGE(NLA_U8, __OVPN_KEY_SLOT_FIRST,
+						__OVPN_KEY_SLOT_AFTER_LAST - 1),
+	[OVPN_ATTR_CIPHER_ALG] = { .type = NLA_U16 },
+	[OVPN_ATTR_HMAC_ALG] = { .type = NLA_U16 },
+	[OVPN_ATTR_ENCRYPT_KEY] =
+		NLA_POLICY_NESTED(ovpn_netlink_policy_key_dir),
+	[OVPN_ATTR_DECRYPT_KEY] =
+		NLA_POLICY_NESTED(ovpn_netlink_policy_key_dir),
+	[OVPN_ATTR_KEY_ID] = { .type = NLA_U16 },
 	[OVPN_ATTR_SOCKADDR_REMOTE] =
 		NLA_POLICY_NESTED(ovpn_netlink_policy_sockaddr),
 	[OVPN_ATTR_SOCKADDR_LOCAL] =
@@ -128,10 +124,9 @@ static void ovpn_post_doit(const struct genl_ops *ops, struct sk_buff *skb,
 	dev_put(ovpn->dev);
 }
 
-static int ovpn_netlink_copy_key_dir(struct genl_info *info,
-				     struct nlattr *key,
-				     enum ovpn_cipher_alg cipher,
-				     struct ovpn_key_direction *dir)
+static int ovpn_netlink_get_key_dir(struct genl_info *info, struct nlattr *key,
+				    enum ovpn_cipher_alg cipher,
+				    struct ovpn_key_direction *dir)
 {
 	struct nlattr *attr, *attrs[OVPN_KEY_DIR_ATTR_MAX + 1];
 	int ret;
@@ -167,126 +162,61 @@ static int ovpn_netlink_copy_key_dir(struct genl_info *info,
 	return 0;
 }
 
-static int ovpn_netlink_copy_key_config(struct genl_info *info,
-					struct nlattr *key,
-					struct ovpn_key_config *kc)
-{
-	struct nlattr *attrs[OVPN_KEY_ATTR_MAX + 1];
-	enum ovpn_cipher_alg cipher;
-	int ret;
-
-	ret = nla_parse_nested(attrs, OVPN_KEY_ATTR_MAX, key,
-			       ovpn_netlink_policy_key, info->extack);
-	if (ret)
-		return ret;
-
-	if (!attrs[OVPN_KEY_ATTR_CIPHER_ALG] || !attrs[OVPN_KEY_ATTR_ID] ||
-	    !attrs[OVPN_KEY_ATTR_ENCRYPT] || !attrs[OVPN_KEY_ATTR_DECRYPT])
-		return -EINVAL;
-
-	cipher = nla_get_u16(attrs[OVPN_KEY_ATTR_CIPHER_ALG]);
-	/* non AEAD algs must have have an auth algorithm */
-	if (cipher != OVPN_CIPHER_ALG_AES_GCM && !attrs[OVPN_KEY_ATTR_HMAC_ALG])
-		return -EINVAL;
-
-	kc->cipher_alg = cipher;
-
-	if (cipher != OVPN_CIPHER_ALG_AES_GCM)
-		kc->hmac_alg = nla_get_u16(attrs[OVPN_KEY_ATTR_HMAC_ALG]);
-
-	kc->key_id = nla_get_u16(attrs[OVPN_KEY_ATTR_ID]);
-
-	ret = ovpn_netlink_copy_key_dir(info, attrs[OVPN_KEY_ATTR_ENCRYPT],
-					cipher, &kc->encrypt);
-	if (ret < 0)
-		return ret;
-
-	ret = ovpn_netlink_copy_key_dir(info, attrs[OVPN_KEY_ATTR_DECRYPT],
-					cipher, &kc->decrypt);
-	if (ret < 0)
-		return ret;
-
-	return 0;
-}
-
-static int ovpn_netlink_copy_keys(struct ovpn_peer_keys_reset *keys,
-				  struct genl_info *info)
-{
-	enum ovpn_crypto_families fam_sec;
-	struct nlattr *attr;
-	int ret;
-
-	attr = info->attrs[OVPN_ATTR_KEY_PRIMARY];
-	if (attr) {
-		ret = ovpn_netlink_copy_key_config(info, attr, &keys->primary);
-		if (ret < 0)
-			return ret;
-
-		keys->crypto_family = ovpn_keys_familiy_get(&keys->primary);
-		keys->primary_key_set = true;
-	}
-
-	attr = info->attrs[OVPN_ATTR_KEY_SECONDARY];
-	if (attr) {
-		ret = ovpn_netlink_copy_key_config(info, attr,
-						   &keys->secondary);
-		if (ret < 0)
-			return ret;
-
-		fam_sec = ovpn_keys_familiy_get(&keys->secondary);
-		/* primary and secondary key crypto family must match */
-		if (keys->crypto_family != fam_sec)
-			return -EINVAL;
-		keys->secondary_key_set = true;
-	}
-
-	return 0;
-}
-
-static int ovpn_netlink_set_keys(struct sk_buff *skb, struct genl_info *info)
+static int ovpn_netlink_new_key(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ovpn_struct *ovpn = info->user_ptr[0];
-	struct ovpn_peer_keys_reset keys;
+	struct ovpn_peer_key_reset pkr;
 	struct ovpn_peer *peer;
-	struct nlattr *attr;
 	int ret;
+
+	if (!info->attrs[OVPN_ATTR_REMOTE_PEER_ID] ||
+	    !info->attrs[OVPN_ATTR_KEY_SLOT] ||
+	    !info->attrs[OVPN_ATTR_KEY_ID] ||
+	    !info->attrs[OVPN_ATTR_CIPHER_ALG] ||
+	    !info->attrs[OVPN_ATTR_ENCRYPT_KEY] ||
+	    !info->attrs[OVPN_ATTR_DECRYPT_KEY])
+		return -EINVAL;
+
+	pkr.remote_peer_id = nla_get_u32(info->attrs[OVPN_ATTR_REMOTE_PEER_ID]);
+	pkr.slot = nla_get_u8(info->attrs[OVPN_ATTR_KEY_SLOT]);
+	pkr.key.key_id = nla_get_u16(info->attrs[OVPN_ATTR_KEY_ID]);
+
+	pkr.key.cipher_alg = nla_get_u16(info->attrs[OVPN_ATTR_CIPHER_ALG]);
+	/* non AEAD algs must have have an auth algorithm */
+	if (pkr.key.cipher_alg != OVPN_CIPHER_ALG_AES_GCM) {
+		if (!info->attrs[OVPN_ATTR_HMAC_ALG])
+			return -EINVAL;
+
+		pkr.key.hmac_alg = nla_get_u16(info->attrs[OVPN_ATTR_HMAC_ALG]);
+	}
+
+	ret = ovpn_netlink_get_key_dir(info, info->attrs[OVPN_ATTR_ENCRYPT_KEY],
+				       pkr.key.cipher_alg, &pkr.key.encrypt);
+	if (ret < 0)
+		return ret;
+
+	ret = ovpn_netlink_get_key_dir(info, info->attrs[OVPN_ATTR_DECRYPT_KEY],
+				       pkr.key.cipher_alg, &pkr.key.decrypt);
+	if (ret < 0)
+		return ret;
+
+	pkr.crypto_family = ovpn_keys_familiy_get(&pkr.key);
 
 	peer = ovpn_peer_get(ovpn);
 	if (!peer)
 		return -ENOENT;
 
-	keys.primary_key_set = false;
-	keys.secondary_key_set = false;
-
-	attr = info->attrs[OVPN_ATTR_REMOTE_PEER_ID];
-	if (!attr)
-		return -EINVAL;
-
-	keys.remote_peer_id = nla_get_u32(attr);
-
-	ret = ovpn_netlink_copy_keys(&keys, info);
-	if (ret < 0) {
-		pr_debug("cannot extract keys from netlink message\n");
-		goto release_peer;
-	}
-
-	/* grab peer mutex */
 	mutex_lock(&peer->mutex);
-
 	/* get crypto family and check for consistency */
-	ret = ovpn_crypto_state_select_family(peer, &keys);
+	ret = ovpn_crypto_state_select_family(peer, &pkr);
 	if (ret < 0) {
 		pr_debug("cannot select crypto family for peer\n");
-		goto unlock_mutex;
+		goto unlock;
 	}
 
-	ret = ovpn_crypto_state_reset(&peer->crypto, &keys, peer);
-
-	pr_debug("%s: ret %d\n", __func__, ret);
-
-unlock_mutex:
+	ret = ovpn_crypto_state_reset(&peer->crypto, &pkr, peer);
+unlock:
 	mutex_unlock(&peer->mutex);
-release_peer:
 	ovpn_peer_put(peer);
 	return ret;
 }
@@ -563,10 +493,10 @@ static const struct genl_ops ovpn_netlink_ops[] = {
 		.doit = ovpn_netlink_set_peer,
 	},
 	{
-		.cmd = OVPN_CMD_SET_KEYS,
+		.cmd = OVPN_CMD_NEW_KEY,
 		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.flags = GENL_ADMIN_PERM,
-		.doit = ovpn_netlink_set_keys,
+		.doit = ovpn_netlink_new_key,
 	},
 	{
 		.cmd = OVPN_CMD_REGISTER_PACKET,

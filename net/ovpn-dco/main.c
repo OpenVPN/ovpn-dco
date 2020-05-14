@@ -179,10 +179,13 @@ static void ovpn_dellink(struct net_device *dev, struct list_head *head)
 	struct ovpn_peer *peer;
 
 	rcu_read_lock();
-	peer = rcu_dereference(ovpn->peer);
-	if (peer)
-		ovpn_peer_delete(peer);
+	peer = ovpn_peer_get(ovpn);
 	rcu_read_unlock();
+
+	if (peer) {
+		ovpn_peer_delete(peer);
+		ovpn_peer_put(peer);
+	}
 
 	unregister_netdevice_queue(dev, head); /* calls ovpn_net_uninit */
 }

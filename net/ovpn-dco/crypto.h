@@ -17,7 +17,7 @@
 #include <linux/skbuff.h>
 
 struct ovpn_peer;
-struct ovpn_crypto_context;
+struct ovpn_crypto_key_slot;
 
 enum ovpn_crypto_families {
 	OVPN_CRYPTO_FAMILY_UNDEF = 0,
@@ -46,43 +46,39 @@ struct ovpn_key_config {
 };
 
 /* used to pass settings from netlink to the crypto engine */
-struct ovpn_peer_keys_reset {
+struct ovpn_peer_key_reset {
 	u32 remote_peer_id;
+	enum ovpn_key_slot slot;
 	enum ovpn_crypto_families crypto_family;
-	bool primary_key_set;
-	struct ovpn_key_config primary;
-	bool secondary_key_set;
-	struct ovpn_key_config secondary;
+	struct ovpn_key_config key;
 };
 
 struct ovpn_crypto_ops {
-	int (*encrypt)(struct ovpn_crypto_context *cc,
+	int (*encrypt)(struct ovpn_crypto_key_slot *ks,
 		       struct sk_buff *skb,
 		       unsigned int net_headroom,
-		       unsigned int key_id,
 		       void (*callback)(struct sk_buff *, int err));
 
-	int (*decrypt)(struct ovpn_crypto_context *cc,
+	int (*decrypt)(struct ovpn_crypto_key_slot *ks,
 		       struct sk_buff *skb,
-		       unsigned int key_id,
 		       unsigned int op,
 		       void (*callback)(struct sk_buff *, int err));
 
-	struct ovpn_crypto_context *(*new)(const struct ovpn_key_config *kc,
-					   int *key_id,
-					   struct ovpn_peer *peer);
+	struct ovpn_crypto_key_slot *(*new)(const struct ovpn_key_config *kc,
+					    struct ovpn_peer *peer);
 
-	void (*destroy)(struct ovpn_crypto_context *cc);
+	void (*destroy)(struct ovpn_crypto_key_slot *ks);
 
-	int (*encap_overhead)(const struct ovpn_crypto_context *cc);
+	int (*encap_overhead)(const struct ovpn_crypto_key_slot *ks);
 
 	bool use_hmac;
 };
 
-struct ovpn_crypto_context {
+struct ovpn_crypto_key_slot {
 	const struct ovpn_crypto_ops *ops;
 	struct ovpn_peer *peer;
 	int remote_peer_id;
+	int key_id;
 
 	union {
 		/* aead mode */
@@ -109,102 +105,78 @@ struct ovpn_crypto_context {
 	struct rcu_head rcu;
 };
 
-struct ovpn_crypto_context_pair {
-	int primary_key_id;
-	int secondary_key_id;
-	struct ovpn_crypto_context *primary;
-	struct ovpn_crypto_context *secondary;
-	struct rcu_head rcu;
-};
-
 struct ovpn_crypto_state {
-	struct ovpn_crypto_context_pair __rcu *ccp;
+	struct ovpn_crypto_key_slot __rcu *primary;
+	struct ovpn_crypto_key_slot __rcu *secondary;
 	const struct ovpn_crypto_ops *ops;
 };
 
-static inline bool ovpn_crypto_context_hold(struct ovpn_crypto_context *cc)
+static inline bool ovpn_crypto_key_slot_hold(struct ovpn_crypto_key_slot *ks)
 {
-	return kref_get_unless_zero(&cc->refcount);
+	return kref_get_unless_zero(&ks->refcount);
 }
 
 static inline void ovpn_crypto_state_init(struct ovpn_crypto_state *cs)
 {
-	RCU_INIT_POINTER(cs->ccp, NULL);
+	RCU_INIT_POINTER(cs->primary, NULL);
+	RCU_INIT_POINTER(cs->secondary, NULL);
 	cs->ops = NULL;
 }
 
-static inline bool ovpn_crypto_state_defined(const struct ovpn_crypto_state *cs)
+static inline struct ovpn_crypto_key_slot *
+ovpn_crypto_key_id_to_slot(const struct ovpn_crypto_state *cs, int key_id)
 {
-	return rcu_access_pointer(cs->ccp);
-}
+	struct ovpn_crypto_key_slot *ks;
 
-static inline struct ovpn_crypto_context *
-ovpn_crypto_context_from_key_id(const struct ovpn_crypto_context_pair *ccp,
-				const int key_id)
-{
-	struct ovpn_crypto_context *cc = NULL;
-
-	if (!ccp)
+	if (!cs)
 		return NULL;
 
 	rcu_read_lock();
-
-	if (key_id == ccp->primary_key_id)
-		cc = ccp->primary;
-	else if (key_id == ccp->secondary_key_id)
-		cc = ccp->secondary;
-
-	if (unlikely(cc && !ovpn_crypto_context_hold(cc)))
-		cc = NULL;
-
-	rcu_read_unlock();
-
-	return cc;
-}
-
-static inline struct ovpn_crypto_context *
-ovpn_crypto_context_from_state(const struct ovpn_crypto_state *cs,
-			       const int key_id)
-{
-	const struct ovpn_crypto_context_pair *ccp = rcu_dereference(cs->ccp);
-
-	return ovpn_crypto_context_from_key_id(ccp, key_id);
-}
-
-static inline struct ovpn_crypto_context *
-ovpn_crypto_context_primary(const struct ovpn_crypto_state *cs,
-			    int *key_id)
-{
-	const struct ovpn_crypto_context_pair *ccp;
-	struct ovpn_crypto_context *cc = NULL;
-
-	rcu_read_lock();
-
-	ccp = rcu_dereference(cs->ccp);
-	if (ccp) {
-		*key_id = ccp->primary_key_id;
-		cc = ccp->primary;
-		if (unlikely(cc && !ovpn_crypto_context_hold(cc)))
-			cc = NULL;
+	ks = rcu_dereference(cs->primary);
+	if (ks && ks->key_id == key_id) {
+		if (!ovpn_crypto_key_slot_hold(ks))
+			ks = NULL;
+		goto out;
 	}
 
+	ks = rcu_dereference(cs->secondary);
+	if (ks && ks->key_id == key_id) {
+		if (!ovpn_crypto_key_slot_hold(ks))
+			ks = NULL;
+		goto out;
+	}
+out:
 	rcu_read_unlock();
 
-	return cc;
+	return ks;
 }
 
-void ovpn_crypto_context_release(struct kref *kref);
-
-static inline void ovpn_crypto_context_put(struct ovpn_crypto_context *cc)
+static inline struct ovpn_crypto_key_slot *
+ovpn_crypto_key_slot_primary(const struct ovpn_crypto_state *cs)
 {
-	kref_put(&cc->refcount, ovpn_crypto_context_release);
+	struct ovpn_crypto_key_slot *ks;
+
+	rcu_read_lock();
+	ks = rcu_dereference(cs->primary);
+	if (ks && !ovpn_crypto_key_slot_hold(ks))
+		ks = NULL;
+	rcu_read_unlock();
+
+	return ks;
+}
+
+void ovpn_crypto_key_slot_release(struct kref *kref);
+
+static inline void ovpn_crypto_key_slot_put(struct ovpn_crypto_key_slot *ks)
+{
+	kref_put(&ks->refcount, ovpn_crypto_key_slot_release);
 }
 
 int ovpn_crypto_state_select_family(struct ovpn_peer *peer,
-				    const struct ovpn_peer_keys_reset *pkr);
+				    const struct ovpn_peer_key_reset *pkr);
 
 int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
-			    const struct ovpn_peer_keys_reset *pkr,
+			    const struct ovpn_peer_key_reset *pkr,
 			    struct ovpn_peer *peer);
 
 int ovpn_crypto_encap_overhead(const struct ovpn_crypto_state *cs);

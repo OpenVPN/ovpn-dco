@@ -16,7 +16,7 @@
 
 struct ovpn_work {
 	/* object must have +1 refcount during async op */
-	struct ovpn_crypto_context *cc;
+	struct ovpn_crypto_key_slot *ks;
 };
 
 struct ovpn_skb_cb {

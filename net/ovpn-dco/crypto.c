@@ -14,147 +14,116 @@
 
 #include <uapi/linux/ovpn_dco.h>
 
-/* Helper method for ovpn_crypto_state_reset to create a new
- * ovpn_crypto_context.
- */
-static struct ovpn_crypto_context *
-ovpn_cc_new(const struct ovpn_crypto_ops *ops, const struct ovpn_key_config *kc,
-	    int *key_id, struct ovpn_peer *peer)
+static struct ovpn_crypto_key_slot *
+ovpn_ks_new(const struct ovpn_crypto_ops *ops, const struct ovpn_key_config *kc,
+	    struct ovpn_peer *peer)
 {
-	return ops->new(kc, key_id, peer);
+	return ops->new(kc, peer);
 }
 
-/* Destroy an ovpn_crypto_context.
- * If object has been visible to RCU readers, this method
- * should only be called one RCU grace period after
- * visibility has been removed.
- */
-static void __ovpn_cc_destroy_rcu(struct rcu_head *head)
+static void ovpn_ks_destroy_rcu(struct rcu_head *head)
 {
-	struct ovpn_crypto_context *cc;
+	struct ovpn_crypto_key_slot *ks;
 
-	cc = container_of(head, struct ovpn_crypto_context, rcu);
-	cc->ops->destroy(cc);
+	ks = container_of(head, struct ovpn_crypto_key_slot, rcu);
+	ks->ops->destroy(ks);
 }
 
-void ovpn_crypto_context_release(struct kref *kref)
+void ovpn_crypto_key_slot_release(struct kref *kref)
 {
-	struct ovpn_crypto_context *cc;
+	struct ovpn_crypto_key_slot *ks;
 
-	cc = container_of(kref, struct ovpn_crypto_context, refcount);
-	call_rcu(&cc->rcu, __ovpn_cc_destroy_rcu);
-}
-
-static void
-ovpn_crypto_context_pair_release(struct ovpn_crypto_context_pair *ccp)
-{
-	if (ccp->primary)
-		ovpn_crypto_context_put(ccp->primary);
-	if (ccp->secondary)
-		ovpn_crypto_context_put(ccp->secondary);
-	kfree_rcu(ccp, rcu);
+	ks = container_of(kref, struct ovpn_crypto_key_slot, refcount);
+	call_rcu(&ks->rcu, ovpn_ks_destroy_rcu);
 }
 
 void ovpn_crypto_state_release(struct ovpn_peer *peer)
 {
-	struct ovpn_crypto_context_pair *ccp;
+	struct ovpn_crypto_key_slot *ks;
 
-	spin_lock_bh(&peer->lock);
-	ccp = rcu_dereference_protected(peer->crypto.ccp,
-					lockdep_is_held(&peer->lock));
-	if (ccp) {
-		RCU_INIT_POINTER(peer->crypto.ccp, NULL);
-		ovpn_crypto_context_pair_release(ccp);
+	mutex_lock(&peer->mutex);
+	ks = rcu_dereference_protected(peer->crypto.primary,
+				       lockdep_is_held(&peer->mutex));
+	if (ks) {
+		RCU_INIT_POINTER(peer->crypto.primary, NULL);
+		ovpn_crypto_key_slot_put(ks);
 	}
-	spin_unlock_bh(&peer->lock);
+
+	ks = rcu_dereference_protected(peer->crypto.secondary,
+				       lockdep_is_held(&peer->mutex));
+	if (ks) {
+		RCU_INIT_POINTER(peer->crypto.secondary, NULL);
+		ovpn_crypto_key_slot_put(ks);
+	}
+	mutex_unlock(&peer->mutex);
 }
 
 int ovpn_crypto_encap_overhead(const struct ovpn_crypto_state *cs)
 {
-	const struct ovpn_crypto_context *cc;
-	struct ovpn_crypto_context_pair *ccp;
+	const struct ovpn_crypto_key_slot *ks;
 	int ret;
 
 	rcu_read_lock();
-
-	ccp = rcu_dereference(cs->ccp);
-	if (!ccp) {
+	ks = rcu_dereference(cs->primary);
+	if (!ks) {
 		rcu_read_unlock();
 		return -ENOENT;
 	}
-	cc = ccp->primary;
-	if (!cc) {
-		rcu_read_unlock();
-		return -ENOENT;
-	}
-	ret = cc->ops->encap_overhead(cc);
-
+	ret = ks->ops->encap_overhead(ks);
 	rcu_read_unlock();
+
 	return ret;
 }
 
 /* Reset the ovpn_crypto_state object in a way that is atomic
- * to RCU readers.  Should be called from user context
- * with peer->mutex held.
+ * to RCU readers.
  */
 int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
-			    const struct ovpn_peer_keys_reset *pkr,
+			    const struct ovpn_peer_key_reset *pkr,
 			    struct ovpn_peer *peer)
 	__must_hold(peer->mutex)
 {
-	struct ovpn_crypto_context_pair *oldc;
-	struct ovpn_crypto_context_pair *newc;
-	int ret;
+	struct ovpn_crypto_key_slot *old = NULL;
+	struct ovpn_crypto_key_slot *new;
 
 	lockdep_assert_held(&peer->mutex);
 
-	newc = kzalloc(sizeof(*newc), GFP_KERNEL);
-	if (unlikely(!newc))
-		return -ENOMEM;
+	new = ovpn_ks_new(cs->ops, &pkr->key, peer);
+	if (IS_ERR(new))
+		return PTR_ERR(new);
 
-	newc->primary_key_id = -1;
-	newc->secondary_key_id = -1;
-	oldc = rcu_dereference_protected(cs->ccp,
-					 lockdep_is_held(&peer->mutex));
+	new->remote_peer_id = pkr->remote_peer_id;
 
-	if (pkr->primary_key_set) {
-		newc->primary = ovpn_cc_new(cs->ops, &pkr->primary,
-					    &newc->primary_key_id, peer);
-		if (IS_ERR(newc->primary)) {
-			ret = PTR_ERR(newc->primary);
-			newc->primary = NULL;
-			goto free_cc;
-		}
-		newc->primary->remote_peer_id = pkr->remote_peer_id;
+	switch (pkr->slot) {
+	case OVPN_KEY_SLOT_PRIMARY:
+		old = rcu_dereference_protected(cs->primary,
+						lockdep_is_held(&peer->lock));
+		rcu_assign_pointer(cs->primary, new);
+		break;
+	case OVPN_KEY_SLOT_SECONDARY:
+		old = rcu_dereference_protected(cs->secondary,
+						lockdep_is_held(&peer->lock));
+		rcu_assign_pointer(cs->secondary, new);
+		break;
+	default:
+		goto free_key;
 	}
 
-	if (pkr->secondary_key_set) {
-		newc->secondary = ovpn_cc_new(cs->ops, &pkr->secondary,
-					      &newc->secondary_key_id, peer);
-		if (IS_ERR(newc->secondary)) {
-			ret = PTR_ERR(newc->secondary);
-			newc->secondary = NULL;
-			goto free_cc;
-		}
-		newc->secondary->remote_peer_id = pkr->remote_peer_id;
+	pr_debug("*** NEW KEY INSTALLED id=%u remote_pid=%u\n",
+		 new->key_id, new->remote_peer_id);
+
+	if (old) {
+		ovpn_crypto_key_slot_put(old);
 	}
-
-	pr_debug("*** NEW CRYPTO CONTEXT pri=%d sec=%d remote_pid=%u\n",
-		 newc->primary_key_id, newc->secondary_key_id,
-		 pkr->remote_peer_id);
-
-	rcu_assign_pointer(cs->ccp, newc);
-	if (oldc)
-		ovpn_crypto_context_pair_release(oldc);
 
 	return 0;
-free_cc:
-	ovpn_crypto_context_pair_release(newc);
-	return ret;
+free_key:
+	ovpn_crypto_key_slot_put(new);
+	return -EINVAL;
 }
 
 static const struct ovpn_crypto_ops *
-ovpn_crypto_select_family(const struct ovpn_peer_keys_reset *pkr)
+ovpn_crypto_select_family(const struct ovpn_peer_key_reset *pkr)
 {
 	switch (pkr->crypto_family) {
 	case OVPN_CRYPTO_FAMILY_UNDEF:
@@ -169,13 +138,13 @@ ovpn_crypto_select_family(const struct ovpn_peer_keys_reset *pkr)
 }
 
 int ovpn_crypto_state_select_family(struct ovpn_peer *peer,
-				    const struct ovpn_peer_keys_reset *pkr)
-	__must_hold(peer->mutex)
+				    const struct ovpn_peer_key_reset *pkr)
+	__must_hold(peer->lock)
 {
-	const struct ovpn_crypto_ops *ops;
 	const struct ovpn_crypto_ops *new_ops;
+	const struct ovpn_crypto_ops *ops;
 
-	lockdep_assert_held(&peer->mutex);
+	lockdep_assert_held(&peer->lock);
 
 	new_ops = ovpn_crypto_select_family(pkr);
 	if (!new_ops)
