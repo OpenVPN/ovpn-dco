@@ -179,6 +179,9 @@ int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
 			    const struct ovpn_peer_key_reset *pkr,
 			    struct ovpn_peer *peer);
 
+void ovpn_crypto_key_slot_delete(struct ovpn_peer *peer,
+				 enum ovpn_key_slot slot);
+
 int ovpn_crypto_encap_overhead(const struct ovpn_crypto_state *cs);
 
 void ovpn_crypto_state_release(struct ovpn_peer *peer);

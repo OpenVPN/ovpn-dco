@@ -49,6 +49,8 @@ enum ovpn_nl_commands {
 
 	OVPN_CMD_NEW_KEY,
 
+	OVPN_CMD_DEL_KEY,
+
 	/**
 	 * @OVPN_CMD_REGISTER_PACKET: Register for specific packet types to be
 	 * forwarded to userspace

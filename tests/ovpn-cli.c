@@ -509,6 +509,23 @@ nla_put_failure:
 	return ret;
 }
 
+static int ovpn_del_key(struct ovpn_ctx *ovpn)
+{
+	struct nl_ctx *ctx;
+	int ret = -1;
+
+	ctx = nl_ctx_alloc(ovpn, OVPN_CMD_DEL_KEY);
+	if (!ctx)
+		return -ENOMEM;
+
+	NLA_PUT_U8(ctx->nl_msg, OVPN_ATTR_KEY_SLOT, OVPN_KEY_SLOT_PRIMARY);
+
+	ret = ovpn_nl_msg_send(ctx, NULL);
+nla_put_failure:
+	nl_ctx_free(ctx);
+	return ret;
+}
+
 static int ovpn_send_data(struct ovpn_ctx *ovpn, const void *data, size_t len)
 {
 	struct nl_ctx *ctx;
@@ -740,7 +757,13 @@ int main(int argc, char *argv[])
 
 		ret = ovpn_new_key(&ovpn);
 		if (ret < 0) {
-			fprintf(stderr, "cannot set keys\n");
+			fprintf(stderr, "cannot set key\n");
+			return ret;
+		}
+	} else if (!strcmp(argv[2], "del_key")) {
+		ret = ovpn_del_key(&ovpn);
+		if (ret < 0) {
+			fprintf(stderr, "cannot delete key\n");
 			return ret;
 		}
 	} else if (!strcmp(argv[2], "recv")) {

@@ -122,6 +122,38 @@ free_key:
 	return -EINVAL;
 }
 
+void ovpn_crypto_key_slot_delete(struct ovpn_peer *peer,
+				 enum ovpn_key_slot slot)
+{
+	struct ovpn_crypto_key_slot *ks;
+
+	mutex_lock(&peer->mutex);
+	switch (slot) {
+	case OVPN_KEY_SLOT_PRIMARY:
+		ks = rcu_dereference_protected(peer->crypto.primary,
+					       lockdep_is_held(&peer->lock));
+		RCU_INIT_POINTER(peer->crypto.primary, NULL);
+		break;
+	case OVPN_KEY_SLOT_SECONDARY:
+		ks = rcu_dereference_protected(peer->crypto.secondary,
+					       lockdep_is_held(&peer->lock));
+		RCU_INIT_POINTER(peer->crypto.secondary, NULL);
+		break;
+	default:
+		pr_warn("Invalid slot to release: %u\n", slot);
+		break;
+	}
+	mutex_unlock(&peer->mutex);
+
+	if (!ks) {
+		pr_debug("Key slot already released: %u\n", slot);
+		return;
+	}
+
+	ovpn_crypto_key_slot_put(ks);
+}
+
+
 static const struct ovpn_crypto_ops *
 ovpn_crypto_select_family(const struct ovpn_peer_key_reset *pkr)
 {
