@@ -25,7 +25,7 @@ function setup_ns() {
 	ip -n peer$1 link set tun0 up
 
 	ip netns exec peer$1 $OVPN_CLI tun0 start $5 $8
-	ip netns exec peer$1 $OVPN_CLI tun0 add_peer $2 $5 $6 $7
+	ip netns exec peer$1 $OVPN_CLI tun0 new_peer $2 $5 $6 $7
 	ip netns exec peer$1 $OVPN_CLI tun0 new_key $1 data64.key
 }
 
