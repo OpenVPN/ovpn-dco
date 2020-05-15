@@ -62,9 +62,7 @@ static int ovpn_net_init(struct net_device *dev)
 	if (ret < 0)
 		return ret;
 
-	ret = ovpn_struct_init(dev);
-
-	return 0;
+	return ovpn_struct_init(dev);
 }
 
 /* Net device open */
