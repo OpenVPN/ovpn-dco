@@ -55,13 +55,11 @@ struct ovpn_peer_key_reset {
 
 struct ovpn_crypto_ops {
 	int (*encrypt)(struct ovpn_crypto_key_slot *ks,
-		       struct sk_buff *skb,
-		       void (*callback)(struct sk_buff *, int err));
+		       struct sk_buff *skb);
 
 	int (*decrypt)(struct ovpn_crypto_key_slot *ks,
 		       struct sk_buff *skb,
-		       unsigned int op,
-		       void (*callback)(struct sk_buff *, int err));
+		       unsigned int op);
 
 	struct ovpn_crypto_key_slot *(*new)(const struct ovpn_key_config *kc,
 					    struct ovpn_peer *peer);

@@ -132,36 +132,6 @@ drop:
 	return ret;
 }
 
-static void ovpn_post_decrypt(struct ovpn_peer *peer,
-			      struct ovpn_crypto_key_slot *ks,
-			      struct sk_buff *skb, int err,
-			      struct ovpn_work *work)
-{
-	/* free workspace */
-	kfree(work);
-
-	/* test decrypt status */
-	if (unlikely(err)) {
-		/* decryption failed */
-		kfree_skb(skb);
-		goto error;
-	}
-
-	/* successful decryption */
-	tun_netdev_write(peer, skb);
-
-error:
-	ovpn_crypto_key_slot_put(ks);
-	ovpn_peer_put(peer);
-}
-
-static void ovpn_post_decrypt_callback(struct sk_buff *skb, int err)
-{
-	struct ovpn_work *work = OVPN_SKB_CB(skb)->work;
-
-	ovpn_post_decrypt(work->ks->peer, work->ks, skb, err, work);
-}
-
 static int ovpn_transport_to_userspace(struct ovpn_struct *ovpn,
 				       struct sk_buff *skb)
 {
@@ -179,10 +149,7 @@ static int ovpn_transport_to_userspace(struct ovpn_struct *ovpn,
 	return 0;
 }
 
-/* Receive an encrypted packet from transport (UDP or TCP).
- * Should be called with rcu_read_lock held, but will be released
- * before return.  Takes ownership of skb.
- */
+/* enqueue the packet and schedule RX consumer */
 void ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	       struct sk_buff *skb)
 {
@@ -197,6 +164,7 @@ void ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	queue_work(ovpn->crypto_wq, &peer->decrypt_work);
 }
 
+/* pick packet from RX queue, decrypt and forward it to the tun device */
 void ovpn_decrypt_work(struct work_struct *work)
 {
 	struct ovpn_crypto_key_slot *ks;
@@ -225,8 +193,7 @@ void ovpn_decrypt_work(struct work_struct *work)
 		if (ret < 0)
 			goto drop;
 
-		if (peer)
-			ovpn_peer_put(peer);
+		ovpn_peer_put(peer);
 		return;
 	}
 
@@ -237,54 +204,22 @@ void ovpn_decrypt_work(struct work_struct *work)
 		goto drop;
 
 	/* decrypt */
-	ret = ks->ops->decrypt(ks, skb, op, ovpn_post_decrypt_callback);
-	if (likely(ret != -EINPROGRESS))
-		ovpn_post_decrypt(peer, ks, skb, ret, OVPN_SKB_CB(skb)->work);
-
-	return;
-
-drop:
-	if (peer)
-		ovpn_peer_put(peer);
-	kfree_skb(skb);
-}
-
-
-static void ovpn_post_encrypt(struct ovpn_peer *peer,
-			      struct ovpn_crypto_key_slot *ks,
-			      struct sk_buff *skb, int err,
-			      struct ovpn_work *work)
-{
-	/* free workspace */
-	kfree(work);
-
-	/* test encrypt status */
-	if (unlikely(err)) {
-		kfree_skb(skb);
-		goto error;
+	ret = ks->ops->decrypt(ks, skb, op);
+	if (unlikely(ret < 0)) {
+		pr_err("error during decryption\n");
+		goto drop;
 	}
 
-	/* successful encryption */
-	ovpn_udp_send_skb(peer->ovpn, peer, skb);
-
-error:
+	/* successful decryption */
 	ovpn_crypto_key_slot_put(ks);
+	tun_netdev_write(peer, skb);
+drop:
 	ovpn_peer_put(peer);
+	if (ret < 0)
+		kfree_skb(skb);
 }
 
-static void ovpn_post_encrypt_callback(struct sk_buff *skb, int err)
-{
-	struct ovpn_crypto_key_slot *ks;
-	struct ovpn_work *work;
-	struct ovpn_peer *peer;
-
-	work = OVPN_SKB_CB(skb)->work;
-	ks = work->ks;
-	peer = ks->peer;
-
-	ovpn_post_encrypt(peer, ks, skb, err, work);
-}
-
+/* pick packet from TX queue, encrypt and send it to peer */
 void ovpn_encrypt_work(struct work_struct *work)
 {
 	struct ovpn_crypto_key_slot *ks;
@@ -306,17 +241,24 @@ void ovpn_encrypt_work(struct work_struct *work)
 	OVPN_SKB_CB(skb)->pktid = 0;
 
 	/* encrypt */
-	ret = ks->ops->encrypt(ks, skb, ovpn_post_encrypt_callback);
-	if (likely(ret != -EINPROGRESS))
-		ovpn_post_encrypt(peer, ks, skb, ret,
-				  OVPN_SKB_CB(skb)->work);
+	ret = ks->ops->encrypt(ks, skb);
+	if (unlikely(ret < 0)) {
+		pr_err("error during encryption\n");
+		goto free_peer;
+	}
 
-	return;
+	ovpn_crypto_key_slot_put(ks);
+	/* successful encryption */
+	ovpn_udp_send_skb(peer->ovpn, peer, skb);
 free_peer:
 	ovpn_peer_put(peer);
+	if (ret < 0)
+		kfree_skb(skb);
 }
 
-/* On success, 0 is returned, skb ownership is transferred,
+/* enqueue packet and schedule TX consumer
+ *
+ * On success, 0 is returned, skb ownership is transferred,
  * On error, a value < 0 is returned, the skb is not owned/released.
  */
 static int ovpn_net_xmit_skb(struct ovpn_struct *ovpn, struct sk_buff *skb)
