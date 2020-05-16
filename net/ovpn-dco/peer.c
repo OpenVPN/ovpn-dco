@@ -11,6 +11,8 @@
 #include "bind.h"
 #include "crypto.h"
 
+#include <linux/workqueue.h>
+
 static void ovpn_peer_timer_delete_all(struct ovpn_peer *peer);
 static void ovpn_peer_keepalive_xmit_handler(struct timer_list *arg);
 static void ovpn_peer_keepalive_expire_handler(struct timer_list *arg);
@@ -32,6 +34,7 @@ struct ovpn_peer *ovpn_peer_get(struct ovpn_struct *ovpn)
 static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 {
 	struct ovpn_peer *peer;
+	int ret;
 
 	/* alloc and init peer object */
 	peer = kmalloc(sizeof(*peer), GFP_KERNEL);
@@ -47,6 +50,21 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 	kref_init(&peer->refcount);
 	ovpn_peer_stats_init(&peer->stats);
 
+	INIT_WORK(&peer->encrypt_work, ovpn_encrypt_work);
+	INIT_WORK(&peer->decrypt_work, ovpn_decrypt_work);
+
+	ret = ptr_ring_init(&peer->tx_ring, OVPN_QUEUE_LEN, GFP_KERNEL);
+	if (ret < 0) {
+		pr_err("cannot allocate TX ring\n");
+		goto err;
+	}
+
+	ret = ptr_ring_init(&peer->rx_ring, OVPN_QUEUE_LEN, GFP_KERNEL);
+	if (ret < 0) {
+		pr_err("cannot allocate RX ring\n");
+		goto err_tx_ring;
+	}
+
 	peer->ovpn = ovpn;
 	dev_hold(ovpn->dev);
 
@@ -57,6 +75,11 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 			ovpn_peer_keepalive_expire_handler);
 
 	return peer;
+err_tx_ring:
+	ptr_ring_cleanup(&peer->tx_ring, NULL);
+err:
+	kfree(peer);
+	return NULL;
 }
 
 /* Reset the ovpn_sockaddr_pair associated with a peer */
@@ -76,10 +99,22 @@ int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer,
 	return 0;
 }
 
+static void ovpn_peer_clean_ring(void *ptr)
+{
+	struct sk_buff *skb = ptr;
+
+	kfree(skb);
+}
+
 void ovpn_peer_release(struct ovpn_peer *peer)
 {
 	ovpn_bind_reset(peer, NULL);
 	ovpn_peer_timer_delete_all(peer);
+
+	WARN_ON(!__ptr_ring_empty(&peer->tx_ring));
+	ptr_ring_cleanup(&peer->tx_ring, ovpn_peer_clean_ring);
+	WARN_ON(!__ptr_ring_empty(&peer->rx_ring));
+	ptr_ring_cleanup(&peer->rx_ring, ovpn_peer_clean_ring);
 
 	dev_put(peer->ovpn->dev);
 

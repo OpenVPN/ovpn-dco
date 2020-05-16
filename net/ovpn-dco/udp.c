@@ -67,7 +67,6 @@ int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 {
 	struct ovpn_struct *ovpn;
 	struct ovpn_peer *peer;
-	unsigned int op;
 
 	/* ensure accurate L4 hash for packets assembled from IP fragments */
 	skb_clear_hash_if_not_l4(skb);
@@ -82,13 +81,12 @@ int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 	if (unlikely(!ovpn))
 		goto drop;
 
-	/* get opcode */
-	op = ovpn_op32_from_skb(skb, NULL);
-
 	/* lookup peer */
 	peer = ovpn_lookup_peer_via_transport(ovpn, skb);
+	if (!peer)
+		goto drop;
 
-	ovpn_recv(ovpn, peer, op, skb);
+	ovpn_recv(ovpn, peer, skb);
 	return 0;
 
 drop:

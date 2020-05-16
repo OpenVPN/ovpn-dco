@@ -14,6 +14,7 @@
 
 #include <uapi/linux/ovpn_dco.h>
 #include <linux/spinlock.h>
+#include <linux/workqueue.h>
 
 /* Our state per ovpn interface */
 struct ovpn_struct {
@@ -22,6 +23,9 @@ struct ovpn_struct {
 
 	/* protect writing to the ovpn_struct object */
 	spinlock_t lock;
+
+	/* workqueue used to schedule crypto work that may sleep */
+	struct workqueue_struct *crypto_wq;
 
 	/* associated peer. in client mode we need only one peer. will be
 	 * extended with a table later

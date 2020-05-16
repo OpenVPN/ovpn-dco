@@ -15,6 +15,7 @@
 #include "sock.h"
 #include "ovpnstruct.h"
 
+#include <linux/workqueue.h>
 #include <net/sock.h>
 
 struct ovpn_struct;
@@ -31,6 +32,9 @@ void ovpn_xmit_special(struct ovpn_peer *peer, const void *data,
 netdev_tx_t ovpn_net_xmit(struct sk_buff *skb, struct net_device *dev);
 
 void ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
-	       const unsigned int op, struct sk_buff *skb);
+	       struct sk_buff *skb);
+
+void ovpn_encrypt_work(struct work_struct *work);
+void ovpn_decrypt_work(struct work_struct *work);
 
 #endif /* _NET_OVPN_DCO_OVPN_H_ */

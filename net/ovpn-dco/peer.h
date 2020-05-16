@@ -16,8 +16,19 @@
 #include "stats.h"
 #include "timer.h"
 
+#include <linux/ptr_ring.h>
+
 struct ovpn_peer {
 	struct ovpn_struct *ovpn;
+
+	/* work objects to handle encryption/decryption of packets.
+	 * these works are queued on the ovpn->crypt_wq workqueue.
+	 */
+	struct work_struct encrypt_work;
+	struct work_struct decrypt_work;
+
+	struct ptr_ring tx_ring;
+	struct ptr_ring rx_ring;
 
 	struct socket *sock;
 

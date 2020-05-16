@@ -19,6 +19,7 @@
 #include "skb.h"
 #include "udp.h"
 
+#include <linux/workqueue.h>
 #include <uapi/linux/if_ether.h>
 
 int ovpn_struct_init(struct net_device *dev)
@@ -35,6 +36,12 @@ int ovpn_struct_init(struct net_device *dev)
 	spin_lock_init(&ovpn->lock);
 	RCU_INIT_POINTER(ovpn->peer, NULL);
 
+	ovpn->crypto_wq = alloc_workqueue("ovpn-crypto-wq-%s",
+					  WQ_CPU_INTENSIVE | WQ_MEM_RECLAIM, 0,
+					  dev->name);
+	if (!ovpn->crypto_wq)
+		return -ENOMEM;
+
 	err = security_tun_dev_alloc_security(&ovpn->security);
 	if (err < 0)
 		return err;
@@ -48,8 +55,7 @@ int ovpn_struct_init(struct net_device *dev)
 /* Called after decrypt to write IP packet to tun netdev.
  * This method is expected to manage/free skb.
  */
-static int tun_netdev_write(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
-			    struct sk_buff *skb)
+static int tun_netdev_write(struct ovpn_peer *peer, struct sk_buff *skb)
 {
 	unsigned int rx_stats_size;
 	int ret;
@@ -103,7 +109,7 @@ static int tun_netdev_write(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	/* post-decrypt scrub -- prepare to inject encapsulated packet onto tun
 	 * interface, based on __skb_tunnel_rx() in dst.h
 	 */
-	skb->dev = ovpn->dev;
+	skb->dev = peer->ovpn->dev;
 	skb_set_queue_mapping(skb, 0);
 	skb_scrub_packet(skb, true);
 
@@ -126,7 +132,7 @@ drop:
 	return ret;
 }
 
-static void ovpn_post_decrypt(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
+static void ovpn_post_decrypt(struct ovpn_peer *peer,
 			      struct ovpn_crypto_key_slot *ks,
 			      struct sk_buff *skb, int err,
 			      struct ovpn_work *work)
@@ -142,7 +148,7 @@ static void ovpn_post_decrypt(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	}
 
 	/* successful decryption */
-	tun_netdev_write(ovpn, peer, skb);
+	tun_netdev_write(peer, skb);
 
 error:
 	ovpn_crypto_key_slot_put(ks);
@@ -153,8 +159,7 @@ static void ovpn_post_decrypt_callback(struct sk_buff *skb, int err)
 {
 	struct ovpn_work *work = OVPN_SKB_CB(skb)->work;
 
-	ovpn_post_decrypt(work->ks->peer->ovpn, work->ks->peer, work->ks, skb,
-			  err, work);
+	ovpn_post_decrypt(work->ks->peer, work->ks, skb, err, work);
 }
 
 static int ovpn_transport_to_userspace(struct ovpn_struct *ovpn,
@@ -179,11 +184,34 @@ static int ovpn_transport_to_userspace(struct ovpn_struct *ovpn,
  * before return.  Takes ownership of skb.
  */
 void ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
-	       const unsigned int op, struct sk_buff *skb)
+	       struct sk_buff *skb)
+{
+	int ret;
+
+	ret = ptr_ring_produce_bh(&peer->rx_ring, skb);
+	if (ret < 0) {
+		ovpn_peer_put(peer);
+		return;
+	}
+
+	queue_work(ovpn->crypto_wq, &peer->decrypt_work);
+}
+
+void ovpn_decrypt_work(struct work_struct *work)
 {
 	struct ovpn_crypto_key_slot *ks;
-	int key_id;
-	int ret;
+	struct ovpn_peer *peer;
+	struct sk_buff *skb;
+	int ret, key_id;
+	u32 op;
+
+	peer = container_of(work, struct ovpn_peer, decrypt_work);
+	skb = ptr_ring_consume_bh(&peer->rx_ring);
+	if (!skb)
+		goto drop;
+
+	/* get opcode */
+	op = ovpn_op32_from_skb(skb, NULL);
 
 	/* save original packet size for stats accounting */
 	OVPN_SKB_CB(skb)->rx_stats_size = skb->len;
@@ -192,8 +220,8 @@ void ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	 *
 	 * all other packets are sent to userspace via netlink
 	 */
-	if (unlikely(!peer || !ovpn_opcode_is_data(op))) {
-		ret = ovpn_transport_to_userspace(ovpn, skb);
+	if (unlikely(!ovpn_opcode_is_data(op))) {
+		ret = ovpn_transport_to_userspace(peer->ovpn, skb);
 		if (ret < 0)
 			goto drop;
 
@@ -211,8 +239,7 @@ void ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	/* decrypt */
 	ret = ks->ops->decrypt(ks, skb, op, ovpn_post_decrypt_callback);
 	if (likely(ret != -EINPROGRESS))
-		ovpn_post_decrypt(ovpn, peer, ks, skb, ret,
-				  OVPN_SKB_CB(skb)->work);
+		ovpn_post_decrypt(peer, ks, skb, ret, OVPN_SKB_CB(skb)->work);
 
 	return;
 
@@ -222,7 +249,8 @@ drop:
 	kfree_skb(skb);
 }
 
-static void ovpn_post_encrypt(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
+
+static void ovpn_post_encrypt(struct ovpn_peer *peer,
 			      struct ovpn_crypto_key_slot *ks,
 			      struct sk_buff *skb, int err,
 			      struct ovpn_work *work)
@@ -237,7 +265,7 @@ static void ovpn_post_encrypt(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	}
 
 	/* successful encryption */
-	ovpn_udp_send_skb(ovpn, peer, skb);
+	ovpn_udp_send_skb(peer->ovpn, peer, skb);
 
 error:
 	ovpn_crypto_key_slot_put(ks);
@@ -247,7 +275,6 @@ error:
 static void ovpn_post_encrypt_callback(struct sk_buff *skb, int err)
 {
 	struct ovpn_crypto_key_slot *ks;
-	struct ovpn_struct *ovpn;
 	struct ovpn_work *work;
 	struct ovpn_peer *peer;
 
@@ -255,9 +282,38 @@ static void ovpn_post_encrypt_callback(struct sk_buff *skb, int err)
 	ks = work->ks;
 	peer = ks->peer;
 
-	ovpn = peer->ovpn;
+	ovpn_post_encrypt(peer, ks, skb, err, work);
+}
 
-	ovpn_post_encrypt(ovpn, peer, ks, skb, err, work);
+void ovpn_encrypt_work(struct work_struct *work)
+{
+	struct ovpn_crypto_key_slot *ks;
+	struct ovpn_peer *peer;
+	struct sk_buff *skb;
+	int ret;
+
+	peer = container_of(work, struct ovpn_peer, encrypt_work);
+	skb = ptr_ring_consume_bh(&peer->tx_ring);
+	if (!skb)
+		goto free_peer;
+
+	/* get primary key to be used for encrypting data */
+	ks = ovpn_crypto_key_slot_primary(&peer->crypto);
+	if (unlikely(!ks))
+		goto free_peer;
+
+	/* init packet ID to undef in case we err before setting real value */
+	OVPN_SKB_CB(skb)->pktid = 0;
+
+	/* encrypt */
+	ret = ks->ops->encrypt(ks, skb, ovpn_post_encrypt_callback);
+	if (likely(ret != -EINPROGRESS))
+		ovpn_post_encrypt(peer, ks, skb, ret,
+				  OVPN_SKB_CB(skb)->work);
+
+	return;
+free_peer:
+	ovpn_peer_put(peer);
 }
 
 /* On success, 0 is returned, skb ownership is transferred,
@@ -265,20 +321,8 @@ static void ovpn_post_encrypt_callback(struct sk_buff *skb, int err)
  */
 static int ovpn_net_xmit_skb(struct ovpn_struct *ovpn, struct sk_buff *skb)
 {
-	struct ovpn_crypto_key_slot *ks;
 	struct ovpn_peer *peer;
-	int ret = -1;
-
-	peer = ovpn_peer_get(ovpn);
-	if (unlikely(!peer))
-		return -ENOLINK;
-
-	/* get primary key to be used for encrypting data */
-	ks = ovpn_crypto_key_slot_primary(&peer->crypto);
-	if (unlikely(!ks)) {
-		ret = -ENODEV;
-		goto free_peer;
-	}
+	int ret;
 
 	/* HW checksum offload is set, therefore attempt computing the checksum
 	 * of the inner packet
@@ -287,20 +331,19 @@ static int ovpn_net_xmit_skb(struct ovpn_struct *ovpn, struct sk_buff *skb)
 		     skb_checksum_help(skb)))
 		return -EINVAL;
 
-	/* init packet ID to undef in case we err before setting real value */
-	OVPN_SKB_CB(skb)->pktid = 0;
+	peer = ovpn_peer_get(ovpn);
+	if (unlikely(!peer))
+		return -ENOLINK;
 
-	/* encrypt */
-	ret = ks->ops->encrypt(ks, skb, ovpn_post_encrypt_callback);
-	if (likely(ret != -EINPROGRESS))
-		ovpn_post_encrypt(ovpn, peer, ks, skb, ret,
-				  OVPN_SKB_CB(skb)->work);
+	ret = ptr_ring_produce_bh(&peer->tx_ring, skb);
+	if (ret < 0) {
+		ovpn_peer_put(peer);
+		return ret;
+	}
+
+	queue_work(ovpn->crypto_wq, &peer->encrypt_work);
 
 	return 0;
-
-free_peer:
-	ovpn_peer_put(peer);
-	return ret;
 }
 
 /* Net device start xmit

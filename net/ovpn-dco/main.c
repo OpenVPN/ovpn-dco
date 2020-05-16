@@ -51,6 +51,7 @@ static void ovpn_struct_free(struct net_device *net)
 
 	ovpn_sock_detach(ovpn->sock);
 	security_tun_dev_free_security(ovpn->security);
+	destroy_workqueue(ovpn->crypto_wq);
 	rcu_barrier();
 }
 
