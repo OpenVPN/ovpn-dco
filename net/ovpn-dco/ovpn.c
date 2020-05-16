@@ -267,29 +267,11 @@ static int ovpn_net_xmit_skb(struct ovpn_struct *ovpn, struct sk_buff *skb)
 {
 	struct ovpn_crypto_key_slot *ks;
 	struct ovpn_peer *peer;
-	struct ovpn_bind *bind;
-	unsigned int headroom;
 	int ret = -1;
 
 	peer = ovpn_peer_get(ovpn);
 	if (unlikely(!peer))
 		return -ENOLINK;
-
-	rcu_read_lock();
-	bind = rcu_dereference(peer->bind);
-	if (unlikely(!bind)) {
-		ret = -ENOENT;
-		goto unlock;
-	}
-
-	/* set minimum encapsulation headroom for encrypt */
-	headroom = ovpn_bind_udp_encap_overhead(bind, ETH_HLEN);
-	rcu_read_unlock();
-
-	if (unlikely(headroom < 0)) {
-		ret = -ENOBUFS;
-		goto free_peer;
-	}
 
 	/* get primary key to be used for encrypting data */
 	ks = ovpn_crypto_key_slot_primary(&peer->crypto);
@@ -309,15 +291,13 @@ static int ovpn_net_xmit_skb(struct ovpn_struct *ovpn, struct sk_buff *skb)
 	OVPN_SKB_CB(skb)->pktid = 0;
 
 	/* encrypt */
-	ret = ks->ops->encrypt(ks, skb, headroom, ovpn_post_encrypt_callback);
+	ret = ks->ops->encrypt(ks, skb, ovpn_post_encrypt_callback);
 	if (likely(ret != -EINPROGRESS))
 		ovpn_post_encrypt(ovpn, peer, ks, skb, ret,
 				  OVPN_SKB_CB(skb)->work);
 
 	return 0;
 
-unlock:
-	rcu_read_unlock();
 free_peer:
 	ovpn_peer_put(peer);
 	return ret;

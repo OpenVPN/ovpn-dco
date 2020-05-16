@@ -56,7 +56,6 @@ struct ovpn_peer_key_reset {
 struct ovpn_crypto_ops {
 	int (*encrypt)(struct ovpn_crypto_key_slot *ks,
 		       struct sk_buff *skb,
-		       unsigned int net_headroom,
 		       void (*callback)(struct sk_buff *, int err));
 
 	int (*decrypt)(struct ovpn_crypto_key_slot *ks,

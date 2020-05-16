@@ -134,7 +134,6 @@ static int ovpn_aead_encap_overhead(const struct ovpn_crypto_key_slot *ks)
 
 static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks,
 			     struct sk_buff *skb,
-			     unsigned int net_headroom,
 			     void (*callback)(struct sk_buff *, int err))
 {
 	const unsigned int tag_size = crypto_aead_authsize(ks->u.ae.encrypt);
@@ -156,7 +155,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks,
 	/* check that there's enough headroom in the skb for packet
 	 * encapsulation, after adding network header and encryption overhead
 	 */
-	if (unlikely(skb_cow_head(skb, net_headroom + head_size))) {
+	if (unlikely(skb_cow_head(skb, OVPN_HEAD_ROOM + head_size))) {
 		err = -ENOBUFS;
 		goto error;
 	}
