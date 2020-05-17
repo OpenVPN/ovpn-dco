@@ -159,19 +159,11 @@ void ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	queue_work(ovpn->crypto_wq, &peer->decrypt_work);
 }
 
-/* pick packet from RX queue, decrypt and forward it to the tun device */
-void ovpn_decrypt_work(struct work_struct *work)
+static void ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 {
 	struct ovpn_crypto_key_slot *ks;
-	struct ovpn_peer *peer;
-	struct sk_buff *skb;
 	int ret, key_id;
 	u32 op;
-
-	peer = container_of(work, struct ovpn_peer, decrypt_work);
-	skb = ptr_ring_consume_bh(&peer->rx_ring);
-	if (!skb)
-		goto drop;
 
 	/* get opcode */
 	op = ovpn_op32_from_skb(skb, NULL);
@@ -187,8 +179,6 @@ void ovpn_decrypt_work(struct work_struct *work)
 		ret = ovpn_transport_to_userspace(peer->ovpn, skb);
 		if (ret < 0)
 			goto drop;
-
-		ovpn_peer_put(peer);
 		return;
 	}
 
@@ -209,28 +199,36 @@ void ovpn_decrypt_work(struct work_struct *work)
 	ovpn_crypto_key_slot_put(ks);
 	tun_netdev_write(peer, skb);
 drop:
-	ovpn_peer_put(peer);
-	if (ret < 0)
+	if (unlikely(ret < 0))
 		kfree_skb(skb);
 }
 
-/* pick packet from TX queue, encrypt and send it to peer */
-void ovpn_encrypt_work(struct work_struct *work)
+/* pick packet from RX queue, decrypt and forward it to the tun device */
+void ovpn_decrypt_work(struct work_struct *work)
 {
-	struct ovpn_crypto_key_slot *ks;
 	struct ovpn_peer *peer;
 	struct sk_buff *skb;
-	int ret;
 
-	peer = container_of(work, struct ovpn_peer, encrypt_work);
-	skb = ptr_ring_consume_bh(&peer->tx_ring);
-	if (!skb)
-		goto free_peer;
+	peer = container_of(work, struct ovpn_peer, decrypt_work);
+	while ((skb = ptr_ring_consume_bh(&peer->rx_ring))) {
+		ovpn_decrypt_one(peer, skb);
+		ovpn_peer_put(peer);
+
+		/* give a chance to be rescheduled if needed */
+		if (need_resched())
+			cond_resched();
+	}
+}
+
+static void ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
+{
+	struct ovpn_crypto_key_slot *ks;
+	int ret;
 
 	/* get primary key to be used for encrypting data */
 	ks = ovpn_crypto_key_slot_primary(&peer->crypto);
 	if (unlikely(!ks))
-		goto free_peer;
+		goto drop;
 
 	/* init packet ID to undef in case we err before setting real value */
 	OVPN_SKB_CB(skb)->pktid = 0;
@@ -239,16 +237,33 @@ void ovpn_encrypt_work(struct work_struct *work)
 	ret = ks->ops->encrypt(ks, skb);
 	if (unlikely(ret < 0)) {
 		pr_err("error during encryption\n");
-		goto free_peer;
+		goto drop;
 	}
 
 	ovpn_crypto_key_slot_put(ks);
 	/* successful encryption */
 	ovpn_udp_send_skb(peer->ovpn, peer, skb);
-free_peer:
-	ovpn_peer_put(peer);
-	if (ret < 0)
+drop:
+	if (unlikely(ret < 0))
 		kfree_skb(skb);
+
+}
+
+/* pick packet from TX queue, encrypt and send it to peer */
+void ovpn_encrypt_work(struct work_struct *work)
+{
+	struct ovpn_peer *peer;
+	struct sk_buff *skb;
+
+	peer = container_of(work, struct ovpn_peer, encrypt_work);
+	while ((skb = ptr_ring_consume_bh(&peer->tx_ring))) {
+		ovpn_encrypt_one(peer, skb);
+		ovpn_peer_put(peer);
+
+		/* give a chance to be rescheduled if needed */
+		if (need_resched())
+			cond_resched();
+	}
 }
 
 /* enqueue packet and schedule TX consumer
