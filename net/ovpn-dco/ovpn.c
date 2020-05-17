@@ -156,7 +156,8 @@ void ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 		return;
 	}
 
-	queue_work(ovpn->crypto_wq, &peer->decrypt_work);
+	if (!queue_work(ovpn->crypto_wq, &peer->decrypt_work))
+		ovpn_peer_put(peer);
 }
 
 static void ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
@@ -212,12 +213,12 @@ void ovpn_decrypt_work(struct work_struct *work)
 	peer = container_of(work, struct ovpn_peer, decrypt_work);
 	while ((skb = ptr_ring_consume_bh(&peer->rx_ring))) {
 		ovpn_decrypt_one(peer, skb);
-		ovpn_peer_put(peer);
 
 		/* give a chance to be rescheduled if needed */
 		if (need_resched())
 			cond_resched();
 	}
+	ovpn_peer_put(peer);
 }
 
 static void ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
@@ -258,12 +259,12 @@ void ovpn_encrypt_work(struct work_struct *work)
 	peer = container_of(work, struct ovpn_peer, encrypt_work);
 	while ((skb = ptr_ring_consume_bh(&peer->tx_ring))) {
 		ovpn_encrypt_one(peer, skb);
-		ovpn_peer_put(peer);
 
 		/* give a chance to be rescheduled if needed */
 		if (need_resched())
 			cond_resched();
 	}
+	ovpn_peer_put(peer);
 }
 
 /* enqueue packet and schedule TX consumer
@@ -293,7 +294,8 @@ static int ovpn_net_xmit_skb(struct ovpn_struct *ovpn, struct sk_buff *skb)
 		return ret;
 	}
 
-	queue_work(ovpn->crypto_wq, &peer->encrypt_work);
+	if (!queue_work(ovpn->crypto_wq, &peer->encrypt_work))
+		ovpn_peer_put(peer);
 
 	return 0;
 }
