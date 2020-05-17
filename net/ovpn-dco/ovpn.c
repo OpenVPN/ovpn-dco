@@ -116,7 +116,7 @@ static int tun_netdev_write(struct ovpn_peer *peer, struct sk_buff *skb)
 	skb_probe_transport_header(skb);
 
 	/* cause packet to be "received" by tun interface */
-	netif_rx(skb);
+	netif_rx_ni(skb);
 	return 0;
 
 drop:
