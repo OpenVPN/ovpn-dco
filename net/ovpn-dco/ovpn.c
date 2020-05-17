@@ -60,8 +60,6 @@ static int tun_netdev_write(struct ovpn_peer *peer, struct sk_buff *skb)
 	unsigned int rx_stats_size;
 	int ret;
 
-	rcu_read_lock();
-
 	/* note event of authenticated packet received for keepalive */
 	ovpn_peer_update_keepalive_expire(peer);
 
@@ -117,8 +115,6 @@ static int tun_netdev_write(struct ovpn_peer *peer, struct sk_buff *skb)
 	skb->transport_header = 0;
 	skb_probe_transport_header(skb);
 
-	rcu_read_unlock();
-
 	/* cause packet to be "received" by tun interface */
 	netif_rx(skb);
 	return 0;
@@ -128,7 +124,6 @@ drop:
 		kfree_skb(skb);
 	else
 		consume_skb(skb);
-	rcu_read_unlock();
 	return ret;
 }
 
