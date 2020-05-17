@@ -73,7 +73,6 @@ struct ovpn_crypto_ops {
 
 struct ovpn_crypto_key_slot {
 	const struct ovpn_crypto_ops *ops;
-	struct ovpn_peer *peer;
 	int remote_peer_id;
 	int key_id;
 

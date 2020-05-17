@@ -290,7 +290,6 @@ static void ovpn_aead_crypto_key_slot_destroy(struct ovpn_crypto_key_slot *ks)
 
 	crypto_free_aead(ks->u.ae.encrypt);
 	crypto_free_aead(ks->u.ae.decrypt);
-	ovpn_peer_put(ks->peer);
 	kfree(ks);
 }
 
@@ -324,20 +323,11 @@ ovpn_aead_crypto_key_slot_init(enum ovpn_cipher_alg alg,
 	if (!ks)
 		return ERR_PTR(-ENOMEM);
 
-	ks->peer = NULL;
 	ks->ops = &ovpn_aead_ops;
 	ks->u.ae.encrypt = NULL;
 	ks->u.ae.decrypt = NULL;
 	kref_init(&ks->refcount);
 	ks->key_id = key_id;
-
-	/* grab a reference to peer */
-	if (!ovpn_peer_hold(peer)) {
-		ret = -ENOENT;
-		goto destroy_ks;
-	}
-
-	ks->peer = peer;
 
 	ks->u.ae.encrypt = ovpn_aead_init("encrypt", alg_name, encrypt_key,
 					  encrypt_keylen);
