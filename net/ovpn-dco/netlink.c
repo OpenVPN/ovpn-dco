@@ -340,13 +340,11 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 	}
 
 	spin_lock(&ovpn->lock);
-	old = rcu_dereference_protected(ovpn->peer,
-					lockdep_is_held(&ovpn->lock));
+	new->sock = ovpn->sock;
+	old = rcu_replace_pointer(ovpn->peer, new,
+				  lockdep_is_held(&ovpn->lock));
 	if (old)
 		ovpn_peer_put(old);
-
-	new->sock = ovpn->sock;
-	rcu_assign_pointer(ovpn->peer, new);
 	spin_unlock(&ovpn->lock);
 
 	pr_debug("%s: added peer %pIScp <-> %pIScp\n", __func__,
