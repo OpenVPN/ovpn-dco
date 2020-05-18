@@ -104,7 +104,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks,
 	op = ovpn_op32_compose(OVPN_DATA_V2, ks->key_id, ks->remote_peer_id);
 	__skb_push(skb, OVPN_OP_SIZE_V2);
 	BUILD_BUG_ON(sizeof(op) != OVPN_OP_SIZE_V2);
-	*((__be32 *)skb->data) = htonl(op);
+	*((__force __be32 *)skb->data) = htonl(op);
 
 	/* AEAD Additional data */
 	sg_set_buf(sg, skb->data, OVPN_OP_SIZE_V2 + NONCE_WIRE_SIZE);
@@ -217,7 +217,7 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks,
 		goto free_req;
 
 	/* PID sits after the op */
-	pid = (__be32 *)(skb->data + opsize);
+	pid = (__force __be32 *)(skb->data + opsize);
 	ret = ovpn_pktid_recv(&ks->pid_recv, ntohl(*pid), 0);
 	if (unlikely(ret < 0))
 		goto free_req;
