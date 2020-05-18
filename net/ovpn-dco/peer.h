@@ -35,7 +35,7 @@ struct ovpn_peer {
 	/* our crypto context, protected by mutex */
 	struct ovpn_crypto_state crypto;
 
-	/* our binding to peer */
+	/* our binding to peer, protected by spinlock */
 	struct ovpn_bind __rcu *bind;
 
 	/* time in future when we will transmit a keepalive
@@ -57,7 +57,9 @@ struct ovpn_peer {
 	/* per-peer rx/tx stats */
 	struct ovpn_peer_stats stats;
 
-	/* used for bind, keepalive_xmit, keepalive_expire */
+	/* protects binding to peer (bind) and timers
+	 * (keepalive_xmit, keepalive_expire)
+	 */
 	spinlock_t lock;
 
 	/* used for crypto context */
