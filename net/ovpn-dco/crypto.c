@@ -95,14 +95,12 @@ int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
 
 	switch (pkr->slot) {
 	case OVPN_KEY_SLOT_PRIMARY:
-		old = rcu_dereference_protected(cs->primary,
-						lockdep_is_held(&peer->mutex));
-		rcu_assign_pointer(cs->primary, new);
+		old = rcu_replace_pointer(cs->primary, new,
+					  lockdep_is_held(&peer->mutex));
 		break;
 	case OVPN_KEY_SLOT_SECONDARY:
-		old = rcu_dereference_protected(cs->secondary,
-						lockdep_is_held(&peer->mutex));
-		rcu_assign_pointer(cs->secondary, new);
+		old = rcu_replace_pointer(cs->secondary, new,
+					  lockdep_is_held(&peer->mutex));
 		break;
 	default:
 		goto free_key;
