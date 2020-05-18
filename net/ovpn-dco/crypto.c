@@ -37,25 +37,24 @@ void ovpn_crypto_key_slot_release(struct kref *kref)
 	call_rcu(&ks->rcu, ovpn_ks_destroy_rcu);
 }
 
+/* can only be invoked when all peer references have been dropped (i.e. RCU
+ * release routine)
+ */
 void ovpn_crypto_state_release(struct ovpn_peer *peer)
 {
 	struct ovpn_crypto_key_slot *ks;
 
-	mutex_lock(&peer->mutex);
-	ks = rcu_dereference_protected(peer->crypto.primary,
-				       lockdep_is_held(&peer->mutex));
+	ks = rcu_access_pointer(peer->crypto.primary);
 	if (ks) {
 		RCU_INIT_POINTER(peer->crypto.primary, NULL);
 		ovpn_crypto_key_slot_put(ks);
 	}
 
-	ks = rcu_dereference_protected(peer->crypto.secondary,
-				       lockdep_is_held(&peer->mutex));
+	ks = rcu_access_pointer(peer->crypto.secondary);
 	if (ks) {
 		RCU_INIT_POINTER(peer->crypto.secondary, NULL);
 		ovpn_crypto_key_slot_put(ks);
 	}
-	mutex_unlock(&peer->mutex);
 }
 
 int ovpn_crypto_encap_overhead(const struct ovpn_crypto_state *cs)

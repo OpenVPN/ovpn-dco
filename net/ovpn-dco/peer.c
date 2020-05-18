@@ -126,6 +126,7 @@ static void ovpn_peer_release_rcu(struct rcu_head *head)
 {
 	struct ovpn_peer *peer = container_of(head, struct ovpn_peer, rcu);
 
+	ovpn_crypto_state_release(peer);
 	ovpn_peer_release(peer);
 }
 
@@ -150,7 +151,6 @@ void ovpn_peer_delete(struct ovpn_peer *peer)
 		return;
 
 	peer->halt = true;
-	ovpn_crypto_state_release(peer);
 	ovpn_peer_put(peer);
 }
 
