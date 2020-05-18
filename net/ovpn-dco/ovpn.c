@@ -163,7 +163,7 @@ void ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 static void ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 {
 	struct ovpn_crypto_key_slot *ks;
-	int ret, key_id;
+	int key_id, ret = -1;
 	u32 op;
 
 	/* get opcode */
@@ -224,7 +224,7 @@ void ovpn_decrypt_work(struct work_struct *work)
 static void ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 {
 	struct ovpn_crypto_key_slot *ks;
-	int ret;
+	int ret = -1;
 
 	/* get primary key to be used for encrypting data */
 	ks = ovpn_crypto_key_slot_primary(&peer->crypto);
