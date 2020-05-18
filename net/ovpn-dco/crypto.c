@@ -97,12 +97,12 @@ int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
 	switch (pkr->slot) {
 	case OVPN_KEY_SLOT_PRIMARY:
 		old = rcu_dereference_protected(cs->primary,
-						lockdep_is_held(&peer->lock));
+						lockdep_is_held(&peer->mutex));
 		rcu_assign_pointer(cs->primary, new);
 		break;
 	case OVPN_KEY_SLOT_SECONDARY:
 		old = rcu_dereference_protected(cs->secondary,
-						lockdep_is_held(&peer->lock));
+						lockdep_is_held(&peer->mutex));
 		rcu_assign_pointer(cs->secondary, new);
 		break;
 	default:
@@ -131,12 +131,12 @@ void ovpn_crypto_key_slot_delete(struct ovpn_peer *peer,
 	switch (slot) {
 	case OVPN_KEY_SLOT_PRIMARY:
 		ks = rcu_dereference_protected(peer->crypto.primary,
-					       lockdep_is_held(&peer->lock));
+					       lockdep_is_held(&peer->mutex));
 		RCU_INIT_POINTER(peer->crypto.primary, NULL);
 		break;
 	case OVPN_KEY_SLOT_SECONDARY:
 		ks = rcu_dereference_protected(peer->crypto.secondary,
-					       lockdep_is_held(&peer->lock));
+					       lockdep_is_held(&peer->mutex));
 		RCU_INIT_POINTER(peer->crypto.secondary, NULL);
 		break;
 	default:
@@ -171,12 +171,12 @@ ovpn_crypto_select_family(const struct ovpn_peer_key_reset *pkr)
 
 int ovpn_crypto_state_select_family(struct ovpn_peer *peer,
 				    const struct ovpn_peer_key_reset *pkr)
-	__must_hold(peer->lock)
+	__must_hold(peer->mutex)
 {
 	const struct ovpn_crypto_ops *new_ops;
 	const struct ovpn_crypto_ops *ops;
 
-	lockdep_assert_held(&peer->lock);
+	lockdep_assert_held(&peer->mutex);
 
 	new_ops = ovpn_crypto_select_family(pkr);
 	if (!new_ops)
