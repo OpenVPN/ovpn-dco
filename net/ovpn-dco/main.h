@@ -36,6 +36,7 @@
 #include <linux/kref.h>
 #include <linux/moduleparam.h>
 #include <linux/mutex.h>
+#include <net/ip.h>
 
 static __cacheline_aligned_in_smp DEFINE_MUTEX(ovpn_config_mutex);
 
