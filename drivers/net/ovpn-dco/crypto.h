@@ -189,4 +189,6 @@ void ovpn_key_config_free(struct ovpn_key_config *kc);
 enum ovpn_crypto_families
 ovpn_keys_familiy_get(const struct ovpn_key_config *kc);
 
+void ovpn_crypto_key_slots_swap(struct ovpn_crypto_state *cs);
+
 #endif /* _NET_OVPN_DCO_OVPNCRYPTO_H_ */

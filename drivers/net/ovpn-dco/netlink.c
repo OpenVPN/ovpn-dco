@@ -244,6 +244,21 @@ static int ovpn_netlink_del_key(struct sk_buff *skb, struct genl_info *info)
 	return 0;
 }
 
+static int ovpn_netlink_swap_keys(struct sk_buff *skb, struct genl_info *info)
+{
+	struct ovpn_struct *ovpn = info->user_ptr[0];
+	struct ovpn_peer *peer;
+
+	peer = ovpn_peer_get(ovpn);
+	if (!peer)
+		return -ENOENT;
+
+	ovpn_crypto_key_slots_swap(&peer->crypto);
+	ovpn_peer_put(peer);
+
+	return 0;
+}
+
 static void ovpn_netlink_parse_sockaddr4(struct genl_info *info,
 					 struct nlattr *attrs[],
 					 struct sockaddr_in *sin)
@@ -545,6 +560,12 @@ static const struct genl_ops ovpn_netlink_ops[] = {
 		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.flags = GENL_ADMIN_PERM,
 		.doit = ovpn_netlink_del_key,
+	},
+	{
+		.cmd = OVPN_CMD_SWAP_KEYS,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
+		.flags = GENL_ADMIN_PERM,
+		.doit = ovpn_netlink_swap_keys,
 	},
 	{
 		.cmd = OVPN_CMD_REGISTER_PACKET,
