@@ -429,9 +429,8 @@ static int ovpn_netlink_stop_vpn(struct sk_buff *skb, struct genl_info *info)
 	ovpn->sock = NULL;
 
 	spin_lock(&ovpn->lock);
-	peer = rcu_dereference_protected(ovpn->peer,
-					 lockdep_is_held(&ovpn->lock));
-	rcu_assign_pointer(ovpn->peer, NULL);
+	peer = rcu_replace_pointer(ovpn->peer, NULL,
+				   lockdep_is_held(&ovpn->lock));
 	if (peer)
 		ovpn_peer_delete(peer);
 	spin_unlock(&ovpn->lock);

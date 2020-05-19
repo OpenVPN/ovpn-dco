@@ -126,14 +126,12 @@ void ovpn_crypto_key_slot_delete(struct ovpn_peer *peer,
 	mutex_lock(&peer->mutex);
 	switch (slot) {
 	case OVPN_KEY_SLOT_PRIMARY:
-		ks = rcu_dereference_protected(peer->crypto.primary,
-					       lockdep_is_held(&peer->mutex));
-		RCU_INIT_POINTER(peer->crypto.primary, NULL);
+		ks = rcu_replace_pointer(peer->crypto.primary, NULL,
+					 lockdep_is_held(&peer->mutex));
 		break;
 	case OVPN_KEY_SLOT_SECONDARY:
-		ks = rcu_dereference_protected(peer->crypto.secondary,
-					       lockdep_is_held(&peer->mutex));
-		RCU_INIT_POINTER(peer->crypto.secondary, NULL);
+		ks = rcu_replace_pointer(peer->crypto.secondary, NULL,
+					 lockdep_is_held(&peer->mutex));
 		break;
 	default:
 		pr_warn("Invalid slot to release: %u\n", slot);
