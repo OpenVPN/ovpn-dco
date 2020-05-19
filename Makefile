@@ -20,9 +20,9 @@ REVISION= $(shell	if [ -d "$(PWD)/.git" ]; then \
 			fi)
 NOSTDINC_FLAGS += \
 	-I$(PWD)/include/ \
-	$(CFLAGS)
-#	-I$(PWD)/compat-include/ \
-#	-include $(PWD)/linux-compat.h \
+	$(CFLAGS) \
+	-include $(PWD)/linux-compat.h
+#	-I$(PWD)/compat-include/
 
 ifneq ($(REVISION),)
 NOSTDINC_FLAGS += -DOVPN_DCO_VERSION=\"$(REVISION)\"
