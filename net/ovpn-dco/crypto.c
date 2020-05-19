@@ -108,9 +108,8 @@ int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
 	pr_debug("*** NEW KEY INSTALLED id=%u remote_pid=%u\n",
 		 new->key_id, new->remote_peer_id);
 
-	if (old) {
+	if (old)
 		ovpn_crypto_key_slot_put(old);
-	}
 
 	return 0;
 free_key:
@@ -146,7 +145,6 @@ void ovpn_crypto_key_slot_delete(struct ovpn_peer *peer,
 
 	ovpn_crypto_key_slot_put(ks);
 }
-
 
 static const struct ovpn_crypto_ops *
 ovpn_crypto_select_family(const struct ovpn_peer_key_reset *pkr)

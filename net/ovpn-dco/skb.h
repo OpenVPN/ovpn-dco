@@ -44,7 +44,6 @@ static inline __be16 ovpn_ip_get_protocol(struct sk_buff *skb)
 	}
 }
 
-
 static inline int ovpn_ip_check_protocol(struct sk_buff *skb)
 {
 	__be16 proto = ovpn_ip_get_protocol(skb);

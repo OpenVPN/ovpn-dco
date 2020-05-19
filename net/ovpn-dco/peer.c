@@ -177,8 +177,7 @@ ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn,
 }
 
 /* Keepalive timer delete/schedule */
-static void ovpn_peer_timer_delete(struct ovpn_peer *peer,
-				     struct ovpn_timer *t)
+static void ovpn_peer_timer_delete(struct ovpn_peer *peer, struct ovpn_timer *t)
 {
 	if (ovpn_timer_delete(t, &peer->lock))
 		ovpn_peer_put(peer);
@@ -191,7 +190,7 @@ static void ovpn_peer_timer_delete_all(struct ovpn_peer *peer)
 }
 
 static void ovpn_peer_timer_schedule(struct ovpn_peer *peer,
-				       struct ovpn_timer *t, int rcdelta)
+				     struct ovpn_timer *t, int rcdelta)
 {
 	if (!ovpn_timer_schedule(t, &peer->lock))
 		++rcdelta;

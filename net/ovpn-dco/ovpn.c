@@ -247,7 +247,6 @@ static void ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 drop:
 	if (unlikely(ret < 0))
 		kfree_skb(skb);
-
 }
 
 /* pick packet from TX queue, encrypt and send it to peer */

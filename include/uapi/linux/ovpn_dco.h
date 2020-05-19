@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-only
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  *  OpenVPN data channel accelerator
  *
@@ -11,7 +11,6 @@
 #define _UAPI_LINUX_OVPN_DCO_H_
 
 #define OVPN_NL_NAME "ovpn-dco"
-
 
 /**
  * enum ovpn_nl_commands - supported netlink commands

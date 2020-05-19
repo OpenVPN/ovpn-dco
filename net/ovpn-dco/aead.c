@@ -139,13 +139,12 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks,
 	unsigned int sg_len;
 	__be32 *pid;
 
-	if (likely(opcode == OVPN_DATA_V2)) {
+	if (likely(opcode == OVPN_DATA_V2))
 		opsize = OVPN_OP_SIZE_V2;
-	} else if (opcode == OVPN_DATA_V1) {
+	else if (opcode == OVPN_DATA_V1)
 		opsize = OVPN_OP_SIZE_V1;
-	} else {
+	else
 		return -EINVAL;
-	}
 
 	payload_offset = opsize + NONCE_WIRE_SIZE + tag_size;
 	payload_len = skb->len - payload_offset;
