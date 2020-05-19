@@ -46,7 +46,6 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 	RCU_INIT_POINTER(peer->bind, NULL);
 	ovpn_crypto_state_init(&peer->crypto);
 	spin_lock_init(&peer->lock);
-	mutex_init(&peer->mutex);
 	kref_init(&peer->refcount);
 	ovpn_peer_stats_init(&peer->stats);
 
@@ -118,7 +117,6 @@ void ovpn_peer_release(struct ovpn_peer *peer)
 
 	dev_put(peer->ovpn->dev);
 
-	mutex_destroy(&peer->mutex);
 	kfree(peer);
 }
 
@@ -126,7 +124,7 @@ static void ovpn_peer_release_rcu(struct rcu_head *head)
 {
 	struct ovpn_peer *peer = container_of(head, struct ovpn_peer, rcu);
 
-	ovpn_crypto_state_release(peer);
+	ovpn_crypto_state_release(&peer->crypto);
 	ovpn_peer_release(peer);
 }
 

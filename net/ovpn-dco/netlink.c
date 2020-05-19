@@ -206,17 +206,17 @@ static int ovpn_netlink_new_key(struct sk_buff *skb, struct genl_info *info)
 	if (!peer)
 		return -ENOENT;
 
-	mutex_lock(&peer->mutex);
+	mutex_lock(&peer->crypto.mutex);
 	/* get crypto family and check for consistency */
-	ret = ovpn_crypto_state_select_family(peer, &pkr);
+	ret = ovpn_crypto_state_select_family(&peer->crypto, &pkr);
 	if (ret < 0) {
 		pr_debug("cannot select crypto family for peer\n");
 		goto unlock;
 	}
 
-	ret = ovpn_crypto_state_reset(&peer->crypto, &pkr, peer);
+	ret = ovpn_crypto_state_reset(&peer->crypto, &pkr);
 unlock:
-	mutex_unlock(&peer->mutex);
+	mutex_unlock(&peer->crypto.mutex);
 	ovpn_peer_put(peer);
 	return ret;
 }
@@ -236,7 +236,7 @@ static int ovpn_netlink_del_key(struct sk_buff *skb, struct genl_info *info)
 	if (!peer)
 		return -ENOENT;
 
-	ovpn_crypto_key_slot_delete(peer, slot);
+	ovpn_crypto_key_slot_delete(&peer->crypto, slot);
 	ovpn_peer_put(peer);
 
 	return 0;

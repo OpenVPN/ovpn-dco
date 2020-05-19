@@ -32,7 +32,7 @@ struct ovpn_peer {
 
 	struct socket *sock;
 
-	/* our crypto context, protected by mutex */
+	/* our crypto state */
 	struct ovpn_crypto_state crypto;
 
 	/* our binding to peer, protected by spinlock */
@@ -61,9 +61,6 @@ struct ovpn_peer {
 	 * (keepalive_xmit, keepalive_expire)
 	 */
 	spinlock_t lock;
-
-	/* used for crypto context */
-	struct mutex mutex;
 
 	/* needed because crypto methods can go async */
 	struct kref refcount;

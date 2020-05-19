@@ -104,6 +104,9 @@ struct ovpn_crypto_state {
 	struct ovpn_crypto_key_slot __rcu *primary;
 	struct ovpn_crypto_key_slot __rcu *secondary;
 	const struct ovpn_crypto_ops *ops;
+
+	/* protects primary, secondary slots and ops */
+	struct mutex mutex;
 };
 
 static inline bool ovpn_crypto_key_slot_hold(struct ovpn_crypto_key_slot *ks)
@@ -116,6 +119,7 @@ static inline void ovpn_crypto_state_init(struct ovpn_crypto_state *cs)
 	RCU_INIT_POINTER(cs->primary, NULL);
 	RCU_INIT_POINTER(cs->secondary, NULL);
 	cs->ops = NULL;
+	mutex_init(&cs->mutex);
 }
 
 static inline struct ovpn_crypto_key_slot *
@@ -167,19 +171,18 @@ static inline void ovpn_crypto_key_slot_put(struct ovpn_crypto_key_slot *ks)
 	kref_put(&ks->refcount, ovpn_crypto_key_slot_release);
 }
 
-int ovpn_crypto_state_select_family(struct ovpn_peer *peer,
+int ovpn_crypto_state_select_family(struct ovpn_crypto_state *cs,
 				    const struct ovpn_peer_key_reset *pkr);
 
 int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
-			    const struct ovpn_peer_key_reset *pkr,
-			    struct ovpn_peer *peer);
+			    const struct ovpn_peer_key_reset *pkr);
 
-void ovpn_crypto_key_slot_delete(struct ovpn_peer *peer,
+void ovpn_crypto_key_slot_delete(struct ovpn_crypto_state *cs,
 				 enum ovpn_key_slot slot);
 
 int ovpn_crypto_encap_overhead(const struct ovpn_crypto_state *cs);
 
-void ovpn_crypto_state_release(struct ovpn_peer *peer);
+void ovpn_crypto_state_release(struct ovpn_crypto_state *cs);
 
 void ovpn_key_config_free(struct ovpn_key_config *kc);
 

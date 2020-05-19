@@ -10,7 +10,6 @@
 #include "main.h"
 #include "aead.h"
 #include "crypto.h"
-#include "peer.h"
 
 #include <uapi/linux/ovpn_dco.h>
 
@@ -39,21 +38,23 @@ void ovpn_crypto_key_slot_release(struct kref *kref)
 /* can only be invoked when all peer references have been dropped (i.e. RCU
  * release routine)
  */
-void ovpn_crypto_state_release(struct ovpn_peer *peer)
+void ovpn_crypto_state_release(struct ovpn_crypto_state *cs)
 {
 	struct ovpn_crypto_key_slot *ks;
 
-	ks = rcu_access_pointer(peer->crypto.primary);
+	ks = rcu_access_pointer(cs->primary);
 	if (ks) {
-		RCU_INIT_POINTER(peer->crypto.primary, NULL);
+		RCU_INIT_POINTER(cs->primary, NULL);
 		ovpn_crypto_key_slot_put(ks);
 	}
 
-	ks = rcu_access_pointer(peer->crypto.secondary);
+	ks = rcu_access_pointer(cs->secondary);
 	if (ks) {
-		RCU_INIT_POINTER(peer->crypto.secondary, NULL);
+		RCU_INIT_POINTER(cs->secondary, NULL);
 		ovpn_crypto_key_slot_put(ks);
 	}
+
+	mutex_destroy(&cs->mutex);
 }
 
 int ovpn_crypto_encap_overhead(const struct ovpn_crypto_state *cs)
@@ -77,14 +78,13 @@ int ovpn_crypto_encap_overhead(const struct ovpn_crypto_state *cs)
  * to RCU readers.
  */
 int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
-			    const struct ovpn_peer_key_reset *pkr,
-			    struct ovpn_peer *peer)
-	__must_hold(peer->mutex)
+			    const struct ovpn_peer_key_reset *pkr)
+	__must_hold(cs->mutex)
 {
 	struct ovpn_crypto_key_slot *old = NULL;
 	struct ovpn_crypto_key_slot *new;
 
-	lockdep_assert_held(&peer->mutex);
+	lockdep_assert_held(&cs->mutex);
 
 	new = ovpn_ks_new(cs->ops, &pkr->key);
 	if (IS_ERR(new))
@@ -95,11 +95,11 @@ int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
 	switch (pkr->slot) {
 	case OVPN_KEY_SLOT_PRIMARY:
 		old = rcu_replace_pointer(cs->primary, new,
-					  lockdep_is_held(&peer->mutex));
+					  lockdep_is_held(&cs->mutex));
 		break;
 	case OVPN_KEY_SLOT_SECONDARY:
 		old = rcu_replace_pointer(cs->secondary, new,
-					  lockdep_is_held(&peer->mutex));
+					  lockdep_is_held(&cs->mutex));
 		break;
 	default:
 		goto free_key;
@@ -117,26 +117,26 @@ free_key:
 	return -EINVAL;
 }
 
-void ovpn_crypto_key_slot_delete(struct ovpn_peer *peer,
+void ovpn_crypto_key_slot_delete(struct ovpn_crypto_state *cs,
 				 enum ovpn_key_slot slot)
 {
 	struct ovpn_crypto_key_slot *ks = NULL;
 
-	mutex_lock(&peer->mutex);
+	mutex_lock(&cs->mutex);
 	switch (slot) {
 	case OVPN_KEY_SLOT_PRIMARY:
-		ks = rcu_replace_pointer(peer->crypto.primary, NULL,
-					 lockdep_is_held(&peer->mutex));
+		ks = rcu_replace_pointer(cs->primary, NULL,
+					 lockdep_is_held(&cs->mutex));
 		break;
 	case OVPN_KEY_SLOT_SECONDARY:
-		ks = rcu_replace_pointer(peer->crypto.secondary, NULL,
-					 lockdep_is_held(&peer->mutex));
+		ks = rcu_replace_pointer(cs->secondary, NULL,
+					 lockdep_is_held(&cs->mutex));
 		break;
 	default:
 		pr_warn("Invalid slot to release: %u\n", slot);
 		break;
 	}
-	mutex_unlock(&peer->mutex);
+	mutex_unlock(&cs->mutex);
 
 	if (!ks) {
 		pr_debug("Key slot already released: %u\n", slot);
@@ -161,24 +161,22 @@ ovpn_crypto_select_family(const struct ovpn_peer_key_reset *pkr)
 	}
 }
 
-int ovpn_crypto_state_select_family(struct ovpn_peer *peer,
+int ovpn_crypto_state_select_family(struct ovpn_crypto_state *cs,
 				    const struct ovpn_peer_key_reset *pkr)
-	__must_hold(peer->mutex)
+	__must_hold(cs->mutex)
 {
 	const struct ovpn_crypto_ops *new_ops;
-	const struct ovpn_crypto_ops *ops;
 
-	lockdep_assert_held(&peer->mutex);
+	lockdep_assert_held(&cs->mutex);
 
 	new_ops = ovpn_crypto_select_family(pkr);
 	if (!new_ops)
 		return -EOPNOTSUPP;
 
-	ops = peer->crypto.ops;
-	if (ops && ops != new_ops) /* family changed? */
+	if (cs->ops && cs->ops != new_ops) /* family changed? */
 		return -EINVAL;
 
-	peer->crypto.ops = new_ops;
+	cs->ops = new_ops;
 
 	return 0;
 }
