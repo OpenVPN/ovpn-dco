@@ -98,22 +98,15 @@ int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer,
 	return 0;
 }
 
-static void ovpn_peer_clean_ring(void *ptr)
-{
-	struct sk_buff *skb = ptr;
-
-	kfree(skb);
-}
-
 void ovpn_peer_release(struct ovpn_peer *peer)
 {
 	ovpn_bind_reset(peer, NULL);
 	ovpn_peer_timer_delete_all(peer);
 
 	WARN_ON(!__ptr_ring_empty(&peer->tx_ring));
-	ptr_ring_cleanup(&peer->tx_ring, ovpn_peer_clean_ring);
+	ptr_ring_cleanup(&peer->tx_ring, NULL);
 	WARN_ON(!__ptr_ring_empty(&peer->rx_ring));
-	ptr_ring_cleanup(&peer->rx_ring, ovpn_peer_clean_ring);
+	ptr_ring_cleanup(&peer->rx_ring, NULL);
 
 	dev_put(peer->ovpn->dev);
 
