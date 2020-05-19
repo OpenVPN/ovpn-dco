@@ -15,10 +15,9 @@
 #include <uapi/linux/ovpn_dco.h>
 
 static struct ovpn_crypto_key_slot *
-ovpn_ks_new(const struct ovpn_crypto_ops *ops, const struct ovpn_key_config *kc,
-	    struct ovpn_peer *peer)
+ovpn_ks_new(const struct ovpn_crypto_ops *ops, const struct ovpn_key_config *kc)
 {
-	return ops->new(kc, peer);
+	return ops->new(kc);
 }
 
 static void ovpn_ks_destroy_rcu(struct rcu_head *head)
@@ -87,7 +86,7 @@ int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
 
 	lockdep_assert_held(&peer->mutex);
 
-	new = ovpn_ks_new(cs->ops, &pkr->key, peer);
+	new = ovpn_ks_new(cs->ops, &pkr->key);
 	if (IS_ERR(new))
 		return PTR_ERR(new);
 

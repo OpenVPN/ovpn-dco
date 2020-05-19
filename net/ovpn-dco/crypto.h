@@ -61,8 +61,7 @@ struct ovpn_crypto_ops {
 		       struct sk_buff *skb,
 		       unsigned int op);
 
-	struct ovpn_crypto_key_slot *(*new)(const struct ovpn_key_config *kc,
-					    struct ovpn_peer *peer);
+	struct ovpn_crypto_key_slot *(*new)(const struct ovpn_key_config *kc);
 
 	void (*destroy)(struct ovpn_crypto_key_slot *ks);
 

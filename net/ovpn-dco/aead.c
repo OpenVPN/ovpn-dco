@@ -8,7 +8,6 @@
  */
 
 #include "aead.h"
-#include "peer.h"
 #include "work.h"
 #include "crypto.h"
 #include "pktid.h"
@@ -303,7 +302,7 @@ ovpn_aead_crypto_key_slot_init(enum ovpn_cipher_alg alg,
 			       unsigned int encrypt_nonce_tail_len,
 			       const unsigned char *decrypt_nonce_tail,
 			       unsigned int decrypt_nonce_tail_len,
-			       u16 key_id, struct ovpn_peer *peer)
+			       u16 key_id)
 {
 	struct ovpn_crypto_key_slot *ks = NULL;
 	const char *alg_name;
@@ -368,8 +367,7 @@ destroy_ks:
 }
 
 static struct ovpn_crypto_key_slot *
-ovpn_aead_crypto_key_slot_new(const struct ovpn_key_config *kc,
-			      struct ovpn_peer *peer)
+ovpn_aead_crypto_key_slot_new(const struct ovpn_key_config *kc)
 {
 	return ovpn_aead_crypto_key_slot_init(kc->cipher_alg,
 					      kc->encrypt.cipher_key,
@@ -380,7 +378,7 @@ ovpn_aead_crypto_key_slot_new(const struct ovpn_key_config *kc,
 					      kc->encrypt.nonce_tail_size,
 					      kc->decrypt.nonce_tail,
 					      kc->decrypt.nonce_tail_size,
-					      kc->key_id, peer);
+					      kc->key_id);
 }
 
 const struct ovpn_crypto_ops ovpn_aead_ops = {
