@@ -114,34 +114,4 @@ static inline unsigned int ovpn_op32_from_skb(const struct sk_buff *skb,
 	return op >> 24;
 }
 
-/* Is keepalive message?
- * Assumes that single byte at skb->data is defined.
- */
-static inline bool ovpn_is_keepalive(struct sk_buff *skb)
-{
-	if (*skb->data != OVPN_KEEPALIVE_FIRST_BYTE)
-		return false;
-
-	if (!pskb_may_pull(skb, sizeof(ovpn_keepalive_message)))
-		return false;
-
-	return !memcmp(skb->data, ovpn_keepalive_message,
-		       sizeof(ovpn_keepalive_message));
-}
-
-/* Is explicit exit notify message?
- * Assumes that single byte at skb->data is defined.
- */
-static inline bool ovpn_is_explicit_exit_notify(struct sk_buff *skb)
-{
-	if (*skb->data != OVPN_EXPLICIT_EXIT_NOTIFY_FIRST_BYTE)
-		return false;
-
-	if (!pskb_may_pull(skb, sizeof(ovpn_explicit_exit_notify_message)))
-		return false;
-
-	return !memcmp(skb->data, ovpn_explicit_exit_notify_message,
-		       sizeof(ovpn_explicit_exit_notify_message));
-}
-
 #endif /* _NET_OVPN_DCO_OVPNPROTO_H_ */

@@ -37,8 +37,7 @@ static void ovpn_peer_ping(struct timer_list *t)
 		 &rcu_dereference(peer->bind)->sapair.remote.u);
 	rcu_read_unlock();
 
-	ovpn_xmit_special(peer, ovpn_keepalive_message,
-			  sizeof(ovpn_keepalive_message));
+	ovpn_keepalive_xmit(peer);
 }
 
 static void ovpn_peer_expire(struct timer_list *t)
@@ -223,20 +222,4 @@ void ovpn_peer_keepalive_set(struct ovpn_peer *peer, u32 interval, u32 timeout)
 	peer->keepalive_timeout = timeout;
 	delta = msecs_to_jiffies(timeout * MSEC_PER_SEC);
 	mod_timer(&peer->keepalive_recv, jiffies + delta);
-}
-
-/* Transmit explicit exit notification.
- * Called from process context.
- */
-int ovpn_peer_xmit_explicit_exit_notify(struct ovpn_peer *peer)
-	__must_hold(ovpn_config_mutex)
-{
-	lockdep_assert_held(&ovpn_config_mutex);
-	local_bh_disable(); /* simulate softirq context for ovpn_xmit_special */
-	preempt_disable();
-	ovpn_xmit_special(peer, ovpn_explicit_exit_notify_message,
-			  sizeof(ovpn_explicit_exit_notify_message));
-	preempt_enable();
-	local_bh_enable();
-	return 0;
 }

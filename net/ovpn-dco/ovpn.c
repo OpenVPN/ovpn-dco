@@ -22,6 +22,32 @@
 #include <linux/workqueue.h>
 #include <uapi/linux/if_ether.h>
 
+static const unsigned char ovpn_keepalive_message[] = {
+	0x2a, 0x18, 0x7b, 0xf3, 0x64, 0x1e, 0xb4, 0xcb,
+	0x07, 0xed, 0x2d, 0x0a, 0x98, 0x1f, 0xc7, 0x48
+};
+
+static const unsigned char ovpn_explicit_exit_notify_message[] = {
+	0x28, 0x7f, 0x34, 0x6b, 0xd4, 0xef, 0x7a, 0x81,
+	0x2d, 0x56, 0xb8, 0xd3, 0xaf, 0xc5, 0x45, 0x9c,
+	6 // OCC_EXIT
+};
+
+/* Is keepalive message?
+ * Assumes that single byte at skb->data is defined.
+ */
+static bool ovpn_is_keepalive(struct sk_buff *skb)
+{
+	if (*skb->data != OVPN_KEEPALIVE_FIRST_BYTE)
+		return false;
+
+	if (!pskb_may_pull(skb, sizeof(ovpn_keepalive_message)))
+		return false;
+
+	return !memcmp(skb->data, ovpn_keepalive_message,
+		       sizeof(ovpn_keepalive_message));
+}
+
 int ovpn_struct_init(struct net_device *dev)
 {
 	struct ovpn_struct *ovpn = netdev_priv(dev);
@@ -331,8 +357,8 @@ drop:
  * or explicit-exit-notify.  Called from softirq context.
  * Assumes that caller holds a reference to peer.
  */
-void ovpn_xmit_special(struct ovpn_peer *peer, const void *data,
-		       const unsigned int len)
+static void ovpn_xmit_special(struct ovpn_peer *peer, const void *data,
+			      const unsigned int len)
 {
 	struct ovpn_struct *ovpn;
 	struct sk_buff *skb;
@@ -353,4 +379,19 @@ void ovpn_xmit_special(struct ovpn_peer *peer, const void *data,
 	err = ovpn_net_xmit_skb(ovpn, skb);
 	if (likely(err < 0))
 		kfree_skb(skb);
+}
+
+void ovpn_keepalive_xmit(struct ovpn_peer *peer)
+{
+	ovpn_xmit_special(peer, ovpn_keepalive_message,
+			  sizeof(ovpn_keepalive_message));
+}
+
+/* Transmit explicit exit notification.
+ * Called from process context.
+ */
+void ovpn_explicit_exit_notify_xmit(struct ovpn_peer *peer)
+{
+	ovpn_xmit_special(peer, ovpn_explicit_exit_notify_message,
+			  sizeof(ovpn_explicit_exit_notify_message));
 }
