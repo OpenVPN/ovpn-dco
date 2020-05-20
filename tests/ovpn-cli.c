@@ -74,6 +74,9 @@ struct ovpn_ctx {
 
 	int socket;
 
+	__u32 keepalive_interval;
+	__u32 keepalive_timeout;
+
 	enum ovpn_key_direction key_dir;
 };
 
@@ -472,6 +475,26 @@ nla_put_failure:
 	return ret;
 }
 
+static int ovpn_set_peer(struct ovpn_ctx *ovpn)
+{
+	struct nl_ctx *ctx;
+	int ret = -1;
+
+	ctx = nl_ctx_alloc(ovpn, OVPN_CMD_SET_PEER);
+	if (!ctx)
+		return -ENOMEM;
+
+	NLA_PUT_U32(ctx->nl_msg, OVPN_ATTR_KEEPALIVE_INTERVAL,
+		    ovpn->keepalive_interval);
+	NLA_PUT_U32(ctx->nl_msg, OVPN_ATTR_KEEPALIVE_TIMEOUT,
+		    ovpn->keepalive_timeout);
+
+	ret = ovpn_nl_msg_send(ctx, NULL);
+nla_put_failure:
+	nl_ctx_free(ctx);
+	return ret;
+}
+
 static int ovpn_new_key(struct ovpn_ctx *ovpn)
 {
 	struct nlattr *key_dir;
@@ -604,7 +627,7 @@ static void usage(const char *cmd)
 {
 	fprintf(stderr, "Error: invalid arguments.\n\n");
 	fprintf(stderr,
-		"Usage %s <iface> <start|new_peer|new_key|recv|send> [arguments..]\n",
+		"Usage %s <iface> <start|new_peer|set_peer|new_key|recv|send> [arguments..]\n",
 		cmd);
 	fprintf(stderr, "\tiface: tun interface name\n\n");
 
@@ -617,6 +640,13 @@ static void usage(const char *cmd)
 	fprintf(stderr, "\tlocal-port: src UDP port\n");
 	fprintf(stderr, "\tremote-addr: peer IP address\n");
 	fprintf(stderr, "\tremote-port: peer UDP port\n\n");
+
+	fprintf(stderr,
+		"* set_peer <keepalive_interval> <keepalive_timeout>: set peer attributes\n");
+	fprintf(stderr,
+		"\tkeepalive_interval: interval for sending ping messages\n");
+	fprintf(stderr,
+		"\tkeepalive_timeout: time after which a peer is timed out\n\n");
 
 	fprintf(stderr,
 		"* new_key <key_dir> <key_file>: set data channel key\n");
@@ -685,6 +715,28 @@ static int ovpn_parse_new_peer(struct ovpn_ctx *ovpn, int argc, char *argv[])
 	return 0;
 }
 
+static int ovpn_parse_set_peer(struct ovpn_ctx *ovpn, int argc, char *argv[])
+{
+	if (argc < 5) {
+		usage(argv[0]);
+		return -1;
+	}
+
+	ovpn->keepalive_interval = strtoul(argv[3], NULL, 10);
+	if (errno == ERANGE) {
+		fprintf(stderr, "keepalive interval value out of range\n");
+		return -1;
+	}
+
+	ovpn->keepalive_timeout = strtoul(argv[4], NULL, 10);
+	if (errno == ERANGE) {
+		fprintf(stderr, "keepalive interval value out of range\n");
+		return -1;
+	}
+
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	sa_family_t family = AF_INET;
@@ -739,6 +791,16 @@ int main(int argc, char *argv[])
 		ret = ovpn_new_peer(&ovpn);
 		if (ret < 0) {
 			fprintf(stderr, "cannot add peer to VPN\n");
+			return ret;
+		}
+	} else if (!strcmp(argv[2], "set_peer")) {
+		ret = ovpn_parse_set_peer(&ovpn, argc, argv);
+		if (ret < 0)
+			return ret;
+
+		ret = ovpn_set_peer(&ovpn);
+		if (ret < 0) {
+			fprintf(stderr, "cannot set peer to VPN\n");
 			return ret;
 		}
 	} else if (!strcmp(argv[2], "new_key")) {
