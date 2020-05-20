@@ -142,6 +142,7 @@ void ovpn_crypto_key_slot_delete(struct ovpn_crypto_state *cs,
 		pr_debug("Key slot already released: %u\n", slot);
 		return;
 	}
+	pr_debug("deleting key slot %u, key_id=%u\n", slot, ks->key_id);
 
 	ovpn_crypto_key_slot_put(ks);
 }
