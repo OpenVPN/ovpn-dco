@@ -549,6 +549,20 @@ nla_put_failure:
 	return ret;
 }
 
+static int ovpn_swap_keys(struct ovpn_ctx *ovpn)
+{
+	struct nl_ctx *ctx;
+	int ret = -1;
+
+	ctx = nl_ctx_alloc(ovpn, OVPN_CMD_SWAP_KEYS);
+	if (!ctx)
+		return -ENOMEM;
+
+	ret = ovpn_nl_msg_send(ctx, NULL);
+	nl_ctx_free(ctx);
+	return ret;
+}
+
 static int ovpn_send_data(struct ovpn_ctx *ovpn, const void *data, size_t len)
 {
 	struct nl_ctx *ctx;
@@ -655,6 +669,8 @@ static void usage(const char *cmd)
 	fprintf(stderr, "\tkey_file: file containing the pre-shared key\n\n");
 
 	fprintf(stderr, "* del_key: erase existing data channel key\n\n");
+
+	fprintf(stderr, "* swap_keys: swap primary and seconday key slots\n\n");
 
 	fprintf(stderr, "* recv: receive packet and exit\n\n");
 
@@ -828,6 +844,12 @@ int main(int argc, char *argv[])
 		ret = ovpn_del_key(&ovpn);
 		if (ret < 0) {
 			fprintf(stderr, "cannot delete key\n");
+			return ret;
+		}
+	} else if (!strcmp(argv[2], "swap_keys")) {
+		ret = ovpn_swap_keys(&ovpn);
+		if (ret < 0) {
+			fprintf(stderr, "cannot swap keys\n");
 			return ret;
 		}
 	} else if (!strcmp(argv[2], "recv")) {
