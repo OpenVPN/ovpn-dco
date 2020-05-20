@@ -32,7 +32,7 @@ ifeq ($(DEBUG),1)
 NOSTDINC_FLAGS += -DDEBUG=1
 endif
 
-obj-y += net/ovpn-dco/
+obj-y += drivers/net/ovpn-dco/
 export ovpn-dco-y
 
 BUILD_FLAGS := \
