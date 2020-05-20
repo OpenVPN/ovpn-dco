@@ -627,7 +627,7 @@ static void usage(const char *cmd)
 {
 	fprintf(stderr, "Error: invalid arguments.\n\n");
 	fprintf(stderr,
-		"Usage %s <iface> <start|new_peer|set_peer|new_key|recv|send> [arguments..]\n",
+		"Usage %s <iface> <start|new_peer|set_peer|new_key|del_key|recv|send> [arguments..]\n",
 		cmd);
 	fprintf(stderr, "\tiface: tun interface name\n\n");
 
@@ -653,6 +653,8 @@ static void usage(const char *cmd)
 	fprintf(stderr,
 		"\tkey_dir: key direction, must 0 on one host and 1 on the other\n");
 	fprintf(stderr, "\tkey_file: file containing the pre-shared key\n\n");
+
+	fprintf(stderr, "* del_key: erase existing data channel key\n\n");
 
 	fprintf(stderr, "* recv: receive packet and exit\n\n");
 
