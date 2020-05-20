@@ -14,8 +14,8 @@
 #include "bind.h"
 #include "sock.h"
 #include "stats.h"
-#include "timer.h"
 
+#include <linux/timer.h>
 #include <linux/ptr_ring.h>
 
 struct ovpn_peer {
@@ -38,15 +38,19 @@ struct ovpn_peer {
 	/* our binding to peer, protected by spinlock */
 	struct ovpn_bind __rcu *bind;
 
-	/* time in future when we will transmit a keepalive
-	 * (subject to continuous change)
+	/* timer used to send periodic ping messages to the other peer, if no
+	 * other data was sent within the past keepalive_interval seconds
 	 */
-	struct ovpn_timer keepalive_xmit;
+	struct timer_list keepalive_xmit;
+	/* keepalive interval in seconds */
+	unsigned long keepalive_interval;
 
-	/* time in future when we must have received a packet from
-	 * peer or we will timeout session
+	/* timer used to mark a peer as expired when no data is received for
+	 * keepalive_timeout seconds
 	 */
-	struct ovpn_timer keepalive_expire;
+	struct timer_list keepalive_recv;
+	/* keepalive timeout in seconds */
+	unsigned long keepalive_timeout;
 
 	/* OVPN_STATUS_(ACTIVE|KEEPALIVE_TIMEOUT|EXPLICIT_EXIT) */
 	unsigned char status;
@@ -85,12 +89,25 @@ static inline void ovpn_peer_put(struct ovpn_peer *peer)
 	kref_put(&peer->refcount, ovpn_peer_release_kref);
 }
 
-static inline void ovpn_peer_update_keepalive_expire(struct ovpn_peer *peer)
+static inline void ovpn_peer_keepalive_recv_reset(struct ovpn_peer *peer)
 {
-	ovpn_timer_event(&peer->keepalive_expire);
+	u32 delta = msecs_to_jiffies(peer->keepalive_timeout * MSEC_PER_SEC);
+
+	if (unlikely(!delta))
+		return;
+
+	mod_timer(&peer->keepalive_recv, jiffies + delta);
 }
 
-void ovpn_peer_update_keepalive_xmit(struct ovpn_peer *peer);
+static inline void ovpn_peer_keepalive_xmit_reset(struct ovpn_peer *peer)
+{
+	u32 delta = msecs_to_jiffies(peer->keepalive_interval * MSEC_PER_SEC);
+
+	if (unlikely(!delta))
+		return;
+
+	mod_timer(&peer->keepalive_xmit, jiffies + delta);
+}
 
 struct ovpn_peer *
 ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn,
@@ -104,8 +121,6 @@ int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer,
 int ovpn_peer_xmit_explicit_exit_notify(struct ovpn_peer *peer)
 	__must_hold(ovpn_config_mutex);
 
-void ovpn_peer_set_keepalive(struct ovpn_peer *peer,
-			     const unsigned int keepalive_ping,
-			     const unsigned int keepalive_timeout);
+void ovpn_peer_keepalive_set(struct ovpn_peer *peer, u32 interval, u32 timeout);
 
 #endif /* _NET_OVPN_DCO_OVPNPEER_H_ */

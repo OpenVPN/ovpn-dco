@@ -10,12 +10,10 @@
 #include "ovpn.h"
 #include "bind.h"
 #include "crypto.h"
+#include "peer.h"
 
+#include <linux/timer.h>
 #include <linux/workqueue.h>
-
-static void ovpn_peer_timer_delete_all(struct ovpn_peer *peer);
-static void ovpn_peer_keepalive_xmit_handler(struct timer_list *arg);
-static void ovpn_peer_keepalive_expire_handler(struct timer_list *arg);
 
 struct ovpn_peer *ovpn_peer_get(struct ovpn_struct *ovpn)
 {
@@ -28,6 +26,43 @@ struct ovpn_peer *ovpn_peer_get(struct ovpn_struct *ovpn)
 	rcu_read_unlock();
 
 	return peer;
+}
+
+static void ovpn_peer_ping(struct timer_list *t)
+{
+	struct ovpn_peer *peer = from_timer(peer, t, keepalive_xmit);
+
+	rcu_read_lock();
+	pr_debug("sending ping to peer %pIScp\n",
+		 &rcu_dereference(peer->bind)->sapair.remote.u);
+	rcu_read_unlock();
+
+	ovpn_xmit_special(peer, ovpn_keepalive_message,
+			  sizeof(ovpn_keepalive_message));
+}
+
+static void ovpn_peer_expire(struct timer_list *t)
+{
+	struct ovpn_peer *tmp, *peer = from_timer(peer, t, keepalive_recv);
+	struct ovpn_struct *ovpn;
+
+	rcu_read_lock();
+	pr_debug("peer expired: %pIScp\n",
+		 &rcu_dereference(peer->bind)->sapair.remote.u);
+	rcu_read_unlock();
+
+	ovpn = peer->ovpn;
+	if (!ovpn)
+		return;
+
+	spin_lock_bh(&ovpn->lock);
+	tmp = rcu_dereference_protected(ovpn->peer,
+					lockdep_is_held(&ovpn->lock));
+	if (tmp == peer) {
+		rcu_assign_pointer(ovpn->peer, NULL);
+		ovpn_peer_delete(peer);
+	}
+	spin_unlock_bh(&ovpn->lock);
 }
 
 /* Construct a new peer */
@@ -67,11 +102,8 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 	peer->ovpn = ovpn;
 	dev_hold(ovpn->dev);
 
-	/* init keepalive timers */
-	ovpn_timer_init(&peer->keepalive_xmit,
-			ovpn_peer_keepalive_xmit_handler);
-	ovpn_timer_init(&peer->keepalive_expire,
-			ovpn_peer_keepalive_expire_handler);
+	timer_setup(&peer->keepalive_xmit, ovpn_peer_ping, 0);
+	timer_setup(&peer->keepalive_recv, ovpn_peer_expire, 0);
 
 	return peer;
 err_tx_ring:
@@ -96,6 +128,12 @@ int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer,
 	ovpn_bind_reset(peer, bind);
 
 	return 0;
+}
+
+static void ovpn_peer_timer_delete_all(struct ovpn_peer *peer)
+{
+	del_timer_sync(&peer->keepalive_xmit);
+	del_timer_sync(&peer->keepalive_recv);
 }
 
 void ovpn_peer_release(struct ovpn_peer *peer)
@@ -167,86 +205,24 @@ ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn,
 	return peer;
 }
 
-/* Keepalive timer delete/schedule */
-static void ovpn_peer_timer_delete(struct ovpn_peer *peer, struct ovpn_timer *t)
+/* Configure keepalive parameters */
+void ovpn_peer_keepalive_set(struct ovpn_peer *peer, u32 interval, u32 timeout)
 {
-	if (ovpn_timer_delete(t, &peer->lock))
-		ovpn_peer_put(peer);
-}
+	u32 delta;
 
-static void ovpn_peer_timer_delete_all(struct ovpn_peer *peer)
-{
-	ovpn_peer_timer_delete(peer, &peer->keepalive_xmit);
-	ovpn_peer_timer_delete(peer, &peer->keepalive_expire);
-}
+	rcu_read_lock();
+	pr_debug("scheduling keepalive for %pIScp: interval=%u timeout=%u\n",
+		 &rcu_dereference(peer->bind)->sapair.remote.u, interval,
+		 timeout);
+	rcu_read_unlock();
 
-static void ovpn_peer_timer_schedule(struct ovpn_peer *peer,
-				     struct ovpn_timer *t, int rcdelta)
-{
-	if (!ovpn_timer_schedule(t, &peer->lock))
-		++rcdelta;
-	switch (rcdelta) {
-	case 0:
-		break;
-	case 1:
-		if (!ovpn_peer_hold(peer))
-			ovpn_timer_delete(t, &peer->lock);
-		break;
-	case -1:
-		ovpn_peer_put(peer);
-		break;
-	default:
-		WARN_ON(1);
-	}
-}
+	peer->keepalive_interval = interval;
+	delta = msecs_to_jiffies(interval * MSEC_PER_SEC);
+	mod_timer(&peer->keepalive_xmit, jiffies + delta);
 
-/* keepalive timer callbacks.
- * A reference is held on peer which the functions
- * may release prior to return.
- */
-
-static void ovpn_peer_keepalive_xmit_handler(struct timer_list *t)
-{
-	struct ovpn_peer *peer = from_ovpn_timer(peer, t, keepalive_xmit);
-
-#if DEBUG_PING
-	ovpn_dbg_ping_xmit(peer);
-#endif
-	ovpn_xmit_special(peer, ovpn_keepalive_message,
-			  sizeof(ovpn_keepalive_message));
-	ovpn_peer_timer_schedule(peer, &peer->keepalive_xmit, -1);
-}
-
-static void ovpn_peer_keepalive_expire_handler(struct timer_list *t)
-{
-	struct ovpn_peer *peer = from_ovpn_timer(peer, t, keepalive_expire);
-
-	pr_debug("KEEPALIVE EXPIRE\n");
-	ovpn_peer_put(peer);
-}
-
-/* Update keepalive timers */
-void ovpn_peer_update_keepalive_xmit(struct ovpn_peer *peer)
-{
-// if DEBUG_PING >= 2, normal outgoing traffic doesn't reset xmit timer
-#if DEBUG_PING < 2
-	ovpn_timer_event(&peer->keepalive_xmit);
-#endif
-}
-
-/* Configure keepalive parameters.
- * Called from process context.
- * Peer is generally held by RCU lock.
- */
-void ovpn_peer_set_keepalive(struct ovpn_peer *peer,
-			     const unsigned int keepalive_ping,
-			     const unsigned int keepalive_timeout)
-{
-	ovpn_timer_set_period(&peer->keepalive_xmit, keepalive_ping);
-	ovpn_peer_timer_schedule(peer, &peer->keepalive_xmit, 0);
-
-	ovpn_timer_set_period(&peer->keepalive_expire, keepalive_timeout);
-	ovpn_peer_timer_schedule(peer, &peer->keepalive_expire, 0);
+	peer->keepalive_timeout = timeout;
+	delta = msecs_to_jiffies(timeout * MSEC_PER_SEC);
+	mod_timer(&peer->keepalive_recv, jiffies + delta);
 }
 
 /* Transmit explicit exit notification.

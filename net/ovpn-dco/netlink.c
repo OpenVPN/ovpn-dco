@@ -54,6 +54,8 @@ static const struct nla_policy ovpn_netlink_policy[OVPN_ATTR_MAX + 1] = {
 	[OVPN_ATTR_DECRYPT_KEY] =
 		NLA_POLICY_NESTED(ovpn_netlink_policy_key_dir),
 	[OVPN_ATTR_KEY_ID] = { .type = NLA_U16 },
+	[OVPN_ATTR_KEEPALIVE_INTERVAL] = { .type = NLA_U32 },
+	[OVPN_ATTR_KEEPALIVE_TIMEOUT] = { .type = NLA_U32 },
 	[OVPN_ATTR_SOCKADDR_REMOTE] =
 		NLA_POLICY_NESTED(ovpn_netlink_policy_sockaddr),
 	[OVPN_ATTR_SOCKADDR_LOCAL] =
@@ -339,13 +341,13 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 		return PTR_ERR(new);
 	}
 
-	spin_lock(&ovpn->lock);
+	spin_lock_bh(&ovpn->lock);
 	new->sock = ovpn->sock;
 	old = rcu_replace_pointer(ovpn->peer, new,
 				  lockdep_is_held(&ovpn->lock));
 	if (old)
 		ovpn_peer_put(old);
-	spin_unlock(&ovpn->lock);
+	spin_unlock_bh(&ovpn->lock);
 
 	pr_debug("%s: added peer %pIScp <-> %pIScp\n", __func__,
 		 &pair.local.u, &pair.remote.u);
@@ -355,7 +357,29 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 
 static int ovpn_netlink_set_peer(struct sk_buff *skb, struct genl_info *info)
 {
-	return -EOPNOTSUPP;
+	struct ovpn_struct *ovpn = info->user_ptr[0];
+	bool keepalive_set = false;
+	u32 interv, timeout;
+	struct ovpn_peer *peer;
+
+	peer = ovpn_peer_get(ovpn);
+	if (!peer)
+		return -ENOENT;
+
+	/* when setting the keepalive, both parameters have to be configured */
+	if (info->attrs[OVPN_ATTR_KEEPALIVE_INTERVAL] &&
+	    info->attrs[OVPN_ATTR_KEEPALIVE_TIMEOUT]) {
+		keepalive_set = true;
+		interv = nla_get_u32(info->attrs[OVPN_ATTR_KEEPALIVE_INTERVAL]);
+		timeout = nla_get_u32(info->attrs[OVPN_ATTR_KEEPALIVE_TIMEOUT]);
+	}
+
+
+	if (keepalive_set)
+		ovpn_peer_keepalive_set(peer, interv, timeout);
+
+	ovpn_peer_put(peer);
+	return 0;
 }
 
 /**

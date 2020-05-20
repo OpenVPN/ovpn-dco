@@ -61,7 +61,7 @@ static int tun_netdev_write(struct ovpn_peer *peer, struct sk_buff *skb)
 	int ret;
 
 	/* note event of authenticated packet received for keepalive */
-	ovpn_peer_update_keepalive_expire(peer);
+	ovpn_peer_keepalive_recv_reset(peer);
 
 	/* increment RX stats */
 	rx_stats_size = OVPN_SKB_CB(skb)->rx_stats_size;
@@ -81,9 +81,7 @@ static int tun_netdev_write(struct ovpn_peer *peer, struct sk_buff *skb)
 
 		/* check if special OpenVPN message */
 		if (ovpn_is_keepalive(skb)) {
-#if DEBUG_PING
-			ovpn_dbg_ping_received(skb, ovpn, peer);
-#endif
+			pr_debug("ping received\n");
 			/* openvpn keepalive - not an error */
 			ret = 0;
 		}
