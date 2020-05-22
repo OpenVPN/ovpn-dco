@@ -13,6 +13,8 @@
 
 #define OVPN_NL_NAME "ovpn-dco"
 
+#define OVPN_NL_MULTICAST_GROUP_PEERS "peers"
+
 /**
  * enum ovpn_nl_commands - supported netlink commands
  */
@@ -90,6 +92,14 @@ enum ovpn_hmac_alg {
 	OVPN_HMAC_ALG_SHA512,
 };
 
+enum ovpn_del_peer_reason {
+	__OVPN_DEL_PEER_REASON_FIRST,
+	OVPN_DEL_PEER_REASON_TEARDOWN = __OVPN_DEL_PEER_REASON_FIRST,
+	OVPN_DEL_PEER_REASON_USERSPACE,
+	OVPN_DEL_PEER_REASON_EXPIRED,
+	__OVPN_DEL_PEER_REASON_AFTER_LAST
+};
+
 enum ovpn_key_slot {
 	__OVPN_KEY_SLOT_FIRST,
 	OVPN_KEY_SLOT_PRIMARY = __OVPN_KEY_SLOT_FIRST,
@@ -141,6 +151,8 @@ enum ovpn_attrs {
 	OVPN_ATTR_SOCKADDR_LOCAL,
 
 	OVPN_ATTR_PACKET,
+
+	OVPN_ATTR_DEL_PEER_REASON,
 
 	__OVPN_ATTR_AFTER_LAST,
 	OVPN_ATTR_MAX = __OVPN_ATTR_AFTER_LAST - 1,

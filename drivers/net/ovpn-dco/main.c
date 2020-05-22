@@ -52,6 +52,7 @@ static void ovpn_struct_free(struct net_device *net)
 	ovpn_sock_detach(ovpn->sock);
 	security_tun_dev_free_security(ovpn->security);
 	destroy_workqueue(ovpn->crypto_wq);
+	destroy_workqueue(ovpn->events_wq);
 	rcu_barrier();
 }
 
@@ -179,7 +180,7 @@ static void ovpn_dellink(struct net_device *dev, struct list_head *head)
 
 	peer = ovpn_peer_get(ovpn);
 	if (peer) {
-		ovpn_peer_delete(peer);
+		ovpn_peer_delete(peer, OVPN_DEL_PEER_REASON_TEARDOWN);
 		ovpn_peer_put(peer);
 	}
 

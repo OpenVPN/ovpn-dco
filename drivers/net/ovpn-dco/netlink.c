@@ -25,6 +25,14 @@
 #include <uapi/linux/in.h>
 #include <uapi/linux/in6.h>
 
+enum ovpn_netlink_multicast_groups {
+	OVPN_MCGRP_PEERS,
+};
+
+static const struct genl_multicast_group ovpn_netlink_mcgrps[] = {
+	[OVPN_MCGRP_PEERS] = { .name = OVPN_NL_MULTICAST_GROUP_PEERS },
+};
+
 static const struct nla_policy
 ovpn_netlink_policy_key_dir[OVPN_KEY_DIR_ATTR_MAX + 1] = {
 	[OVPN_KEY_DIR_ATTR_CIPHER_KEY] = { .type = NLA_BINARY, .len = U8_MAX },
@@ -47,6 +55,9 @@ static const struct nla_policy ovpn_netlink_policy[OVPN_ATTR_MAX + 1] = {
 	[OVPN_ATTR_REMOTE_PEER_ID] = { .type = NLA_U32 },
 	[OVPN_ATTR_KEY_SLOT] = NLA_POLICY_RANGE(NLA_U8, __OVPN_KEY_SLOT_FIRST,
 						__OVPN_KEY_SLOT_AFTER_LAST - 1),
+	[OVPN_ATTR_DEL_PEER_REASON] = NLA_POLICY_RANGE(NLA_U8,
+						       __OVPN_DEL_PEER_REASON_FIRST,
+						       __OVPN_DEL_PEER_REASON_AFTER_LAST - 1),
 	[OVPN_ATTR_CIPHER_ALG] = { .type = NLA_U16 },
 	[OVPN_ATTR_HMAC_ALG] = { .type = NLA_U16 },
 	[OVPN_ATTR_ENCRYPT_KEY] =
@@ -471,7 +482,7 @@ static int ovpn_netlink_stop_vpn(struct sk_buff *skb, struct genl_info *info)
 	peer = rcu_replace_pointer(ovpn->peer, NULL,
 				   lockdep_is_held(&ovpn->lock));
 	if (peer)
-		ovpn_peer_delete(peer);
+		ovpn_peer_delete(peer, OVPN_DEL_PEER_REASON_TEARDOWN);
 	spin_unlock(&ovpn->lock);
 
 	ovpn->registered_nl_portid_set = false;
@@ -592,8 +603,52 @@ static struct genl_family ovpn_netlink_family __ro_after_init = {
 	.post_doit = ovpn_post_doit,
 	.module = THIS_MODULE,
 	.ops = ovpn_netlink_ops,
-	.n_ops = ARRAY_SIZE(ovpn_netlink_ops)
+	.n_ops = ARRAY_SIZE(ovpn_netlink_ops),
+	.mcgrps = ovpn_netlink_mcgrps,
+	.n_mcgrps = ARRAY_SIZE(ovpn_netlink_mcgrps),
 };
+
+int ovpn_netlink_notify_del_peer(struct ovpn_peer *peer)
+{
+	struct sk_buff *msg;
+	void *hdr;
+	int ret;
+
+	pr_info("%s: deleting peer, reason %d\n", peer->ovpn->dev->name,
+		peer->delete_reason);
+
+	msg = nlmsg_new(100, GFP_KERNEL);
+	if (!msg)
+		return -ENOMEM;
+
+	hdr = genlmsg_put(msg, 0, 0, &ovpn_netlink_family, 0,
+			  OVPN_CMD_DEL_PEER);
+	if (!hdr) {
+		ret = -ENOBUFS;
+		goto err_free_msg;
+	}
+
+	if (nla_put_u32(msg, OVPN_ATTR_IFINDEX, peer->ovpn->dev->ifindex)) {
+		ret = -EMSGSIZE;
+		goto err_free_msg;
+	}
+
+	if (nla_put_u8(msg, OVPN_ATTR_DEL_PEER_REASON, peer->delete_reason)) {
+		ret = -EMSGSIZE;
+		goto err_free_msg;
+	}
+
+	genlmsg_end(msg, hdr);
+
+	genlmsg_multicast_netns(&ovpn_netlink_family, dev_net(peer->ovpn->dev),
+				msg, 0, OVPN_MCGRP_PEERS, GFP_KERNEL);
+
+	return 0;
+
+err_free_msg:
+	nlmsg_free(msg);
+	return ret;
+}
 
 int ovpn_netlink_send_packet(struct ovpn_struct *ovpn, const uint8_t *buf,
 			     size_t len)

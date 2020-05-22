@@ -58,6 +58,9 @@ struct ovpn_peer {
 	/* per-peer rx/tx stats */
 	struct ovpn_peer_stats stats;
 
+	/* why peer was deleted - keepalive timeout, module removed etc */
+	enum ovpn_del_peer_reason delete_reason;
+
 	/* protects binding to peer (bind) and timers
 	 * (keepalive_xmit, keepalive_expire)
 	 */
@@ -68,6 +71,9 @@ struct ovpn_peer {
 
 	/* needed to free a peer in an RCU safe way */
 	struct rcu_head rcu;
+
+	/* needed to notify userspace about deletion */
+	struct work_struct delete_work;
 };
 
 int ovpn_update_peer_by_sockaddr_pc(struct ovpn_peer *peer);
@@ -110,7 +116,7 @@ struct ovpn_peer *
 ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn,
 			    const struct ovpn_sockaddr_pair *sapair);
 
-void ovpn_peer_delete(struct ovpn_peer *peer);
+void ovpn_peer_delete(struct ovpn_peer *peer, enum ovpn_del_peer_reason reason);
 
 int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer,
 			     const struct ovpn_sockaddr_pair *sapair);

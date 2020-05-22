@@ -68,6 +68,10 @@ int ovpn_struct_init(struct net_device *dev)
 	if (!ovpn->crypto_wq)
 		return -ENOMEM;
 
+	ovpn->events_wq = alloc_workqueue("ovpn-event-wq-%s", 0, 0, dev->name);
+	if (!ovpn->events_wq)
+		return -ENOMEM;
+
 	err = security_tun_dev_alloc_security(&ovpn->security);
 	if (err < 0)
 		return err;

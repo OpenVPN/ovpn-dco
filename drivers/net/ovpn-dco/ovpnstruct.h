@@ -26,6 +26,10 @@ struct ovpn_struct {
 
 	/* workqueue used to schedule crypto work that may sleep */
 	struct workqueue_struct *crypto_wq;
+	/* workqueue used to schedule generic event that may sleep or that need
+	 * to be performed out of softirq context
+	 */
+	struct workqueue_struct *events_wq;
 
 	/* associated peer. in client mode we need only one peer. will be
 	 * extended with a table later

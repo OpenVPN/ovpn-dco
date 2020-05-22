@@ -11,6 +11,7 @@
 #include "bind.h"
 #include "crypto.h"
 #include "peer.h"
+#include "netlink.h"
 
 #include <linux/timer.h>
 #include <linux/workqueue.h>
@@ -59,7 +60,7 @@ static void ovpn_peer_expire(struct timer_list *t)
 					lockdep_is_held(&ovpn->lock));
 	if (tmp == peer) {
 		rcu_assign_pointer(ovpn->peer, NULL);
-		ovpn_peer_delete(peer);
+		ovpn_peer_delete(peer, OVPN_DEL_PEER_REASON_EXPIRED);
 	}
 	spin_unlock_bh(&ovpn->lock);
 }
@@ -157,6 +158,13 @@ static void ovpn_peer_release_rcu(struct rcu_head *head)
 	ovpn_peer_release(peer);
 }
 
+static void ovpn_peer_delete_work(struct work_struct *work) {
+	struct ovpn_peer *peer = container_of(work, struct ovpn_peer,
+					      delete_work);
+
+	ovpn_netlink_notify_del_peer(peer);
+}
+
 /* Use with kref_put calls, when releasing refcount
  * on ovpn_peer objects.  This method should only
  * be called from process context with config_mutex held.
@@ -165,6 +173,9 @@ void ovpn_peer_release_kref(struct kref *kref)
 {
 	struct ovpn_peer *peer = container_of(kref, struct ovpn_peer, refcount);
 
+	INIT_WORK(&peer->delete_work, ovpn_peer_delete_work);
+	queue_work(peer->ovpn->events_wq, &peer->delete_work);
+
 	call_rcu(&peer->rcu, ovpn_peer_release_rcu);
 }
 
@@ -172,12 +183,13 @@ void ovpn_peer_release_kref(struct kref *kref)
  * the object was created with.  Deletion may be deferred
  * if other objects hold references to the peer.
  */
-void ovpn_peer_delete(struct ovpn_peer *peer)
+void ovpn_peer_delete(struct ovpn_peer *peer, enum ovpn_del_peer_reason reason)
 {
 	if (peer->halt)
 		return;
 
 	peer->halt = true;
+	peer->delete_reason = reason;
 	ovpn_peer_put(peer);
 }
 
