@@ -75,7 +75,6 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 	if (!peer)
 		return ERR_PTR(-ENOMEM);
 
-	peer->status = OVPN_STATUS_ACTIVE;
 	peer->halt = false;
 	RCU_INIT_POINTER(peer->bind, NULL);
 	ovpn_crypto_state_init(&peer->crypto);

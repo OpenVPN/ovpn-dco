@@ -52,9 +52,6 @@ struct ovpn_peer {
 	/* keepalive timeout in seconds */
 	unsigned long keepalive_timeout;
 
-	/* OVPN_STATUS_(ACTIVE|KEEPALIVE_TIMEOUT|EXPLICIT_EXIT) */
-	unsigned char status;
-
 	/* true if ovpn_peer_mark_delete was called */
 	bool halt;
 

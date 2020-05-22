@@ -52,17 +52,6 @@ struct ovpn_peer_stats {
 	spinlock_t lock;
 };
 
-/* return value for OVPN_PEER_STATUS */
-#define OVPN_STATUS_ACTIVE            0
-#define OVPN_STATUS_KEEPALIVE_TIMEOUT 1
-#define OVPN_STATUS_EXPLICIT_EXIT     2
-#define OVPN_STATUS_USURPED           3
-#define OVPN_STATUS_ADDR_IN_USE       4
-#define OVPN_STATUS_TCP_SOCK_ERROR    5
-#define OVPN_STATUS_TCP_CRYPTO_ERROR  6
-#define OVPN_STATUS_TCP_DISCONNECT    7
-#define OVPN_STATUS_USERSPACE_HALT    8
-
 /* struct for OVPN_ERR_STATS */
 
 struct ovpn_err_stat {
