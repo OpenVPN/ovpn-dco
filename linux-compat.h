@@ -33,4 +33,12 @@
 
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0) */
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
+
+/* commit 895b5c9f206e renamed nf_reset to nf_reset_ct */
+#undef nf_reset_ct
+#define nf_reset_ct nf_reset
+
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0) */
+
 #endif /* _NET_OVPN_DCO_LINUX_COMPAT_H_ */
