@@ -23,6 +23,7 @@
  * rcu_dereference_protected() call used to read that pointer.  The old
  * value of @rcu_ptr is returned, and @rcu_ptr is set to @ptr.
  */
+#undef rcu_replace_pointer
 #define rcu_replace_pointer(rcu_ptr, ptr, c)				\
 ({									\
 	typeof(ptr) __tmp = rcu_dereference_protected((rcu_ptr), (c));	\
