@@ -5,6 +5,7 @@
  *  Copyright (C) 2019-2020 OpenVPN, Inc.
  *
  *  Author:	James Yonan <james@openvpn.net>
+ *		Antonio Quartulli <antonio@openvpn.net>
  */
 
 #ifndef _UAPI_LINUX_OVPN_DCO_H_
