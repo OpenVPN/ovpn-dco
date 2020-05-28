@@ -637,6 +637,213 @@ static struct nl_ctx *ovpn_register(struct ovpn_ctx *ovpn)
 	return ctx;
 }
 
+struct mcast_handler_args {
+	const char *group;
+	int id;
+};
+
+static int mcast_family_handler(struct nl_msg *msg, void *arg)
+{
+	struct mcast_handler_args *grp = arg;
+	struct nlattr *tb[CTRL_ATTR_MAX + 1];
+	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
+	struct nlattr *mcgrp;
+	int rem_mcgrp;
+
+	nla_parse(tb, CTRL_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
+		  genlmsg_attrlen(gnlh, 0), NULL);
+
+	if (!tb[CTRL_ATTR_MCAST_GROUPS])
+		return NL_SKIP;
+
+	nla_for_each_nested(mcgrp, tb[CTRL_ATTR_MCAST_GROUPS], rem_mcgrp) {
+		struct nlattr *tb_mcgrp[CTRL_ATTR_MCAST_GRP_MAX + 1];
+
+		nla_parse(tb_mcgrp, CTRL_ATTR_MCAST_GRP_MAX,
+			  nla_data(mcgrp), nla_len(mcgrp), NULL);
+
+		if (!tb_mcgrp[CTRL_ATTR_MCAST_GRP_NAME] ||
+		    !tb_mcgrp[CTRL_ATTR_MCAST_GRP_ID])
+			continue;
+		if (strncmp(nla_data(tb_mcgrp[CTRL_ATTR_MCAST_GRP_NAME]),
+			    grp->group, nla_len(tb_mcgrp[CTRL_ATTR_MCAST_GRP_NAME])))
+			continue;
+		grp->id = nla_get_u32(tb_mcgrp[CTRL_ATTR_MCAST_GRP_ID]);
+		break;
+	}
+
+	return NL_SKIP;
+}
+
+static int mcast_error_handler(struct sockaddr_nl *nla, struct nlmsgerr *err,
+			       void *arg)
+{
+	int *ret = arg;
+
+	*ret = err->error;
+	return NL_STOP;
+}
+
+static int mcast_ack_handler(struct nl_msg *msg, void *arg)
+{
+	int *ret = arg;
+
+	*ret = 0;
+	return NL_STOP;
+}
+
+static int ovpn_handle_msg(struct nl_msg *msg, void *arg)
+{
+	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
+	struct nlattr *attrs[OVPN_ATTR_MAX + 1];
+	struct nlmsghdr *nlh = nlmsg_hdr(msg);
+	enum ovpn_del_peer_reason reason;
+	char ifname[IF_NAMESIZE];
+	__u32 ifindex;
+
+	fprintf(stderr, "received message from ovpn-dco\n");
+
+	if (!genlmsg_valid_hdr(nlh, 0)) {
+		fprintf(stderr, "invalid header\n");
+		return NL_STOP;
+	}
+
+	if (nla_parse(attrs, OVPN_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
+		      genlmsg_attrlen(gnlh, 0), NULL)) {
+		fprintf(stderr, "received bogus data from ovpn-dco\n");
+		return NL_STOP;
+	}
+
+	if (!attrs[OVPN_ATTR_IFINDEX]) {
+		fprintf(stderr, "no ifindex in this message\n");
+		return NL_STOP;
+	}
+
+	ifindex = nla_get_u32(attrs[OVPN_ATTR_IFINDEX]);
+	if (!if_indextoname(ifindex, ifname)) {
+		fprintf(stderr, "cannot resolve ifname for ifinxed: %u\n",
+			ifindex);
+		return NL_STOP;
+	}
+
+	switch (gnlh->cmd) {
+	case OVPN_CMD_DEL_PEER:
+		if (!attrs[OVPN_ATTR_DEL_PEER_REASON]) {
+			fprintf(stderr, "no reason in DEL_PEER message\n");
+			return NL_STOP;
+		}
+		reason = nla_get_u8(attrs[OVPN_ATTR_DEL_PEER_REASON]);
+		fprintf(stderr,
+			"received CMD_DEL_PEER, ifname: %s reason: %d\n",
+			ifname, reason);
+		break;
+	default:
+		fprintf(stderr, "received unknown command: %d\n", gnlh->cmd);
+		return NL_STOP;
+	}
+
+	return NL_OK;
+}
+
+static int ovpn_get_mcast_id(struct nl_sock *sock, const char *family,
+			     const char *group)
+{
+	struct nl_msg *msg;
+	struct nl_cb *cb;
+	int ret, ctrlid;
+	struct mcast_handler_args grp = {
+		.group = group,
+		.id = -ENOENT,
+	};
+
+	msg = nlmsg_alloc();
+	if (!msg)
+		return -ENOMEM;
+
+	cb = nl_cb_alloc(NL_CB_DEFAULT);
+	if (!cb) {
+		ret = -ENOMEM;
+		goto out_fail_cb;
+	}
+
+	ctrlid = genl_ctrl_resolve(sock, "nlctrl");
+
+	genlmsg_put(msg, 0, 0, ctrlid, 0, 0, CTRL_CMD_GETFAMILY, 0);
+
+	ret = -ENOBUFS;
+	NLA_PUT_STRING(msg, CTRL_ATTR_FAMILY_NAME, family);
+
+	ret = nl_send_auto_complete(sock, msg);
+	if (ret < 0)
+		goto nla_put_failure;
+
+	ret = 1;
+
+	nl_cb_err(cb, NL_CB_CUSTOM, mcast_error_handler, &ret);
+	nl_cb_set(cb, NL_CB_ACK, NL_CB_CUSTOM, mcast_ack_handler, &ret);
+	nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, mcast_family_handler, &grp);
+
+	while (ret > 0)
+		nl_recvmsgs(sock, cb);
+
+	if (ret == 0)
+		ret = grp.id;
+ nla_put_failure:
+	nl_cb_put(cb);
+ out_fail_cb:
+	nlmsg_free(msg);
+	return ret;
+}
+
+static void ovpn_listen_mcast(void)
+{
+	struct nl_sock *sock;
+	struct nl_cb *cb;
+	int mcid, ret;
+
+	sock = nl_socket_alloc();
+	if (!sock) {
+		fprintf(stderr, "cannot allocate netlink socket\n");
+		goto err_free;
+	}
+
+	nl_socket_set_buffer_size(sock, 8192, 8192);
+
+	ret = genl_connect(sock);
+	if (ret < 0) {
+		fprintf(stderr, "cannot connect to generic netlink: %s\n",
+			nl_geterror(ret));
+		goto err_free;
+	}
+
+	mcid = ovpn_get_mcast_id(sock, OVPN_NL_NAME,
+				 OVPN_NL_MULTICAST_GROUP_PEERS);
+	if (mcid < 0) {
+		fprintf(stderr, "cannot get mcast group: %s\n",
+			nl_geterror(mcid));
+		goto err_free;
+	}
+
+	ret = nl_socket_add_membership(sock, mcid);
+	if (ret) {
+		fprintf(stderr, "failed to join mcast group: %d\n", ret);
+		goto err_free;
+	}
+
+	ret = 0;
+	cb = nl_cb_alloc(NL_CB_DEFAULT);
+	nl_cb_set(cb, NL_CB_SEQ_CHECK, NL_CB_CUSTOM, nl_seq_check, NULL);
+	nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, ovpn_handle_msg, &ret);
+	nl_cb_err(cb, NL_CB_CUSTOM, ovpn_nl_cb_error, &ret);
+
+	while (ret != -EINTR)
+		ret = nl_recvmsgs(sock, cb);
+
+	nl_cb_put(cb);
+err_free:
+	nl_socket_free(sock);
+}
+
 static void usage(const char *cmd)
 {
 	fprintf(stderr, "Error: invalid arguments.\n\n");
@@ -870,6 +1077,8 @@ int main(int argc, char *argv[])
 		ret = ovpn_send_data(&ovpn, argv[3], strlen(argv[3]) + 1);
 		if (ret < 0)
 			fprintf(stderr, "cannot send data\n");
+	} else if (!strcmp(argv[2], "listen")) {
+		ovpn_listen_mcast();
 	} else {
 		usage(argv[0]);
 		return -1;
