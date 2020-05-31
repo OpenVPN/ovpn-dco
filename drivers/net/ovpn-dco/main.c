@@ -178,11 +178,14 @@ static void ovpn_dellink(struct net_device *dev, struct list_head *head)
 	struct ovpn_struct *ovpn = netdev_priv(dev);
 	struct ovpn_peer *peer;
 
+	spin_lock_bh(&ovpn->lock);
 	peer = ovpn_peer_get(ovpn);
 	if (peer) {
+		rcu_assign_pointer(ovpn->peer, NULL);
 		ovpn_peer_delete(peer, OVPN_DEL_PEER_REASON_TEARDOWN);
 		ovpn_peer_put(peer);
 	}
+	spin_unlock_bh(&ovpn->lock);
 
 	unregister_netdevice_queue(dev, head); /* calls ovpn_net_uninit */
 }
