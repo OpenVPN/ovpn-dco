@@ -29,6 +29,9 @@ struct ovpn_peer {
 
 	struct ptr_ring tx_ring;
 	struct ptr_ring rx_ring;
+	struct ptr_ring netif_rx_ring;
+
+	struct napi_struct napi;
 
 	struct socket *sock;
 

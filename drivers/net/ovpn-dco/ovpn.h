@@ -36,5 +36,6 @@ void ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 
 void ovpn_encrypt_work(struct work_struct *work);
 void ovpn_decrypt_work(struct work_struct *work);
+int ovpn_napi_poll(struct napi_struct *napi, int budget);
 
 #endif /* _NET_OVPN_DCO_OVPN_H_ */

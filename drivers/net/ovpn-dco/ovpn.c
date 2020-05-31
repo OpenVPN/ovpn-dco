@@ -85,44 +85,8 @@ int ovpn_struct_init(struct net_device *dev)
 /* Called after decrypt to write IP packet to tun netdev.
  * This method is expected to manage/free skb.
  */
-static int tun_netdev_write(struct ovpn_peer *peer, struct sk_buff *skb)
+static void tun_netdev_write(struct ovpn_peer *peer, struct sk_buff *skb)
 {
-	unsigned int rx_stats_size;
-	int ret;
-
-	/* note event of authenticated packet received for keepalive */
-	ovpn_peer_keepalive_recv_reset(peer);
-
-	/* increment RX stats */
-	rx_stats_size = OVPN_SKB_CB(skb)->rx_stats_size;
-	ovpn_peer_stats_increment_rx(peer, rx_stats_size);
-
-	/* verify IP header size, set skb->protocol,
-	 * set skb network header, and possibly stash shim
-	 */
-	skb_reset_network_header(skb);
-	ret = ovpn_ip_header_probe(skb);
-	if (unlikely(ret < 0)) {
-		/* check if null packet */
-		if (unlikely(!pskb_may_pull(skb, 1))) {
-			ret = -EINVAL;
-			goto drop;
-		}
-
-		/* check if special OpenVPN message */
-		if (ovpn_is_keepalive(skb)) {
-			pr_debug("ping received\n");
-			/* openvpn keepalive - not an error */
-			ret = 0;
-		}
-
-		goto drop;
-	}
-
-#if DEBUG_IN
-	ovpn_dbg_kovpn_in(skb, peer);
-#endif
-
 	/* packet integrity was verified on the VPN layer - no need to perform
 	 * any additional check along the stack
 	 */
@@ -144,15 +108,37 @@ static int tun_netdev_write(struct ovpn_peer *peer, struct sk_buff *skb)
 	skb_probe_transport_header(skb);
 
 	/* cause packet to be "received" by tun interface */
+	//netif_receive_skb(skb);
 	netif_rx_ni(skb);
-	return 0;
+}
 
-drop:
-	if (ret < 0)
-		kfree_skb(skb);
-	else
-		consume_skb(skb);
-	return ret;
+int ovpn_napi_poll(struct napi_struct *napi, int budget)
+{
+	struct ovpn_peer *peer = container_of(napi, struct ovpn_peer, napi);
+	struct sk_buff *skb;
+	int work_done = 0;
+
+	if (unlikely(budget <= 0))
+		return 0;
+	/* this function should schedule at most 'budget' number of
+	 * packets for delivery to the tun interface.
+	 * If in the queue we have more packets than what allowed by the
+	 * budget, the next polling will take care of those
+	 */
+	while ((work_done < budget) &&
+	       (skb = ptr_ring_consume_bh(&peer->netif_rx_ring))) {
+		tun_netdev_write(peer, skb);
+		work_done++;
+	}
+
+	if (work_done < budget) {
+		napi_complete_done(napi, work_done);
+
+		if (!__ptr_ring_empty(&peer->netif_rx_ring))
+			napi_schedule(&peer->napi);
+	}
+
+	return work_done;
 }
 
 static int ovpn_transport_to_userspace(struct ovpn_struct *ovpn,
@@ -188,9 +174,10 @@ void ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 		ovpn_peer_put(peer);
 }
 
-static void ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
+static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 {
 	struct ovpn_crypto_key_slot *ks;
+	unsigned int rx_stats_size;
 	int key_id, ret = -1;
 	u32 op;
 
@@ -208,7 +195,12 @@ static void ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 		ret = ovpn_transport_to_userspace(peer->ovpn, skb);
 		if (ret < 0)
 			goto drop;
-		return;
+
+		/* even though the packet handling was succesful, return -1 to
+		 * tell the caller that no packet was enqueued for delivery to
+		 * the tun interface, therefore NAPI should not be scheduled
+		 */
+		return -1;
 	}
 
 	/* get the key slot matching the key Id in the received packet */
@@ -226,10 +218,42 @@ static void ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 
 	/* successful decryption */
 	ovpn_crypto_key_slot_put(ks);
-	tun_netdev_write(peer, skb);
+
+	/* note event of authenticated packet received for keepalive */
+	ovpn_peer_keepalive_recv_reset(peer);
+
+	/* increment RX stats */
+	rx_stats_size = OVPN_SKB_CB(skb)->rx_stats_size;
+	ovpn_peer_stats_increment_rx(peer, rx_stats_size);
+
+	/* check if this is a valid datapacket that has to be delivered to the
+	 * tun interface
+	 */
+	skb_reset_network_header(skb);
+	ret = ovpn_ip_header_probe(skb);
+	if (unlikely(ret < 0)) {
+		/* check if null packet */
+		if (unlikely(!pskb_may_pull(skb, 1))) {
+			ret = -EINVAL;
+			goto drop;
+		}
+
+		/* check if special OpenVPN message */
+		if (ovpn_is_keepalive(skb)) {
+			pr_debug("ping received\n");
+			/* openvpn keepalive - not an error */
+			ret = 0;
+		}
+
+		goto drop;
+	}
+
+	ret = ptr_ring_produce_bh(&peer->netif_rx_ring, skb);
 drop:
 	if (unlikely(ret < 0))
 		kfree_skb(skb);
+
+	return ret;
 }
 
 /* pick packet from RX queue, decrypt and forward it to the tun device */
@@ -240,7 +264,11 @@ void ovpn_decrypt_work(struct work_struct *work)
 
 	peer = container_of(work, struct ovpn_peer, decrypt_work);
 	while ((skb = ptr_ring_consume_bh(&peer->rx_ring))) {
-		ovpn_decrypt_one(peer, skb);
+		if (ovpn_decrypt_one(peer, skb) == 0)
+			/* if a packet has been enqueued for NAPI, signal
+			 * availability to the networking stack
+			 */
+			napi_schedule(&peer->napi);
 
 		/* give a chance to be rescheduled if needed */
 		if (need_resched())

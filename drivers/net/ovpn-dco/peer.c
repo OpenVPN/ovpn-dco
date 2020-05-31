@@ -86,6 +86,11 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 	INIT_WORK(&peer->encrypt_work, ovpn_encrypt_work);
 	INIT_WORK(&peer->decrypt_work, ovpn_decrypt_work);
 
+	/* configure and start NAPI */
+	netif_tx_napi_add(ovpn->dev, &peer->napi, ovpn_napi_poll,
+			  NAPI_POLL_WEIGHT);
+	napi_enable(&peer->napi);
+
 	ret = ptr_ring_init(&peer->tx_ring, OVPN_QUEUE_LEN, GFP_KERNEL);
 	if (ret < 0) {
 		pr_err("cannot allocate TX ring\n");
@@ -98,6 +103,12 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 		goto err_tx_ring;
 	}
 
+	ret = ptr_ring_init(&peer->netif_rx_ring, OVPN_QUEUE_LEN, GFP_KERNEL);
+	if (ret < 0) {
+		pr_err("cannot allocate NETIF RX ring\n");
+		goto err_rx_ring;
+	}
+
 	peer->ovpn = ovpn;
 	dev_hold(ovpn->dev);
 
@@ -105,6 +116,8 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 	timer_setup(&peer->keepalive_recv, ovpn_peer_expire, 0);
 
 	return peer;
+err_rx_ring:
+	ptr_ring_cleanup(&peer->rx_ring, NULL);
 err_tx_ring:
 	ptr_ring_cleanup(&peer->tx_ring, NULL);
 err:
@@ -144,6 +157,8 @@ void ovpn_peer_release(struct ovpn_peer *peer)
 	ptr_ring_cleanup(&peer->tx_ring, NULL);
 	WARN_ON(!__ptr_ring_empty(&peer->rx_ring));
 	ptr_ring_cleanup(&peer->rx_ring, NULL);
+	WARN_ON(!__ptr_ring_empty(&peer->netif_rx_ring));
+	ptr_ring_cleanup(&peer->netif_rx_ring, NULL);
 
 	dev_put(peer->ovpn->dev);
 
@@ -162,6 +177,8 @@ static void ovpn_peer_delete_work(struct work_struct *work) {
 	struct ovpn_peer *peer = container_of(work, struct ovpn_peer,
 					      delete_work);
 
+	napi_disable(&peer->napi);
+	netif_napi_del(&peer->napi);
 	ovpn_netlink_notify_del_peer(peer);
 
 	call_rcu(&peer->rcu, ovpn_peer_release_rcu);
@@ -190,6 +207,7 @@ void ovpn_peer_delete(struct ovpn_peer *peer, enum ovpn_del_peer_reason reason)
 
 	peer->halt = true;
 	peer->delete_reason = reason;
+
 	ovpn_peer_put(peer);
 }
 
