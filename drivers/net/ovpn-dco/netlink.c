@@ -478,12 +478,12 @@ static int ovpn_netlink_stop_vpn(struct sk_buff *skb, struct genl_info *info)
 	ovpn_sock_detach(ovpn->sock);
 	ovpn->sock = NULL;
 
-	spin_lock(&ovpn->lock);
+	spin_lock_bh(&ovpn->lock);
 	peer = rcu_replace_pointer(ovpn->peer, NULL,
 				   lockdep_is_held(&ovpn->lock));
 	if (peer)
 		ovpn_peer_delete(peer, OVPN_DEL_PEER_REASON_TEARDOWN);
-	spin_unlock(&ovpn->lock);
+	spin_unlock_bh(&ovpn->lock);
 
 	ovpn->registered_nl_portid_set = false;
 
