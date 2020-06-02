@@ -163,6 +163,8 @@ static void ovpn_peer_delete_work(struct work_struct *work) {
 					      delete_work);
 
 	ovpn_netlink_notify_del_peer(peer);
+
+	call_rcu(&peer->rcu, ovpn_peer_release_rcu);
 }
 
 /* Use with kref_put calls, when releasing refcount
@@ -175,8 +177,6 @@ void ovpn_peer_release_kref(struct kref *kref)
 
 	INIT_WORK(&peer->delete_work, ovpn_peer_delete_work);
 	queue_work(peer->ovpn->events_wq, &peer->delete_work);
-
-	call_rcu(&peer->rcu, ovpn_peer_release_rcu);
 }
 
 /* Delete a peer, consuming the original +1 refcount that
