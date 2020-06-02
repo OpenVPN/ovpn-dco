@@ -108,8 +108,7 @@ static void tun_netdev_write(struct ovpn_peer *peer, struct sk_buff *skb)
 	skb_probe_transport_header(skb);
 
 	/* cause packet to be "received" by tun interface */
-	//netif_receive_skb(skb);
-	netif_rx_ni(skb);
+	napi_gro_receive(&peer->napi, skb);
 }
 
 int ovpn_napi_poll(struct napi_struct *napi, int budget)
@@ -277,7 +276,7 @@ void ovpn_decrypt_work(struct work_struct *work)
 	ovpn_peer_put(peer);
 }
 
-static void ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
+static bool ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 {
 	struct ovpn_crypto_key_slot *ks;
 	int ret = -1;
@@ -285,35 +284,57 @@ static void ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	/* get primary key to be used for encrypting data */
 	ks = ovpn_crypto_key_slot_primary(&peer->crypto);
 	if (unlikely(!ks))
-		goto drop;
+		return false;
 
 	/* init packet ID to undef in case we err before setting real value */
 	OVPN_SKB_CB(skb)->pktid = 0;
+
+	if (unlikely(skb->ip_summed == CHECKSUM_PARTIAL &&
+		     skb_checksum_help(skb)))
+		return false;
 
 	/* encrypt */
 	ret = ks->ops->encrypt(ks, skb);
 	if (unlikely(ret < 0)) {
 		pr_err("error during encryption\n");
-		goto drop;
+		return false;
 	}
 
 	ovpn_crypto_key_slot_put(ks);
-	/* successful encryption */
-	ovpn_udp_send_skb(peer->ovpn, peer, skb);
-drop:
-	if (unlikely(ret < 0))
-		kfree_skb(skb);
+
+	return true;
 }
 
 /* pick packet from TX queue, encrypt and send it to peer */
 void ovpn_encrypt_work(struct work_struct *work)
 {
+	struct sk_buff *skb, *curr, *next;
 	struct ovpn_peer *peer;
-	struct sk_buff *skb;
 
 	peer = container_of(work, struct ovpn_peer, encrypt_work);
 	while ((skb = ptr_ring_consume_bh(&peer->tx_ring))) {
-		ovpn_encrypt_one(peer, skb);
+		/* this might be a GSO-segmented skb list: process each skb
+		 * independently
+		 */
+		skb_list_walk_safe(skb, curr, next) {
+			/* if one segment fails encryption, we drop the entire
+			 * packet, because it does not really make sense to send
+			 * only part of it at this point
+			 */
+			if (!ovpn_encrypt_one(peer, curr)) {
+				kfree_skb_list(skb);
+				skb = NULL;
+				break;
+			}
+		}
+
+		/* successful encryption */
+		if (skb) {
+			skb_list_walk_safe(skb, curr, next) {
+				skb_mark_not_on_list(curr);
+				ovpn_udp_send_skb(peer->ovpn, peer, curr);
+			}
+		}
 
 		/* give a chance to be rescheduled if needed */
 		if (need_resched())
@@ -322,37 +343,28 @@ void ovpn_encrypt_work(struct work_struct *work)
 	ovpn_peer_put(peer);
 }
 
-/* enqueue packet and schedule TX consumer
- *
- * On success, 0 is returned, skb ownership is transferred,
- * On error, a value < 0 is returned, the skb is not owned/released.
- */
-static int ovpn_net_xmit_skb(struct ovpn_struct *ovpn, struct sk_buff *skb)
+/* enqueue skb and schedule consumer */
+static void ovpn_queue_skb(struct ovpn_struct *ovpn, struct sk_buff *skb)
 {
 	struct ovpn_peer *peer;
 	int ret;
 
-	/* HW checksum offload is set, therefore attempt computing the checksum
-	 * of the inner packet
-	 */
-	if (unlikely(skb->ip_summed == CHECKSUM_PARTIAL &&
-		     skb_checksum_help(skb)))
-		return -EINVAL;
-
 	peer = ovpn_peer_get(ovpn);
 	if (unlikely(!peer))
-		return -ENOLINK;
+		goto drop;
 
 	ret = ptr_ring_produce_bh(&peer->tx_ring, skb);
-	if (ret < 0) {
-		ovpn_peer_put(peer);
-		return ret;
-	}
+	if (ret < 0)
+		goto drop;
 
 	if (!queue_work(ovpn->crypto_wq, &peer->encrypt_work))
 		ovpn_peer_put(peer);
 
-	return 0;
+	return;
+drop:
+	if (peer)
+		ovpn_peer_put(peer);
+	kfree_skb_list(skb);
 }
 
 /* Net device start xmit
@@ -360,6 +372,8 @@ static int ovpn_net_xmit_skb(struct ovpn_struct *ovpn, struct sk_buff *skb)
 netdev_tx_t ovpn_net_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct ovpn_struct *ovpn = netdev_priv(dev);
+	struct sk_buff *segments, *tmp, *curr, *next;
+	struct sk_buff_head skb_list;
 	int ret;
 
 	/* reset netfilter state */
@@ -373,15 +387,41 @@ netdev_tx_t ovpn_net_xmit(struct sk_buff *skb, struct net_device *dev)
 		goto drop;
 	}
 
-	ret = ovpn_net_xmit_skb(ovpn, skb);
-	if (unlikely(ret < 0))
-		goto drop;
+	if (skb_is_gso(skb)) {
+		segments = skb_gso_segment(skb, 0);
+		if (unlikely(IS_ERR(segments))) {
+			ret = PTR_ERR(segments);
+			goto drop;
+		}
+
+		consume_skb(skb);
+		skb = segments;
+	}
+
+	/* from this moment on, "skb" might be a list */
+
+	__skb_queue_head_init(&skb_list);
+	skb_list_walk_safe(skb, curr, next) {
+		skb_mark_not_on_list(curr);
+
+		tmp = skb_share_check(curr, GFP_ATOMIC);
+		if (unlikely(!tmp))
+			goto drop_list;
+
+		__skb_queue_tail(&skb_list, tmp);
+	}
+	skb_list.prev->next = NULL;
+
+	ovpn_queue_skb(ovpn, skb_list.next);
 
 	return NETDEV_TX_OK;
 
+drop_list:
+	skb_queue_walk_safe(&skb_list, curr, next)
+		kfree_skb(curr);
 drop:
 	skb_tx_error(skb);
-	kfree_skb(skb);
+	kfree_skb_list(skb);
 	return NET_XMIT_DROP;
 }
 
@@ -394,7 +434,6 @@ static void ovpn_xmit_special(struct ovpn_peer *peer, const void *data,
 {
 	struct ovpn_struct *ovpn;
 	struct sk_buff *skb;
-	int err;
 
 	ovpn = peer->ovpn;
 	if (unlikely(!ovpn))
@@ -408,9 +447,7 @@ static void ovpn_xmit_special(struct ovpn_peer *peer, const void *data,
 	skb->priority = TC_PRIO_BESTEFFORT;
 	memcpy(__skb_put(skb, len), data, len);
 
-	err = ovpn_net_xmit_skb(ovpn, skb);
-	if (likely(err < 0))
-		kfree_skb(skb);
+	ovpn_queue_skb(ovpn, skb);
 }
 
 void ovpn_keepalive_xmit(struct ovpn_peer *peer)
