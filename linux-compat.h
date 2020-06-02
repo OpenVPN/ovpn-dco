@@ -11,6 +11,15 @@
 
 #include <linux/version.h>
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
+
+/* Iterate through singly-linked GSO fragments of an skb. */
+#define skb_list_walk_safe(first, skb, next_skb)				\
+	for ((skb) = (first), (next_skb) = (skb) ? (skb)->next : NULL; (skb);	\
+	     (skb) = (next_skb), (next_skb) = (skb) ? (skb)->next : NULL)
+
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0) */
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0)
 /**
  * rcu_replace_pointer() - replace an RCU pointer, returning its old value
