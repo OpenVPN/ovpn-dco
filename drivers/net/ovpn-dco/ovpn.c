@@ -15,7 +15,6 @@
 #include "stats_counters.h"
 #include "proto.h"
 #include "crypto.h"
-#include "work.h"
 #include "skb.h"
 #include "udp.h"
 

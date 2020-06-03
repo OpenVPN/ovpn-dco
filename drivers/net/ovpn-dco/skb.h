@@ -10,6 +10,18 @@
 #ifndef _NET_OVPN_DCO_SKB_H_
 #define _NET_OVPN_DCO_SKB_H_
 
+#include <linux/types.h>
+
+#define OVPN_SKB_CB(skb) ((struct ovpn_skb_cb *)&((skb)->cb))
+
+struct ovpn_skb_cb {
+	/* original recv packet size for stats accounting */
+	unsigned int rx_stats_size;
+
+	/* OpenVPN packet ID */
+	u32 pktid;
+};
+
 /* READ_ONCE version of skb_queue_len()
  */
 static inline u32 ovpn_skb_queue_len(const struct sk_buff_head *list)

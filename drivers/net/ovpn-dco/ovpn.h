@@ -16,6 +16,7 @@
 #include "ovpnstruct.h"
 
 #include <linux/workqueue.h>
+#include <linux/types.h>
 #include <net/sock.h>
 
 struct ovpn_struct;

@@ -8,10 +8,10 @@
  */
 
 #include "aead.h"
-#include "work.h"
 #include "crypto.h"
 #include "pktid.h"
 #include "proto.h"
+#include "skb.h"
 
 #include <crypto/aead.h>
 #include <linux/skbuff.h>
