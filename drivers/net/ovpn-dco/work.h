@@ -20,9 +20,6 @@ struct ovpn_work {
 };
 
 struct ovpn_skb_cb {
-	/* must be first member */
-	struct ovpn_work *work;
-
 	/* original recv packet size for stats accounting */
 	unsigned int rx_stats_size;
 
