@@ -124,7 +124,7 @@ int ovpn_napi_poll(struct napi_struct *napi, int budget)
 	 * budget, the next polling will take care of those
 	 */
 	while ((work_done < budget) &&
-	       (skb = ptr_ring_consume_bh(&peer->netif_rx_ring))) {
+	       (skb = __ptr_ring_consume(&peer->netif_rx_ring))) {
 		tun_netdev_write(peer, skb);
 		work_done++;
 	}
@@ -162,7 +162,7 @@ void ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 {
 	int ret;
 
-	ret = ptr_ring_produce_bh(&peer->rx_ring, skb);
+	ret = __ptr_ring_produce(&peer->rx_ring, skb);
 	if (ret < 0) {
 		ovpn_peer_put(peer);
 		return;
@@ -246,7 +246,7 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 		goto drop;
 	}
 
-	ret = ptr_ring_produce_bh(&peer->netif_rx_ring, skb);
+	ret = __ptr_ring_produce(&peer->netif_rx_ring, skb);
 drop:
 	if (unlikely(ret < 0))
 		kfree_skb(skb);
@@ -261,12 +261,15 @@ void ovpn_decrypt_work(struct work_struct *work)
 	struct sk_buff *skb;
 
 	peer = container_of(work, struct ovpn_peer, decrypt_work);
-	while ((skb = ptr_ring_consume_bh(&peer->rx_ring))) {
-		if (ovpn_decrypt_one(peer, skb) == 0)
+	while ((skb = __ptr_ring_consume(&peer->rx_ring))) {
+		if (ovpn_decrypt_one(peer, skb) == 0) {
 			/* if a packet has been enqueued for NAPI, signal
 			 * availability to the networking stack
 			 */
+			local_bh_disable();
 			napi_schedule(&peer->napi);
+			local_bh_enable();
+		}
 
 		/* give a chance to be rescheduled if needed */
 		if (need_resched())
@@ -311,7 +314,7 @@ void ovpn_encrypt_work(struct work_struct *work)
 	struct ovpn_peer *peer;
 
 	peer = container_of(work, struct ovpn_peer, encrypt_work);
-	while ((skb = ptr_ring_consume_bh(&peer->tx_ring))) {
+	while ((skb = __ptr_ring_consume(&peer->tx_ring))) {
 		/* this might be a GSO-segmented skb list: process each skb
 		 * independently
 		 */
@@ -352,7 +355,7 @@ static void ovpn_queue_skb(struct ovpn_struct *ovpn, struct sk_buff *skb)
 	if (unlikely(!peer))
 		goto drop;
 
-	ret = ptr_ring_produce_bh(&peer->tx_ring, skb);
+	ret = __ptr_ring_produce(&peer->tx_ring, skb);
 	if (ret < 0)
 		goto drop;
 
