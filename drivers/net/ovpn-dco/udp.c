@@ -68,12 +68,6 @@ int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 	struct ovpn_struct *ovpn;
 	struct ovpn_peer *peer;
 
-	/* ensure accurate L4 hash for packets assembled from IP fragments */
-	skb_clear_hash_if_not_l4(skb);
-
-	/* pre-decrypt scrub */
-	/* TODO */
-
 	/* pop off outer UDP header */
 	__skb_pull(skb, sizeof(struct udphdr));
 
