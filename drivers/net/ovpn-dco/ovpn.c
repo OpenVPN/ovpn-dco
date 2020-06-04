@@ -407,8 +407,10 @@ netdev_tx_t ovpn_net_xmit(struct sk_buff *skb, struct net_device *dev)
 		skb_mark_not_on_list(curr);
 
 		tmp = skb_share_check(curr, GFP_ATOMIC);
-		if (unlikely(!tmp))
+		if (unlikely(!tmp)) {
+			kfree_skb_list(next);
 			goto drop_list;
+		}
 
 		__skb_queue_tail(&skb_list, tmp);
 	}
