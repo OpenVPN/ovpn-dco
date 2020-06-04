@@ -239,8 +239,12 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 		/* check if special OpenVPN message */
 		if (ovpn_is_keepalive(skb)) {
 			pr_debug("ping received\n");
-			/* openvpn keepalive - not an error */
-			ret = 0;
+			/* not an error */
+			consume_skb(skb);
+			/* inform the caller that NAPI should not be scheduled
+			 * for this packet
+			 */
+			return -1;
 		}
 
 		goto drop;
