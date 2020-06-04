@@ -14,6 +14,7 @@
 #include "proto.h"
 #include "udp.h"
 
+#include <net/dst_cache.h>
 #include <net/route.h>
 #include <net/ip6_route.h>
 #include <net/udp_tunnel.h>
@@ -89,7 +90,8 @@ drop:
 }
 
 static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
-			    struct sock *sk, struct sk_buff *skb)
+			    struct dst_cache *cache, struct sock *sk,
+			    struct sk_buff *skb)
 {
 	struct rtable *rt;
 	struct flowi4 fl = {
@@ -102,6 +104,10 @@ static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 		.flowi4_oif = sk->sk_bound_dev_if,
 	};
 
+	rt = dst_cache_get_ip4(cache, &fl.saddr);
+	if (rt)
+		goto transmit;
+
 	rt = ip_route_output_flow(sock_net(sk), &fl, sk);
 	if (IS_ERR(rt)) {
 		net_dbg_ratelimited("%s: no route to host %pISpc\n",
@@ -109,7 +115,9 @@ static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 				    &bind->sapair.remote.u.in4);
 		return -EHOSTUNREACH;
 	}
+	dst_cache_set_ip4(cache, &rt->dst, fl.saddr);
 
+transmit:
 	udp_tunnel_xmit_skb(rt, sk, skb, fl.saddr, fl.daddr, 0,
 			    ip4_dst_hoplimit(&rt->dst), 0, fl.fl4_sport,
 			    fl.fl4_dport, false, sk->sk_no_check_tx);
@@ -118,7 +126,8 @@ static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 
 #if IS_ENABLED(CONFIG_IPV6)
 static int ovpn_udp6_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
-			    struct sock *sk, struct sk_buff *skb)
+			    struct dst_cache *cache, struct sock *sk,
+			    struct sk_buff *skb)
 {
 	struct dst_entry *dst;
 	int ret;
@@ -138,13 +147,19 @@ static int ovpn_udp6_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	    __ipv6_addr_needs_scope_id(__ipv6_addr_type(&fl.daddr)))
 		fl.flowi6_oif = bind->sapair.remote.u.in6.sin6_scope_id;
 
+	dst = dst_cache_get_ip6(cache, &fl.saddr);
+	if (dst)
+		goto transmit;
+
 	dst = ip6_route_output(sock_net(sk), sk, &fl);
 	if (unlikely(dst->error < 0)) {
 		ret = dst->error;
 		dst_release(dst);
 		return ret;
 	}
+	dst_cache_set_ip6(cache, dst, &fl.saddr);
 
+transmit:
 	udp_tunnel6_xmit_skb(dst, sk, skb, skb->dev, &fl.saddr, &fl.daddr, 0,
 			     ip6_dst_hoplimit(dst), 0, fl.fl6_sport,
 			     fl.fl6_dport, udp_get_no_check6_tx(sk));
@@ -161,7 +176,8 @@ static int ovpn_udp6_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
  * is released, even on error return.
  */
 static int ovpn_udp_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
-			   struct sock *sk, struct sk_buff *skb)
+			   struct dst_cache *cache, struct sock *sk,
+			   struct sk_buff *skb)
 {
 	int ret;
 
@@ -173,11 +189,11 @@ static int ovpn_udp_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 
 	switch (bind->sapair.local.family) {
 	case AF_INET:
-		ret = ovpn_udp4_output(ovpn, bind, sk, skb);
+		ret = ovpn_udp4_output(ovpn, bind, cache, sk, skb);
 		break;
 #if IS_ENABLED(CONFIG_IPV6)
 	case AF_INET6:
-		ret = ovpn_udp6_output(ovpn, bind, sk, skb);
+		ret = ovpn_udp6_output(ovpn, bind, cache, sk, skb);
 		break;
 #endif
 	default:
@@ -217,7 +233,7 @@ void ovpn_udp_send_skb(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	ovpn_peer_keepalive_xmit_reset(peer);
 
 	/* crypto layer -> transport (UDP) */
-	ret = ovpn_udp_output(ovpn, bind, sock->sk, skb);
+	ret = ovpn_udp_output(ovpn, bind, &peer->dst_cache, sock->sk, skb);
 
 out_unlock:
 	rcu_read_unlock();

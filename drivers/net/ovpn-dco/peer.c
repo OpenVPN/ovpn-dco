@@ -91,10 +91,13 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 			  NAPI_POLL_WEIGHT);
 	napi_enable(&peer->napi);
 
+	if (dst_cache_init(&peer->dst_cache, GFP_KERNEL) < 0)
+		goto err;
+
 	ret = ptr_ring_init(&peer->tx_ring, OVPN_QUEUE_LEN, GFP_KERNEL);
 	if (ret < 0) {
 		pr_err("cannot allocate TX ring\n");
-		goto err;
+		goto err_dst_cache;
 	}
 
 	ret = ptr_ring_init(&peer->rx_ring, OVPN_QUEUE_LEN, GFP_KERNEL);
@@ -120,6 +123,8 @@ err_rx_ring:
 	ptr_ring_cleanup(&peer->rx_ring, NULL);
 err_tx_ring:
 	ptr_ring_cleanup(&peer->tx_ring, NULL);
+err_dst_cache:
+	dst_cache_destroy(&peer->dst_cache);
 err:
 	kfree(peer);
 	return NULL;
@@ -159,6 +164,8 @@ void ovpn_peer_release(struct ovpn_peer *peer)
 	ptr_ring_cleanup(&peer->rx_ring, NULL);
 	WARN_ON(!__ptr_ring_empty(&peer->netif_rx_ring));
 	ptr_ring_cleanup(&peer->netif_rx_ring, NULL);
+
+	dst_cache_destroy(&peer->dst_cache);
 
 	dev_put(peer->ovpn->dev);
 

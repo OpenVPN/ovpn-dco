@@ -17,6 +17,7 @@
 
 #include <linux/timer.h>
 #include <linux/ptr_ring.h>
+#include <net/dst_cache.h>
 
 struct ovpn_peer {
 	struct ovpn_struct *ovpn;
@@ -34,6 +35,8 @@ struct ovpn_peer {
 	struct napi_struct napi;
 
 	struct socket *sock;
+
+	struct dst_cache dst_cache;
 
 	/* our crypto state */
 	struct ovpn_crypto_state crypto;
