@@ -209,13 +209,13 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 
 	/* decrypt */
 	ret = ks->ops->decrypt(ks, skb, op);
+
+	ovpn_crypto_key_slot_put(ks);
+
 	if (unlikely(ret < 0)) {
 		pr_err("error during decryption\n");
 		goto drop;
 	}
-
-	/* successful decryption */
-	ovpn_crypto_key_slot_put(ks);
 
 	/* note event of authenticated packet received for keepalive */
 	ovpn_peer_keepalive_recv_reset(peer);
