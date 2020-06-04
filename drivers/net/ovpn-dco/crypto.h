@@ -127,20 +127,20 @@ ovpn_crypto_key_id_to_slot(const struct ovpn_crypto_state *cs, int key_id)
 {
 	struct ovpn_crypto_key_slot *ks;
 
-	if (!cs)
+	if (unlikely(!cs))
 		return NULL;
 
 	rcu_read_lock();
 	ks = rcu_dereference(cs->primary);
 	if (ks && ks->key_id == key_id) {
-		if (!ovpn_crypto_key_slot_hold(ks))
+		if (unlikely(!ovpn_crypto_key_slot_hold(ks)))
 			ks = NULL;
 		goto out;
 	}
 
 	ks = rcu_dereference(cs->secondary);
 	if (ks && ks->key_id == key_id) {
-		if (!ovpn_crypto_key_slot_hold(ks))
+		if (unlikely(!ovpn_crypto_key_slot_hold(ks)))
 			ks = NULL;
 		goto out;
 	}
@@ -157,7 +157,7 @@ ovpn_crypto_key_slot_primary(const struct ovpn_crypto_state *cs)
 
 	rcu_read_lock();
 	ks = rcu_dereference(cs->primary);
-	if (ks && !ovpn_crypto_key_slot_hold(ks))
+	if (unlikely(ks && !ovpn_crypto_key_slot_hold(ks)))
 		ks = NULL;
 	rcu_read_unlock();
 
