@@ -400,7 +400,6 @@ static int ovpn_netlink_set_peer(struct sk_buff *skb, struct genl_info *info)
 		timeout = nla_get_u32(info->attrs[OVPN_ATTR_KEEPALIVE_TIMEOUT]);
 	}
 
-
 	if (keepalive_set)
 		ovpn_peer_keepalive_set(peer, interv, timeout);
 
