@@ -285,7 +285,8 @@ void ovpn_decrypt_work(struct work_struct *work)
 static bool ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 {
 	struct ovpn_crypto_key_slot *ks;
-	int ret = -1;
+	bool success = false;
+	int ret;
 
 	/* get primary key to be used for encrypting data */
 	ks = ovpn_crypto_key_slot_primary(&peer->crypto);
@@ -297,18 +298,19 @@ static bool ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 
 	if (unlikely(skb->ip_summed == CHECKSUM_PARTIAL &&
 		     skb_checksum_help(skb)))
-		return false;
+		goto err;
 
 	/* encrypt */
 	ret = ks->ops->encrypt(ks, skb);
 	if (unlikely(ret < 0)) {
-		pr_err("error during encryption\n");
-		return false;
+		pr_err("error during encryption: %d\n", ret);
+		goto err;
 	}
 
+	success = true;
+err:
 	ovpn_crypto_key_slot_put(ks);
-
-	return true;
+	return success;
 }
 
 /* pick packet from TX queue, encrypt and send it to peer */
