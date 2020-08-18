@@ -144,6 +144,11 @@ ovpn_crypto_key_id_to_slot(const struct ovpn_crypto_state *cs, int key_id)
 			ks = NULL;
 		goto out;
 	}
+
+	/* when both key slots are occupied but no matching key ID is found, ks has to be reset to
+	 * NULL to avoid carrying a stale pointer
+	 */
+	ks = NULL;
 out:
 	rcu_read_unlock();
 
