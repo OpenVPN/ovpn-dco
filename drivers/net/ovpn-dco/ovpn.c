@@ -213,7 +213,7 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	ovpn_crypto_key_slot_put(ks);
 
 	if (unlikely(ret < 0)) {
-		pr_err("error during decryption\n");
+		pr_err("error during decryption: %d\n", ret);
 		goto drop;
 	}
 
