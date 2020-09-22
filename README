@@ -105,3 +105,11 @@ To run net-next, it's better to rely on any VM, so that the developer does not n
 to worry about bugs or spurious kernel crashes. For this reason qemu is suggested
 (but any other VM is fine too). At `tests/qemu/launch_deb2.sh` a sample script
 can be found that shows how qemu can be launched for testing.
+
+
+== Limitations ==
+
+This is a list of current limitations which are planned to be removed as we move forward:
+* Only client mode supported
+* Only AES-256-GCM supported
+* No proper IPv6 support
