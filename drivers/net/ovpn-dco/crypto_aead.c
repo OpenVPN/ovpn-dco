@@ -7,7 +7,7 @@
  *		Antonio Quartulli <antonio@openvpn.net>
  */
 
-#include "aead.h"
+#include "crypto_aead.h"
 #include "crypto.h"
 #include "pktid.h"
 #include "proto.h"

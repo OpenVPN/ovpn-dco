@@ -8,7 +8,7 @@
  */
 
 #include "main.h"
-#include "aead.h"
+#include "crypto_aead.h"
 #include "crypto.h"
 
 #include <uapi/linux/ovpn_dco.h>
