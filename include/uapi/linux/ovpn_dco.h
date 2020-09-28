@@ -82,12 +82,14 @@ enum ovpn_proto {
 };
 
 enum ovpn_cipher_alg {
-	OVPN_CIPHER_ALG_AES_GCM = 0,
+	OVPN_CIPHER_ALG_NONE = 0,
+	OVPN_CIPHER_ALG_AES_GCM,
 	OVPN_CIPHER_ALG_AES_CBC,
 };
 
 enum ovpn_hmac_alg {
-	OVPN_HMAC_ALG_SHA128 = 0,
+	OVPN_HMAC_ALG_NONE = 0,
+	OVPN_HMAC_ALG_SHA128,
 	OVPN_HMAC_ALG_SHA256,
 	OVPN_HMAC_ALG_SHA512,
 };

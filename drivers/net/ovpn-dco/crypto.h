@@ -21,6 +21,7 @@ struct ovpn_crypto_key_slot;
 
 enum ovpn_crypto_families {
 	OVPN_CRYPTO_FAMILY_UNDEF = 0,
+	OVPN_CRYPTO_FAMILY_NONE,
 	OVPN_CRYPTO_FAMILY_AEAD,
 	OVPN_CRYPTO_FAMILY_CBC_HMAC,
 };

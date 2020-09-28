@@ -8,6 +8,7 @@
  */
 
 #include "main.h"
+#include "crypto_none.h"
 #include "crypto_aead.h"
 #include "crypto.h"
 
@@ -153,6 +154,8 @@ ovpn_crypto_select_family(const struct ovpn_peer_key_reset *pkr)
 	switch (pkr->crypto_family) {
 	case OVPN_CRYPTO_FAMILY_UNDEF:
 		return NULL;
+	case OVPN_CRYPTO_FAMILY_NONE:
+		return &ovpn_none_ops;
 	case OVPN_CRYPTO_FAMILY_AEAD:
 		return &ovpn_aead_ops;
 //	case OVPN_CRYPTO_FAMILY_CBC_HMAC:
@@ -186,6 +189,8 @@ enum ovpn_crypto_families
 ovpn_keys_familiy_get(const struct ovpn_key_config *kc)
 {
 	switch (kc->cipher_alg) {
+	case OVPN_CIPHER_ALG_NONE:
+		return OVPN_CRYPTO_FAMILY_NONE;
 	case OVPN_CIPHER_ALG_AES_GCM:
 		return OVPN_CRYPTO_FAMILY_AEAD;
 	case OVPN_CIPHER_ALG_AES_CBC:

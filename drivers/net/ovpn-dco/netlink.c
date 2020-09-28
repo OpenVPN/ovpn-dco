@@ -138,7 +138,7 @@ static void ovpn_post_doit(const struct genl_ops *ops, struct sk_buff *skb,
 }
 
 static int ovpn_netlink_get_key_dir(struct genl_info *info, struct nlattr *key,
-				    enum ovpn_cipher_alg cipher,
+				    enum ovpn_cipher_alg cipher, enum ovpn_hmac_alg hmac,
 				    struct ovpn_key_direction *dir)
 {
 	struct nlattr *attr, *attrs[OVPN_KEY_DIR_ATTR_MAX + 1];
@@ -149,11 +149,13 @@ static int ovpn_netlink_get_key_dir(struct genl_info *info, struct nlattr *key,
 	if (ret)
 		return ret;
 
-	if (!attrs[OVPN_KEY_DIR_ATTR_CIPHER_KEY])
-		return -EINVAL;
+	if (cipher != OVPN_CIPHER_ALG_NONE) {
+		if (!attrs[OVPN_KEY_DIR_ATTR_CIPHER_KEY])
+			return -EINVAL;
 
-	dir->cipher_key = nla_data(attrs[OVPN_KEY_DIR_ATTR_CIPHER_KEY]);
-	dir->cipher_key_size = nla_len(attrs[OVPN_KEY_DIR_ATTR_CIPHER_KEY]);
+		dir->cipher_key = nla_data(attrs[OVPN_KEY_DIR_ATTR_CIPHER_KEY]);
+		dir->cipher_key_size = nla_len(attrs[OVPN_KEY_DIR_ATTR_CIPHER_KEY]);
+	}
 
 	switch (cipher) {
 	case OVPN_CIPHER_ALG_AES_GCM:
@@ -166,6 +168,9 @@ static int ovpn_netlink_get_key_dir(struct genl_info *info, struct nlattr *key,
 		dir->nonce_tail_size = nla_len(attr);
 		break;
 	default:
+		if (hmac == OVPN_HMAC_ALG_NONE)
+			break;
+
 		attr = attrs[OVPN_KEY_DIR_ATTR_HMAC_KEY];
 		if (!attr)
 			return -EINVAL;
@@ -207,12 +212,12 @@ static int ovpn_netlink_new_key(struct sk_buff *skb, struct genl_info *info)
 	}
 
 	ret = ovpn_netlink_get_key_dir(info, info->attrs[OVPN_ATTR_ENCRYPT_KEY],
-				       pkr.key.cipher_alg, &pkr.key.encrypt);
+				       pkr.key.cipher_alg, pkr.key.hmac_alg, &pkr.key.encrypt);
 	if (ret < 0)
 		return ret;
 
 	ret = ovpn_netlink_get_key_dir(info, info->attrs[OVPN_ATTR_DECRYPT_KEY],
-				       pkr.key.cipher_alg, &pkr.key.decrypt);
+				       pkr.key.cipher_alg, pkr.key.hmac_alg, &pkr.key.decrypt);
 	if (ret < 0)
 		return ret;
 
