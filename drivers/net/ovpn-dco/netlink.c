@@ -155,14 +155,8 @@ static int ovpn_netlink_get_key_dir(struct genl_info *info, struct nlattr *key,
 	dir->cipher_key = nla_data(attrs[OVPN_KEY_DIR_ATTR_CIPHER_KEY]);
 	dir->cipher_key_size = nla_len(attrs[OVPN_KEY_DIR_ATTR_CIPHER_KEY]);
 
-	if (cipher != OVPN_CIPHER_ALG_AES_GCM) {
-		attr = attrs[OVPN_KEY_DIR_ATTR_HMAC_KEY];
-		if (!attr)
-			return -EINVAL;
-
-		dir->hmac_key = nla_data(attr);
-		dir->hmac_key_size = nla_len(attr);
-	} else {
+	switch (cipher) {
+	case OVPN_CIPHER_ALG_AES_GCM:
 		attr = attrs[OVPN_KEY_DIR_ATTR_NONCE_TAIL];
 		/* AES-256-GCM requires a 96bit nonce */
 		if (!attr || nla_len(attr) != 12)
@@ -170,6 +164,15 @@ static int ovpn_netlink_get_key_dir(struct genl_info *info, struct nlattr *key,
 
 		dir->nonce_tail = nla_data(attr);
 		dir->nonce_tail_size = nla_len(attr);
+		break;
+	default:
+		attr = attrs[OVPN_KEY_DIR_ATTR_HMAC_KEY];
+		if (!attr)
+			return -EINVAL;
+
+		dir->hmac_key = nla_data(attr);
+		dir->hmac_key_size = nla_len(attr);
+		break;
 	}
 
 	return 0;
