@@ -56,6 +56,8 @@ struct ovpn_ctx {
 	__u8 key_dec[KEY_LEN];
 	__u8 nonce[NONCE_LEN];
 
+	enum ovpn_cipher_alg cipher;
+
 	sa_family_t sa_family;
 
 	union {
@@ -345,6 +347,18 @@ err:
 	return ret;
 }
 
+static int ovpn_read_cipher(const char *cipher, struct ovpn_ctx *ctx)
+{
+	if (strcmp(cipher, "aes") == 0)
+		ctx->cipher = OVPN_CIPHER_ALG_AES_GCM;
+	else if (strcmp(cipher, "none") == 0)
+		ctx->cipher = OVPN_CIPHER_ALG_NONE;
+	else
+		return -ENOTSUP;
+
+	return 0;
+}
+
 static int ovpn_read_key_direction(const char *dir, struct ovpn_ctx *ctx)
 {
 	int in_dir;
@@ -509,8 +523,9 @@ static int ovpn_new_key(struct ovpn_ctx *ovpn)
 	NLA_PUT_U8(ctx->nl_msg, OVPN_ATTR_KEY_SLOT, OVPN_KEY_SLOT_PRIMARY);
 	NLA_PUT_U16(ctx->nl_msg, OVPN_ATTR_KEY_ID, 0);
 
-	NLA_PUT_U16(ctx->nl_msg, OVPN_ATTR_CIPHER_ALG,
-		    OVPN_CIPHER_ALG_AES_GCM);
+	NLA_PUT_U16(ctx->nl_msg, OVPN_ATTR_CIPHER_ALG, ovpn->cipher);
+	if (ovpn->cipher != OVPN_CIPHER_ALG_AES_GCM)
+		NLA_PUT_U16(ctx->nl_msg, OVPN_ATTR_HMAC_ALG, OVPN_HMAC_ALG_NONE);
 
 	key_dir = nla_nest_start(ctx->nl_msg, OVPN_ATTR_ENCRYPT_KEY);
 	NLA_PUT(ctx->nl_msg, OVPN_KEY_DIR_ATTR_CIPHER_KEY, KEY_LEN,
@@ -870,7 +885,9 @@ static void usage(const char *cmd)
 		"\tkeepalive_timeout: time after which a peer is timed out\n\n");
 
 	fprintf(stderr,
-		"* new_key <key_dir> <key_file>: set data channel key\n");
+		"* new_key <cipher> <key_dir> <key_file>: set data channel key\n");
+	fprintf(stderr,
+		"\tcipher: cipher to use, supported: aes (AES-GCM), none\n");
 	fprintf(stderr,
 		"\tkey_dir: key direction, must 0 on one host and 1 on the other\n");
 	fprintf(stderr, "\tkey_file: file containing the pre-shared key\n\n");
@@ -1034,11 +1051,15 @@ int main(int argc, char *argv[])
 			return -1;
 		}
 
-		ret = ovpn_read_key_direction(argv[3], &ovpn);
+		ret = ovpn_read_cipher(argv[3], &ovpn);
 		if (ret < 0)
 			return ret;
 
-		ret = ovpn_read_key(argv[4], &ovpn);
+		ret = ovpn_read_key_direction(argv[4], &ovpn);
+		if (ret < 0)
+			return ret;
+
+		ret = ovpn_read_key(argv[5], &ovpn);
 		if (ret)
 			return ret;
 
