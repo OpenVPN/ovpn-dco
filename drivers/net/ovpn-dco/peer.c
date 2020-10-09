@@ -72,7 +72,7 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 	int ret;
 
 	/* alloc and init peer object */
-	peer = kmalloc(sizeof(*peer), GFP_KERNEL);
+	peer = kzalloc(sizeof(*peer), GFP_KERNEL);
 	if (!peer)
 		return ERR_PTR(-ENOMEM);
 
