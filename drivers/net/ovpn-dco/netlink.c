@@ -670,8 +670,7 @@ int ovpn_netlink_send_packet(struct ovpn_struct *ovpn, const uint8_t *buf,
 	}
 
 	pr_debug("%s: sending packet to userspace, len: %zd\n", __func__, len);
-	print_hex_dump(KERN_DEBUG, "data: ", DUMP_PREFIX_NONE, 32, 1, buf, len,
-		       true);
+	ovpn_print_hex_debug(buf, len);
 
 	msg = nlmsg_new(100 + len, GFP_ATOMIC);
 	if (!msg)
