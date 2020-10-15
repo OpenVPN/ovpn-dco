@@ -13,6 +13,7 @@
 #include "ovpnstruct.h"
 #include "netlink.h"
 
+#include <linux/genetlink.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/types.h>
@@ -261,3 +262,4 @@ MODULE_AUTHOR(DRV_COPYRIGHT);
 MODULE_LICENSE("GPL");
 MODULE_VERSION(DRV_VERSION);
 MODULE_ALIAS_RTNL_LINK(DRV_NAME);
+MODULE_ALIAS_GENL_FAMILY(OVPN_NL_NAME);
