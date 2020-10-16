@@ -5,7 +5,10 @@
 
 config OVPN_DCO
 	tristate "OpenVPN data channel offload"
-	depends on NET
+	depends on NET && INET
+	select NET_UDP_TUNNEL
+	select CRYPTO
+	select CRYPTO_AEAD
 	help
 	  This module enhances the performance of the OpenVPN userspace software
-	  by offliading the data channel processing to kernelspace.
+	  by offloading the data channel processing to kernelspace.
