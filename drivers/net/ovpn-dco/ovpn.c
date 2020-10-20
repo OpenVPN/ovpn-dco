@@ -292,8 +292,10 @@ static bool ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 
 	/* get primary key to be used for encrypting data */
 	ks = ovpn_crypto_key_slot_primary(&peer->crypto);
-	if (unlikely(!ks))
+	if (unlikely(!ks)) {
+		pr_err("error while retrieving primary key slot\n");
 		return false;
+	}
 
 	/* init packet ID to undef in case we err before setting real value */
 	OVPN_SKB_CB(skb)->pktid = 0;
