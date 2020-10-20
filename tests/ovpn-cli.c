@@ -378,15 +378,22 @@ static int ovpn_read_key_direction(const char *dir, struct ovpn_ctx *ctx)
 	return 0;
 }
 
-static int ovpn_socket(struct ovpn_ctx *ctx, sa_family_t family)
+static int ovpn_socket(struct ovpn_ctx *ctx, sa_family_t family, int proto)
 {
 	struct sockaddr local_sock;
 	struct sockaddr_in6 *in6;
 	struct sockaddr_in *in;
+	int ret, s, sock_type;
 	size_t sock_len;
-	int ret, s;
 
-	s = socket(family, SOCK_DGRAM, IPPROTO_UDP);
+	if (proto == IPPROTO_UDP)
+		sock_type = SOCK_DGRAM;
+	else if (proto == IPPROTO_TCP)
+		sock_type = SOCK_STREAM;
+	else
+		return -EINVAL;
+
+	s = socket(family, sock_type, 0);
 	if (s < 0) {
 		perror("cannot create socket");
 		return -1;
@@ -413,6 +420,13 @@ static int ovpn_socket(struct ovpn_ctx *ctx, sa_family_t family)
 		return -1;
 	}
 
+	int opt = 1;
+	ret = setsockopt(s, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt));
+	if (ret < 0) {
+		perror("setsockopt");
+		return ret;
+	}
+
 	ret = bind(s, &local_sock, sock_len);
 	if (ret < 0) {
 		perror("cannot bind socket");
@@ -420,6 +434,7 @@ static int ovpn_socket(struct ovpn_ctx *ctx, sa_family_t family)
 	}
 
 	ctx->socket = s;
+	ctx->sa_family = family;
 	return 0;
 
 err_socket:
@@ -427,7 +442,87 @@ err_socket:
 	return -1;
 }
 
-static int ovpn_start(struct ovpn_ctx *ovpn)
+static int ovpn_udp_socket(struct ovpn_ctx *ctx, sa_family_t family)
+{
+	return ovpn_socket(ctx, family, IPPROTO_UDP);
+}
+
+static int ovpn_listen(struct ovpn_ctx *ctx)
+{
+	struct sockaddr_in in;
+	socklen_t socklen;
+	int ret;
+
+	ret = ovpn_socket(ctx, AF_INET, IPPROTO_TCP);
+	if (ret < 0)
+		return ret;
+
+	ret = listen(ctx->socket, 5);
+	if (ret < 0) {
+		perror("listen");
+		goto err;
+	}
+
+	socklen = sizeof(in);
+	ret = accept(ctx->socket, (struct sockaddr *)&in, &socklen);
+	if (ret < 0) {
+		perror("accept");
+		goto err;
+	}
+
+	fprintf(stderr, "Connection received!\n");
+
+	if (socklen != (sizeof(in))) {
+		fprintf(stderr, "error: expecting IPv4 connection\n");
+		close(ret);
+		ret = -EINVAL;
+		goto err;
+	}
+
+	close(ctx->socket);
+	ctx->socket = ret;
+
+	ctx->remote.in4 = in.sin_addr;
+	ctx->rport = ntohs(in.sin_port);
+
+	return 0;
+err:
+	close(ctx->socket);
+	return ret;
+}
+
+static int ovpn_connect(struct ovpn_ctx *ovpn)
+{
+	struct sockaddr_in in;
+	int s, ret;
+
+	s = socket(AF_INET, SOCK_STREAM, 0);
+	if (s < 0) {
+		perror("cannot create socket");
+		return -1;
+	}
+
+	memset(&in, 0, sizeof(in));
+	in.sin_family = AF_INET;
+	in.sin_addr = ovpn->remote.in4;
+	in.sin_port = htons(ovpn->rport);
+
+	ret = connect(s, (struct sockaddr *)&in, sizeof(in));
+	if (ret < 0) {
+		perror("connect");
+		close(s);
+		return ret;
+	}
+
+	fprintf(stderr, "connected.\n");
+
+	ovpn->socket = s;
+	ovpn->sa_family = AF_INET;
+
+	return 0;
+}
+
+static int ovpn_start(struct ovpn_ctx *ovpn, enum ovpn_proto proto)
 {
 	struct nl_ctx *ctx;
 	int ret = -1;
@@ -437,7 +532,7 @@ static int ovpn_start(struct ovpn_ctx *ovpn)
 		return -ENOMEM;
 
 	NLA_PUT_U32(ctx->nl_msg, OVPN_ATTR_SOCKET, ovpn->socket);
-	NLA_PUT_U8(ctx->nl_msg, OVPN_ATTR_PROTO, OVPN_PROTO_UDP4);
+	NLA_PUT_U8(ctx->nl_msg, OVPN_ATTR_PROTO, proto);
 	NLA_PUT_U8(ctx->nl_msg, OVPN_ATTR_MODE, OVPN_MODE_CLIENT);
 
 	ret = ovpn_nl_msg_send(ctx, NULL);
@@ -1000,7 +1095,7 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	if (!strcmp(argv[2], "start")) {
+	if (!strcmp(argv[2], "start_udp")) {
 		if (argc < 4) {
 			usage(argv[0]);
 			return -1;
@@ -1015,13 +1110,80 @@ int main(int argc, char *argv[])
 		if (argc > 4 && !strcmp(argv[4], "ipv6"))
 			family = AF_INET6;
 
-		ret = ovpn_socket(&ovpn, family);
+		ret = ovpn_udp_socket(&ovpn, family);
 		if (ret < 0)
 			return ret;
 
-		ret = ovpn_start(&ovpn);
+		ret = ovpn_start(&ovpn, OVPN_PROTO_UDP4);
 		if (ret < 0) {
 			fprintf(stderr, "cannot start VPN\n");
+			close(ovpn.socket);
+			return ret;
+		}
+	} else if (!strcmp(argv[2], "listen")) {
+		if (argc < 4) {
+			usage(argv[0]);
+			return -1;
+		}
+
+		ovpn.lport = strtoul(argv[3], NULL, 10);
+		if (errno == ERANGE || ovpn.lport > 65535) {
+			fprintf(stderr, "lport value out of range\n");
+			return -1;
+		}
+
+		ret = ovpn_listen(&ovpn);
+		if (ret < 0) {
+			fprintf(stderr, "cannot listen on TCP socket\n");
+			return ret;
+		}
+
+		ret = ovpn_start(&ovpn, OVPN_PROTO_TCP4);
+		if (ret < 0) {
+			fprintf(stderr, "cannot start VPN\n");
+			close(ovpn.socket);
+			return ret;
+		}
+
+		ret = ovpn_new_peer(&ovpn);
+		if (ret < 0) {
+			fprintf(stderr, "cannot add peer to VPN\n");
+			return ret;
+		}
+	} else if (!strcmp(argv[2], "connect")) {
+		if (argc < 4) {
+			usage(argv[0]);
+			return -1;
+		}
+
+		ret = inet_pton(AF_INET, argv[3], &ovpn.remote);
+		if (ret < 1) {
+			fprintf(stderr, "can't parse destination IP: %s\n", argv[3]);
+			return -EINVAL;
+		}
+
+		ovpn.rport = strtoul(argv[4], NULL, 10);
+		if (errno == ERANGE || ovpn.rport > 65535) {
+			fprintf(stderr, "rport value out of range\n");
+			return -1;
+		}
+
+		ret = ovpn_connect(&ovpn);
+		if (ret < 0) {
+			fprintf(stderr, "cannot connect TCP socket\n");
+			return ret;
+		}
+
+		ret = ovpn_start(&ovpn, OVPN_PROTO_TCP4);
+		if (ret < 0) {
+			fprintf(stderr, "cannot start VPN\n");
+			close(ovpn.socket);
+			return ret;
+		}
+
+		ret = ovpn_new_peer(&ovpn);
+		if (ret < 0) {
+			fprintf(stderr, "cannot add peer to VPN\n");
 			close(ovpn.socket);
 			return ret;
 		}

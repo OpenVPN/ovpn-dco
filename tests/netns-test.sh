@@ -25,9 +25,19 @@ function setup_ns() {
 	ip -n peer$1 addr add $4 dev tun0
 	ip -n peer$1 link set tun0 up
 
-	ip netns exec peer$1 $OVPN_CLI tun0 start $5 $8
-	ip netns exec peer$1 $OVPN_CLI tun0 new_peer $2 $5 $6 $7
-	ip netns exec peer$1 $OVPN_CLI tun0 new_key $ALG $1 data64.key
+	if [ $tcp -eq 0 ]; then
+		ip netns exec peer$1 $OVPN_CLI tun0 start_udp $5 $8
+		ip netns exec peer$1 $OVPN_CLI tun0 new_peer $2 $5 $6 $7
+		ip netns exec peer$1 $OVPN_CLI tun0 new_key $ALG $1 data64.key
+	else
+		if [ $1 -eq 0 ]; then
+			(ip netns exec peer$1 $OVPN_CLI tun0 listen $5 && \
+				ip netns exec peer$1 $OVPN_CLI tun0 new_key $ALG $1 data64.key) &
+		else
+			ip netns exec peer$1 $OVPN_CLI tun0 connect $6 $7
+			ip netns exec peer$1 $OVPN_CLI tun0 new_key $ALG $1 data64.key
+		fi
+	fi
 }
 
 create_ns 0
@@ -36,7 +46,20 @@ create_ns 1
 ip link del veth0
 ip link add veth0 type veth peer veth1
 
+ipv6=0
 if [ "$1" == "-6" ]; then
+	ipv6=1
+	shift
+fi
+
+tcp=0
+if [ "$1" == "-t" ]; then
+	tcp=1
+	shift
+fi
+
+
+if [ $ipv6 -eq 1 ]; then
 	setup_ns 0 fc00::1 64 5.5.5.1/24 1 fc00::2 2 ipv6
 	setup_ns 1 fc00::2 64 5.5.5.2/24 2 fc00::1 1 ipv6
 else
