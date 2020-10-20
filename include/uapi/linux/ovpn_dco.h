@@ -76,6 +76,7 @@ enum ovpn_mode {
 };
 
 enum ovpn_proto {
+	OVPN_PROTO_UNDEF = 0,
 	OVPN_PROTO_UDP4,
 	OVPN_PROTO_UDP6,
 	OVPN_PROTO_TCP4,
