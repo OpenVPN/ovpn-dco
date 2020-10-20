@@ -52,6 +52,8 @@ int ovpn_struct_init(struct net_device *dev)
 	struct ovpn_struct *ovpn = netdev_priv(dev);
 	int err;
 
+	memset(ovpn, 0, sizeof(*ovpn));
+
 	ovpn->dev = dev;
 
 	err = ovpn_netlink_init(ovpn);
