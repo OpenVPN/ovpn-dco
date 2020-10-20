@@ -16,6 +16,7 @@
 #include "proto.h"
 #include "crypto.h"
 #include "skb.h"
+#include "tcp.h"
 #include "udp.h"
 
 #include <linux/workqueue.h>
@@ -322,6 +323,7 @@ void ovpn_encrypt_work(struct work_struct *work)
 {
 	struct sk_buff *skb, *curr, *next;
 	struct ovpn_peer *peer;
+	u16 len;
 
 	peer = container_of(work, struct ovpn_peer, encrypt_work);
 	while ((skb = __ptr_ring_consume(&peer->tx_ring))) {
@@ -344,7 +346,25 @@ void ovpn_encrypt_work(struct work_struct *work)
 		if (skb) {
 			skb_list_walk_safe(skb, curr, next) {
 				skb_mark_not_on_list(curr);
-				ovpn_udp_send_skb(peer->ovpn, peer, curr);
+
+				switch (peer->ovpn->proto) {
+				case OVPN_PROTO_UDP4:
+					ovpn_udp_send_skb(peer->ovpn, peer, curr);
+					break;
+				case OVPN_PROTO_TCP4:
+					/* prepend TCP packet with its size. Required by the OpenVPN
+					 * protocol in order to disassamble packets on the receiver
+					 * side
+					 */
+					len = skb->len;
+					*(__be16 *)__skb_push(curr, sizeof(u16)) = htons(len);
+					ovpn_queue_tcp_skb(peer, curr);
+					break;
+				default:
+					/* no transport configured yet */
+					consume_skb(skb);
+					break;
+				}
 			}
 		}
 

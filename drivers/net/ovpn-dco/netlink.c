@@ -454,8 +454,13 @@ static int ovpn_netlink_start_vpn(struct sk_buff *skb, struct genl_info *info)
 		return -EOPNOTSUPP;
 
 	proto = nla_get_u8(info->attrs[OVPN_ATTR_PROTO]);
-	if (proto != OVPN_PROTO_UDP4)
+	switch (proto) {
+	case OVPN_PROTO_UDP4:
+	case OVPN_PROTO_TCP4:
+		break;
+	default:
 		return -EOPNOTSUPP;
+	}
 
 	/* lookup the fd in the kernel table and extract the socket object */
 	sockfd = nla_get_u32(info->attrs[OVPN_ATTR_SOCKET]);
@@ -466,16 +471,32 @@ static int ovpn_netlink_start_vpn(struct sk_buff *skb, struct genl_info *info)
 		return -ENOTSOCK;
 	}
 
-	/* only UDP is supported for now */
-	if (sock->sk->sk_protocol != IPPROTO_UDP) {
+	/* make sure the transport protocol matches the socket protocol */
+	switch (sock->sk->sk_protocol) {
+	case IPPROTO_UDP:
+		if (proto == OVPN_PROTO_UDP4) {
+			/* customize sock's internals for ovpn encapsulation */
+			ret = ovpn_sock_attach_udp(sock, ovpn);
+			if (ret < 0)
+				goto sockfd_release;
+			break;
+		}
+
+		pr_debug("%s: passed UDP socket but VPN is not configured as such\n", __func__);
+		ret = -EINVAL;
+		goto sockfd_release;
+	case IPPROTO_TCP:
+		if (proto == OVPN_PROTO_TCP4)
+			break;
+
+		pr_debug("%s: passed TCP socket but VPN is not configured as such\n", __func__);
+		ret = -EINVAL;
+		goto sockfd_release;
+	default:
+		pr_debug("%s: unexpected socket protocol: %d\n", __func__, sock->sk->sk_protocol);
 		ret = -EINVAL;
 		goto sockfd_release;
 	}
-
-	/* customize sock's internals for ovpn encapsulation */
-	ret = ovpn_sock_attach_udp(ovpn, sock);
-	if (ret < 0)
-		goto sockfd_release;
 
 	ovpn->mode = mode;
 	ovpn->proto = proto;
@@ -493,13 +514,14 @@ sockfd_release:
 static int ovpn_netlink_stop_vpn(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ovpn_struct *ovpn = info->user_ptr[0];
+	struct socket *sock = ovpn->sock;
 	struct ovpn_peer *peer;
 
-	if (!ovpn->sock)
+	if (!sock)
 		return -EINVAL;
 
-	ovpn_sock_detach(ovpn->sock);
 	ovpn->sock = NULL;
+	ovpn_sock_detach(sock);
 
 	spin_lock_bh(&ovpn->lock);
 	peer = rcu_replace_pointer(ovpn->peer, NULL,

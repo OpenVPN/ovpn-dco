@@ -12,6 +12,7 @@
 #include "peer.h"
 #include "sock.h"
 #include "rcu.h"
+#include "tcp.h"
 #include "udp.h"
 
 #include <net/udp.h>
@@ -23,6 +24,7 @@ static void ovpn_sock_unset_udp_cb(struct socket *sock)
 	struct udp_tunnel_sock_cfg cfg = { };
 
 	setup_udp_tunnel_sock(sock_net(sock->sk), sock, &cfg);
+	sockfd_put(sock);
 }
 
 /* Finalize release of socket, called after RCU grace period */
@@ -31,21 +33,26 @@ void ovpn_sock_detach(struct socket *sock)
 	if (!sock)
 		return;
 
-	ovpn_sock_unset_udp_cb(sock);
-
-	sock_put(sock->sk);
-	sockfd_put(sock);
+	if (sock->sk->sk_protocol == IPPROTO_UDP)
+		ovpn_sock_unset_udp_cb(sock);
+	else if (sock->sk->sk_protocol == IPPROTO_TCP)
+		ovpn_tcp_sock_detach(sock);
 }
 
 /* Set UDP encapsulation callbacks */
-static int ovpn_sock_set_udp_cb(struct socket *sock, void *user_data)
+int ovpn_sock_attach_udp(struct socket *sock, struct ovpn_struct *ovpn)
 {
 	struct udp_tunnel_sock_cfg cfg = {
-		.sk_user_data = user_data,
+		.sk_user_data = ovpn,
 		.encap_type = UDP_ENCAP_OVPNINUDP,
 		.encap_rcv = ovpn_udp_encap_recv,
 	};
 	void *old_data;
+
+	if (sock->sk->sk_protocol != IPPROTO_UDP) {
+		pr_err("%s: expected UDP socket\n", __func__);
+		return -EINVAL;
+	}
 
 	/* make sure no pre-existing encapsulation handler exists */
 	rcu_read_lock();
@@ -54,12 +61,6 @@ static int ovpn_sock_set_udp_cb(struct socket *sock, void *user_data)
 	if (old_data) {
 		pr_err("provided socket already taken by other user\n");
 		return -EBUSY;
-	}
-
-	/* verify UDP socket */
-	if (sock->sk->sk_protocol != IPPROTO_UDP) {
-		pr_err("expected UDP socket\n");
-		return -EINVAL;
 	}
 
 	setup_udp_tunnel_sock(sock_net(sock->sk), sock, &cfg);
@@ -76,22 +77,6 @@ int ovpn_sock_holder_encap_overhead(struct socket *sock)
 	ret = ovpn_sock_encap_overhead(sock->sk);
 	rcu_read_unlock();
 	return ret;
-}
-
-/* sock's refcounter is expected to be held by the caller already */
-int ovpn_sock_attach_udp(struct ovpn_struct *ovpn, struct socket *sock)
-{
-	int ret;
-
-	sock_hold(sock->sk);
-
-	ret = ovpn_sock_set_udp_cb(sock, ovpn);
-	if (ret < 0) {
-		sock_put(sock->sk);
-		return ret;
-	}
-
-	return 0;
 }
 
 struct ovpn_struct *ovpn_from_udp_sock(struct sock *sk)

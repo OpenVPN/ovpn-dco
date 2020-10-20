@@ -36,6 +36,25 @@ struct ovpn_peer {
 
 	struct socket *sock;
 
+	/* state of the TCP reading. Needed to keep track of how much of a single packet has already
+	 * been read from the stream and how much is missing
+	 */
+	struct {
+		struct ptr_ring tx_ring;
+		struct work_struct tx_work;
+		struct work_struct rx_work;
+
+		u8 raw_len[sizeof(u16)];
+		struct sk_buff *skb;
+		u16 offset;
+		u16 data_len;
+		struct {
+			void (*sk_state_change)(struct sock *sk);
+			void (*sk_data_ready)(struct sock *sk);
+			void (*sk_write_space)(struct sock *sk);
+		} sk_cb;
+	} tcp;
+
 	struct dst_cache dst_cache;
 
 	/* our crypto state */

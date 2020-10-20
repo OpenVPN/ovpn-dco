@@ -12,6 +12,7 @@
 #include "crypto.h"
 #include "peer.h"
 #include "netlink.h"
+#include "tcp.h"
 
 #include <linux/timer.h>
 #include <linux/workqueue.h>
@@ -77,6 +78,7 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 		return ERR_PTR(-ENOMEM);
 
 	peer->halt = false;
+	peer->ovpn = ovpn;
 	RCU_INIT_POINTER(peer->bind, NULL);
 	ovpn_crypto_state_init(&peer->crypto);
 	spin_lock_init(&peer->lock);
@@ -112,13 +114,40 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 		goto err_rx_ring;
 	}
 
-	peer->ovpn = ovpn;
+	if (ovpn->proto == OVPN_PROTO_TCP4) {
+		INIT_WORK(&peer->tcp.tx_work, ovpn_tcp_tx_work);
+		INIT_WORK(&peer->tcp.rx_work, ovpn_tcp_rx_work);
+
+		ret = ptr_ring_init(&peer->tcp.tx_ring, OVPN_QUEUE_LEN, GFP_KERNEL);
+		if (ret < 0) {
+			pr_err("cannot allocate TCP TX ring\n");
+			goto err_netif_rx_ring;
+		}
+
+		peer->tcp.skb = NULL;
+		peer->tcp.offset = 0;
+		peer->tcp.data_len = 0;
+
+		ret = ovpn_tcp_sock_attach(ovpn->sock, peer);
+		if (ret < 0) {
+			pr_err("cannot prepare socket for peer connection: %d\n", ret);
+			goto err_tcp_tx_ring;
+		}
+
+		/* schedule initial RX work */
+		queue_work(peer->ovpn->events_wq, &peer->tcp.rx_work);
+	}
+
 	dev_hold(ovpn->dev);
 
 	timer_setup(&peer->keepalive_xmit, ovpn_peer_ping, 0);
 	timer_setup(&peer->keepalive_recv, ovpn_peer_expire, 0);
 
 	return peer;
+err_tcp_tx_ring:
+	ptr_ring_cleanup(&peer->tcp.tx_ring, NULL);
+err_netif_rx_ring:
+	ptr_ring_cleanup(&peer->netif_rx_ring, NULL);
 err_rx_ring:
 	ptr_ring_cleanup(&peer->rx_ring, NULL);
 err_tx_ring:

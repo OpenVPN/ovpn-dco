@@ -14,7 +14,7 @@
 
 struct ovpn_struct;
 
-int ovpn_sock_attach_udp(struct ovpn_struct *ovpn, struct socket *sock);
+int ovpn_sock_attach_udp(struct socket *sock, struct ovpn_struct *ovpn);
 void ovpn_sock_detach(struct socket *sock);
 int ovpn_sock_holder_encap_overhead(struct socket *sock);
 struct ovpn_struct *ovpn_from_udp_sock(struct sock *sk);

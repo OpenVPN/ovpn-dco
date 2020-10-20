@@ -19,4 +19,5 @@ ovpn-dco-y += netlink.o
 ovpn-dco-y += crypto_none.o
 ovpn-dco-y += crypto_aead.o
 ovpn-dco-y += pktid.o
+ovpn-dco-y += tcp.o
 ovpn-dco-y += udp.o
