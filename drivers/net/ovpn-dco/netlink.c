@@ -449,8 +449,10 @@ static int ovpn_netlink_start_vpn(struct sk_buff *skb, struct genl_info *info)
 	sockfd = nla_get_u32(info->attrs[OVPN_ATTR_SOCKET]);
 	/* sockfd_lookup() increases sock's refcounter */
 	sock = sockfd_lookup(sockfd, &ret);
-	if (!sock)
-		return ret;
+	if (!sock) {
+		pr_debug("%s: cannot lookup socket passed from userspace: %d\n", __func__, ret);
+		return -ENOTSOCK;
+	}
 
 	/* only UDP is supported for now */
 	if (sock->sk->sk_protocol != IPPROTO_UDP) {
