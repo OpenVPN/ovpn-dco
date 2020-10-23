@@ -126,6 +126,8 @@ err_tx_ring:
 err_dst_cache:
 	dst_cache_destroy(&peer->dst_cache);
 err:
+	napi_disable(&peer->napi);
+	netif_napi_del(&peer->napi);
 	kfree(peer);
 	return ERR_PTR(ret);
 }
