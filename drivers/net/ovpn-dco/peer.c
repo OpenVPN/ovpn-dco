@@ -127,7 +127,7 @@ err_dst_cache:
 	dst_cache_destroy(&peer->dst_cache);
 err:
 	kfree(peer);
-	return NULL;
+	return ERR_PTR(ret);
 }
 
 /* Reset the ovpn_sockaddr_pair associated with a peer */
@@ -180,7 +180,8 @@ static void ovpn_peer_release_rcu(struct rcu_head *head)
 	ovpn_peer_release(peer);
 }
 
-static void ovpn_peer_delete_work(struct work_struct *work) {
+static void ovpn_peer_delete_work(struct work_struct *work)
+{
 	struct ovpn_peer *peer = container_of(work, struct ovpn_peer,
 					      delete_work);
 
