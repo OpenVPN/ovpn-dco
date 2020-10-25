@@ -111,6 +111,7 @@ static int ovpn_pre_doit(const struct genl_ops *ops, struct sk_buff *skb,
 			 struct genl_info *info)
 {
 	struct net *net = genl_info_net(info);
+	struct ovpn_struct *ovpn;
 	struct net_device *dev;
 
 	dev = ovpn_get_dev_from_info(net, info);
@@ -118,6 +119,13 @@ static int ovpn_pre_doit(const struct genl_ops *ops, struct sk_buff *skb,
 		return PTR_ERR(dev);
 
 	info->user_ptr[0] = netdev_priv(dev);
+
+	/* when the VPN is uninitialized, the only allowed command is START_VPN */
+	ovpn = info->user_ptr[0];
+	if ((ops->cmd != OVPN_CMD_START_VPN) && (ovpn->mode == OVPN_MODE_UNDEF)) {
+		dev_put(dev);
+		return -EINVAL;
+	}
 
 	return 0;
 }
@@ -425,6 +433,8 @@ static int ovpn_netlink_set_peer(struct sk_buff *skb, struct genl_info *info)
 static int ovpn_netlink_start_vpn(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ovpn_struct *ovpn = info->user_ptr[0];
+	enum ovpn_proto proto;
+	enum ovpn_mode mode;
 	struct socket *sock;
 	u32 sockfd;
 	int ret;
@@ -437,12 +447,12 @@ static int ovpn_netlink_start_vpn(struct sk_buff *skb, struct genl_info *info)
 	if (ovpn->sock)
 		return -EBUSY;
 
-	ovpn->mode = nla_get_u8(info->attrs[OVPN_ATTR_MODE]);
-	if (ovpn->mode != OVPN_MODE_CLIENT)
+	mode = nla_get_u8(info->attrs[OVPN_ATTR_MODE]);
+	if (mode != OVPN_MODE_CLIENT)
 		return -EOPNOTSUPP;
 
-	ovpn->proto = nla_get_u8(info->attrs[OVPN_ATTR_PROTO]);
-	if (ovpn->proto != OVPN_PROTO_UDP4)
+	proto = nla_get_u8(info->attrs[OVPN_ATTR_PROTO]);
+	if (proto != OVPN_PROTO_UDP4)
 		return -EOPNOTSUPP;
 
 	/* lookup the fd in the kernel table and extract the socket object */
@@ -465,6 +475,8 @@ static int ovpn_netlink_start_vpn(struct sk_buff *skb, struct genl_info *info)
 	if (ret < 0)
 		goto sockfd_release;
 
+	ovpn->mode = mode;
+	ovpn->proto = proto;
 	ovpn->sock = sock;
 
 	pr_debug("%s: mode %u proto %u\n", __func__, ovpn->mode, ovpn->proto);
@@ -495,6 +507,8 @@ static int ovpn_netlink_stop_vpn(struct sk_buff *skb, struct genl_info *info)
 	spin_unlock_bh(&ovpn->lock);
 
 	ovpn->registered_nl_portid_set = false;
+
+	ovpn->mode = OVPN_MODE_UNDEF;
 
 	return 0;
 }

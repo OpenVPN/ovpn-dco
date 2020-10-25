@@ -70,7 +70,8 @@ enum ovpn_nl_commands {
 };
 
 enum ovpn_mode {
-	OVPN_MODE_CLIENT = 0,
+	OVPN_MODE_UNDEF = 0,
+	OVPN_MODE_CLIENT,
 	OVPN_MODE_SERVER,
 };
 
