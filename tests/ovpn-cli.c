@@ -421,6 +421,7 @@ static int ovpn_socket(struct ovpn_ctx *ctx, sa_family_t family, int proto)
 	}
 
 	int opt = 1;
+
 	ret = setsockopt(s, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt));
 	if (ret < 0) {
 		perror("setsockopt");
@@ -703,7 +704,7 @@ static int ovpn_handle_packet(struct nl_msg *msg, void *arg)
 		  genlmsg_attrlen(gnlh, 0), NULL);
 
 	if (!attrs[OVPN_ATTR_PACKET]) {
-		fprintf(stderr, "no packet content in netlink message\n");;
+		fprintf(stderr, "no packet content in netlink message\n");
 		return NL_SKIP;
 	}
 
@@ -958,12 +959,19 @@ static void usage(const char *cmd)
 {
 	fprintf(stderr, "Error: invalid arguments.\n\n");
 	fprintf(stderr,
-		"Usage %s <iface> <start|new_peer|set_peer|new_key|del_key|recv|send> [arguments..]\n",
+		"Usage %s <iface> <start_udp|connect|listen|new_peer|set_peer|new_key|del_key|recv|send> [arguments..]\n",
 		cmd);
 	fprintf(stderr, "\tiface: tun interface name\n\n");
 
-	fprintf(stderr, "* start <lport>: start VPN session on port\n");
+	fprintf(stderr, "* start_udp <lport>: start UDP-based VPN session on port\n");
 	fprintf(stderr, "\tlocal-port: UDP port to listen to\n\n");
+
+	fprintf(stderr, "* connect <raddr> <rport>: start connecting peer of TCP-based VPN session\n");
+	fprintf(stderr, "\tremote-addr: peer IP address\n");
+	fprintf(stderr, "\tremote-port: peer TCP port\n\n");
+
+	fprintf(stderr, "* listen <lport>: start listening peer of TCP-based VPN session\n");
+	fprintf(stderr, "\tlocal-port: src TCP port\n\n");
 
 	fprintf(stderr,
 		"* new_peer <laddr> <lport> <raddr> <rport>: set peer link\n");
