@@ -167,13 +167,10 @@ transmit:
 }
 #endif
 
-/* Prepend UDP transport and IP headers to skb (using
- * address/ports from binding) and transmit the packet
- * using ip_local_out.
+/* Transmit skb utilizing kernel-provided UDP tunneling framework.
  *
  * rcu_read_lock should be held on entry.
- * On return, the skb is consumed and rcu_read_lock
- * is released, even on error return.
+ * On return, the skb is consumed.
  */
 static int ovpn_udp_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 			   struct dst_cache *cache, struct sock *sk,
