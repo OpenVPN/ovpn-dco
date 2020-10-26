@@ -496,6 +496,7 @@ static int ovpn_connect(struct ovpn_ctx *ovpn)
 {
 	struct sockaddr_in in;
 	int s, ret;
+	socklen_t len;
 
 	s = socket(AF_INET, SOCK_STREAM, 0);
 	if (s < 0) {
@@ -515,10 +516,20 @@ static int ovpn_connect(struct ovpn_ctx *ovpn)
 		return ret;
 	}
 
-	fprintf(stderr, "connected.\n");
+	len = sizeof(in);
+	ret = getsockname(s, (struct sockaddr *)&in, &len);
+	if (ret < 0) {
+		perror("getsockname");
+		close(s);
+		return ret;
+	}
+
+	fprintf(stderr, "connected\n");
 
 	ovpn->socket = s;
 	ovpn->sa_family = AF_INET;
+	ovpn->local.in4 = in.sin_addr;
+	ovpn->lport = in.sin_port;
 
 	return 0;
 }
