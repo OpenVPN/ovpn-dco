@@ -238,30 +238,3 @@ out:
 	if (ret < 0)
 		kfree_skb(skb);
 }
-
-int ovpn_udp_send_data(struct ovpn_struct *ovpn, const u8 *data, size_t len)
-{
-	struct ovpn_peer *peer;
-	struct sk_buff *skb;
-	int ret = 0;
-
-	peer = ovpn_peer_get(ovpn);
-	if (!peer) {
-		pr_debug("no peer to send data to\n");
-		return -EHOSTUNREACH;
-	}
-
-	skb = alloc_skb(SKB_HEADER_LEN + len, GFP_ATOMIC);
-	if (unlikely(!skb)) {
-		ret = -ENOMEM;
-		goto out;
-	}
-
-	skb_reserve(skb, SKB_HEADER_LEN);
-	skb_put_data(skb, data, len);
-
-	ovpn_udp_send_skb(ovpn, peer, skb);
-out:
-	ovpn_peer_put(peer);
-	return ret;
-}

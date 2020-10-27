@@ -498,3 +498,53 @@ void ovpn_explicit_exit_notify_xmit(struct ovpn_peer *peer)
 	ovpn_xmit_special(peer, ovpn_explicit_exit_notify_message,
 			  sizeof(ovpn_explicit_exit_notify_message));
 }
+
+/* Copy buffer into skb and send it across the tunnel.
+ *
+ * For UDP transport: just sent the skb to peer
+ * For TCP transport: put skb into TX queue
+ */
+int ovpn_send_data(struct ovpn_struct *ovpn, const u8 *data, size_t len)
+{
+	u16 skb_len = SKB_HEADER_LEN + len;
+	struct ovpn_peer *peer;
+	struct sk_buff *skb;
+	bool tcp = false;
+	int ret = 0;
+
+	switch (ovpn->proto) {
+	case OVPN_PROTO_TCP4:
+	case OVPN_PROTO_TCP6:
+		skb_len += sizeof(u16);
+		tcp = true;
+		break;
+	default:
+		break;
+	}
+
+	peer = ovpn_peer_get(ovpn);
+	if (!peer) {
+		pr_debug("no peer to send data to\n");
+		return -EHOSTUNREACH;
+	}
+
+	skb = alloc_skb(skb_len, GFP_ATOMIC);
+	if (unlikely(!skb)) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	skb_reserve(skb, SKB_HEADER_LEN);
+	skb_put_data(skb, data, len);
+
+	/* prepend TCP packet with size, as required by OpenVPN protocol */
+	if (tcp) {
+		*(__be16 *)__skb_push(skb, sizeof(u16)) = htons(len);
+		ovpn_queue_tcp_skb(peer, skb);
+	} else {
+		ovpn_udp_send_skb(ovpn, peer, skb);
+	}
+out:
+	ovpn_peer_put(peer);
+	return ret;
+}

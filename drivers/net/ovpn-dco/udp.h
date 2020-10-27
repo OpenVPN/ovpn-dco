@@ -20,6 +20,5 @@
 int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb);
 void ovpn_udp_send_skb(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 		       struct sk_buff *skb);
-int ovpn_udp_send_data(struct ovpn_struct *ovpn, const u8 *data, size_t len);
 
 #endif /* _NET_OVPN_DCO_UDP_H_ */

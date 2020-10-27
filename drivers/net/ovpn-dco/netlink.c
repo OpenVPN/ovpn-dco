@@ -579,7 +579,7 @@ static int ovpn_netlink_packet(struct sk_buff *skb, struct genl_info *info)
 
 	pr_debug("%s: sending userspace packet to peer...\n", __func__);
 
-	return  ovpn_udp_send_data(ovpn, packet, len);
+	return ovpn_send_data(ovpn, packet, len);
 }
 
 static const struct genl_ops ovpn_netlink_ops[] = {
