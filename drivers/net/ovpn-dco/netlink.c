@@ -124,6 +124,8 @@ static int ovpn_pre_doit(const struct genl_ops *ops, struct sk_buff *skb,
 	ovpn = info->user_ptr[0];
 	if ((ops->cmd != OVPN_CMD_START_VPN) && (ovpn->mode == OVPN_MODE_UNDEF)) {
 		dev_put(dev);
+		pr_debug("%s: reject cmd %d since it comes before OVPN_CMD_START_VPN(%d)\n",
+			 __func__, ops->cmd, OVPN_CMD_START_VPN);
 		return -EINVAL;
 	}
 
