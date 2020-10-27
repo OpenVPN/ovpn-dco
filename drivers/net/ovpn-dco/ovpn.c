@@ -421,7 +421,7 @@ netdev_tx_t ovpn_net_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	if (skb_is_gso(skb)) {
 		segments = skb_gso_segment(skb, 0);
-		if (unlikely(IS_ERR(segments))) {
+		if (IS_ERR(segments)) {
 			ret = PTR_ERR(segments);
 			goto drop;
 		}
