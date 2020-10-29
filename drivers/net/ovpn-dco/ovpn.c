@@ -318,7 +318,11 @@ err:
 	return success;
 }
 
-/* pick packet from TX queue, encrypt and send it to peer */
+/* Process packets in TX queue in a transport-specific way.
+ *
+ * UDP transport - encrypt and send across the tunnel.
+ * TCP transport - encrypt and put into TCP TX queue.
+ */
 void ovpn_encrypt_work(struct work_struct *work)
 {
 	struct sk_buff *skb, *curr, *next;
@@ -377,7 +381,7 @@ void ovpn_encrypt_work(struct work_struct *work)
 	ovpn_peer_put(peer);
 }
 
-/* enqueue skb and schedule consumer */
+/* Put skb into TX queue and schedule a consumer */
 static void ovpn_queue_skb(struct ovpn_struct *ovpn, struct sk_buff *skb)
 {
 	struct ovpn_peer *peer;

@@ -162,7 +162,7 @@ static int ovpn_tcp_send_one(struct ovpn_struct *ovpn, struct sk_buff *skb)
 	return ret;
 }
 
-/* pick packet from TX queue, encrypt and send it to peer */
+/* Process packets in TCP TX queue */
 void ovpn_tcp_tx_work(struct work_struct *work)
 {
 	struct ovpn_peer *peer;
@@ -270,6 +270,7 @@ void ovpn_tcp_rx_work(struct work_struct *work)
 		pr_err("%s: TCP socket error: %d\n", __func__, ret);
 }
 
+/* Put packet into TCP TX queue and schedule a consumer */
 void ovpn_queue_tcp_skb(struct ovpn_peer *peer, struct sk_buff *skb)
 {
 	int ret;
