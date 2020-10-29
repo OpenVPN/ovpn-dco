@@ -134,7 +134,15 @@ out:
 	return ret;
 }
 
-static bool ovpn_tcp_send_one(struct ovpn_struct *ovpn, struct sk_buff *skb)
+/* Try to send one skb (or part of it) over the TCP stream.
+ *
+ * Return 0 on success or a negative error code otherwise.
+ *
+ * Note that the skb is modified by putting away the data being sent, therefore
+ * the caller should check if skb->len is zero to understand if the full skb was
+ * sent or not.
+ */
+static int ovpn_tcp_send_one(struct ovpn_struct *ovpn, struct sk_buff *skb)
 {
 	struct msghdr msg = { .msg_flags = MSG_DONTWAIT | MSG_NOSIGNAL };
 	struct kvec iv = { .iov_base = skb->data, iv.iov_len = skb->len };
@@ -142,26 +150,16 @@ static bool ovpn_tcp_send_one(struct ovpn_struct *ovpn, struct sk_buff *skb)
 
 	if (skb_linearize(skb) < 0) {
 		pr_err_ratelimited("%s: can't linearize packet\n", __func__);
-		return false;
+		return -ENOMEM;
 	}
 
 	ret = kernel_sendmsg(ovpn->sock, &msg, &iv, 1, iv.iov_len);
-	if (ret == -EAGAIN || ret == 0) {
-		return false;
-	} else if (ret < 0) {
-		pr_warn_ratelimited("%s: cannot send TCP packet: %d\n", __func__, ret);
-		return false;
+	if (ret > 0) {
+		__skb_pull(skb, ret);
+		return 0;
 	}
 
-	/* skb was entirely injected over the TCP socket */
-	if (ret == skb->len)
-		return true;
-
-	/* remove amount of data that was sent, but keep the skb in the queue, so that it can be
-	 * picked up at the next round
-	 */
-	__skb_pull(skb, ret);
-	return false;
+	return ret;
 }
 
 /* pick packet from TX queue, encrypt and send it to peer */
@@ -169,10 +167,16 @@ void ovpn_tcp_tx_work(struct work_struct *work)
 {
 	struct ovpn_peer *peer;
 	struct sk_buff *skb;
+	int ret;
 
 	peer = container_of(work, struct ovpn_peer, tcp.tx_work);
 	while ((skb = __ptr_ring_peek(&peer->tcp.tx_ring))) {
-		if (ovpn_tcp_send_one(peer->ovpn, skb)) {
+		ret = ovpn_tcp_send_one(peer->ovpn, skb);
+		if ((ret < 0) && (ret != -EAGAIN)) {
+			pr_warn_ratelimited("%s: cannot send TCP packet: %d\n", __func__, ret);
+			/* in case of TCP error stop sending loop */
+			break;
+		} else if (!skb->len) {
 			/* skb was entirely consumed and can now be removed from the ring */
 			__ptr_ring_discard_one(&peer->tcp.tx_ring);
 			consume_skb(skb);
