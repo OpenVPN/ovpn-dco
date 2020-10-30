@@ -114,7 +114,7 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 		goto err_rx_ring;
 	}
 
-	if (ovpn->proto == OVPN_PROTO_TCP4) {
+	if (ovpn->proto == OVPN_PROTO_TCP4 || ovpn->proto == OVPN_PROTO_TCP6) {
 		INIT_WORK(&peer->tcp.tx_work, ovpn_tcp_tx_work);
 		INIT_WORK(&peer->tcp.rx_work, ovpn_tcp_rx_work);
 

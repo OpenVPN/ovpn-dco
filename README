@@ -112,4 +112,3 @@ can be found that shows how qemu can be launched for testing.
 This is a list of current limitations which are planned to be removed as we move forward:
 * Only client mode supported
 * Only AES-256-GCM and 'none' (with no auth) supported
-* No proper IPv6 support

@@ -349,9 +349,11 @@ void ovpn_encrypt_work(struct work_struct *work)
 
 				switch (peer->ovpn->proto) {
 				case OVPN_PROTO_UDP4:
+				case OVPN_PROTO_UDP6:
 					ovpn_udp_send_skb(peer->ovpn, peer, curr);
 					break;
 				case OVPN_PROTO_TCP4:
+				case OVPN_PROTO_TCP6:
 					/* prepend TCP packet with its size. Required by the OpenVPN
 					 * protocol in order to disassamble packets on the receiver
 					 * side

@@ -456,7 +456,9 @@ static int ovpn_netlink_start_vpn(struct sk_buff *skb, struct genl_info *info)
 	proto = nla_get_u8(info->attrs[OVPN_ATTR_PROTO]);
 	switch (proto) {
 	case OVPN_PROTO_UDP4:
+	case OVPN_PROTO_UDP6:
 	case OVPN_PROTO_TCP4:
+	case OVPN_PROTO_TCP6:
 		break;
 	default:
 		return -EOPNOTSUPP;
@@ -474,7 +476,7 @@ static int ovpn_netlink_start_vpn(struct sk_buff *skb, struct genl_info *info)
 	/* make sure the transport protocol matches the socket protocol */
 	switch (sock->sk->sk_protocol) {
 	case IPPROTO_UDP:
-		if (proto == OVPN_PROTO_UDP4) {
+		if (proto == OVPN_PROTO_UDP4 || proto == OVPN_PROTO_UDP6) {
 			/* customize sock's internals for ovpn encapsulation */
 			ret = ovpn_sock_attach_udp(sock, ovpn);
 			if (ret < 0)
@@ -486,7 +488,7 @@ static int ovpn_netlink_start_vpn(struct sk_buff *skb, struct genl_info *info)
 		ret = -EINVAL;
 		goto sockfd_release;
 	case IPPROTO_TCP:
-		if (proto == OVPN_PROTO_TCP4)
+		if (proto == OVPN_PROTO_TCP4 || proto == OVPN_PROTO_TCP6)
 			break;
 
 		pr_debug("%s: passed TCP socket but VPN is not configured as such\n", __func__);
