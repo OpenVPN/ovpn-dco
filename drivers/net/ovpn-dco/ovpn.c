@@ -362,7 +362,7 @@ void ovpn_encrypt_work(struct work_struct *work)
 					 * protocol in order to disassamble packets on the receiver
 					 * side
 					 */
-					len = skb->len;
+					len = curr->len;
 					*(__be16 *)__skb_push(curr, sizeof(u16)) = htons(len);
 					ovpn_queue_tcp_skb(peer, curr);
 					break;
