@@ -20,6 +20,9 @@ function setup_ns() {
 	ip link set veth$1 netns peer$1
 	ip -n peer$1 addr add $2/$3 dev veth$1
 	ip -n peer$1 link set veth$1 up
+	if [ $ipv6 -eq 1 ]; then
+		sleep 5
+	fi
 
 	ip -n peer$1 link add tun0 type ovpn-dco
 	ip -n peer$1 addr add $4 dev tun0
@@ -31,7 +34,7 @@ function setup_ns() {
 		ip netns exec peer$1 $OVPN_CLI tun0 new_key $ALG $1 data64.key
 	else
 		if [ $1 -eq 0 ]; then
-			(ip netns exec peer$1 $OVPN_CLI tun0 listen $5 && \
+			(ip netns exec peer$1 $OVPN_CLI tun0 listen $5 $8 && \
 				ip netns exec peer$1 $OVPN_CLI tun0 new_key $ALG $1 data64.key) &
 		else
 			ip netns exec peer$1 $OVPN_CLI tun0 connect $6 $7
