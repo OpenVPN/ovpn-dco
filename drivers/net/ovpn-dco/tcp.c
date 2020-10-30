@@ -172,7 +172,7 @@ void ovpn_tcp_tx_work(struct work_struct *work)
 	peer = container_of(work, struct ovpn_peer, tcp.tx_work);
 	while ((skb = __ptr_ring_peek(&peer->tcp.tx_ring))) {
 		ret = ovpn_tcp_send_one(peer->ovpn, skb);
-		if ((ret < 0) && (ret != -EAGAIN)) {
+		if (ret < 0 && ret != -EAGAIN) {
 			pr_warn_ratelimited("%s: cannot send TCP packet: %d\n", __func__, ret);
 			/* in case of TCP error stop sending loop */
 			break;
@@ -203,9 +203,8 @@ static int ovpn_tcp_rx_one(struct ovpn_peer *peer)
 		};
 
 		ret = kernel_recvmsg(peer->ovpn->sock, &msg, &iv, 1, iv.iov_len, msg.msg_flags);
-		if (ret <= 0) {
+		if (ret <= 0)
 			return ret;
-		}
 
 		peer->tcp.offset += ret;
 		/* the entire packet size was read, prepare skb for reading data */

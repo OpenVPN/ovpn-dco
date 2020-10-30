@@ -94,7 +94,7 @@ int ovpn_bind_record_peer(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	return 0;
 }
 
-/* Get the the ovpn_sockaddr_pair of the current binding and
+/* Get the ovpn_sockaddr_pair of the current binding and
  * save in sapair.  If binding is undefined, zero sapair.
  * Return true on success or false if binding is undefined.
  */

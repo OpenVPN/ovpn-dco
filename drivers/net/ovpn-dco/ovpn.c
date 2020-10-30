@@ -197,7 +197,7 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 		if (ret < 0)
 			goto drop;
 
-		/* even though the packet handling was succesful, return -1 to
+		/* even though the packet handling was successful, return -1 to
 		 * tell the caller that no packet was enqueued for delivery to
 		 * the tun interface, therefore NAPI should not be scheduled
 		 */

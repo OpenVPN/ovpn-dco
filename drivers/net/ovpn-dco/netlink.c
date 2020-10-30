@@ -122,7 +122,7 @@ static int ovpn_pre_doit(const struct genl_ops *ops, struct sk_buff *skb,
 
 	/* when the VPN is uninitialized, the only allowed command is START_VPN */
 	ovpn = info->user_ptr[0];
-	if ((ops->cmd != OVPN_CMD_START_VPN) && (ovpn->mode == OVPN_MODE_UNDEF)) {
+	if (ops->cmd != OVPN_CMD_START_VPN && ovpn->mode == OVPN_MODE_UNDEF) {
 		dev_put(dev);
 		pr_debug("%s: reject cmd %d since it comes before OVPN_CMD_START_VPN(%d)\n",
 			 __func__, ops->cmd, OVPN_CMD_START_VPN);
@@ -213,7 +213,7 @@ static int ovpn_netlink_new_key(struct sk_buff *skb, struct genl_info *info)
 	pkr.key.key_id = nla_get_u16(info->attrs[OVPN_ATTR_KEY_ID]);
 
 	pkr.key.cipher_alg = nla_get_u16(info->attrs[OVPN_ATTR_CIPHER_ALG]);
-	/* non AEAD algs must have have an auth algorithm */
+	/* non AEAD algs must have an auth algorithm */
 	if (pkr.key.cipher_alg != OVPN_CIPHER_ALG_AES_GCM) {
 		if (!info->attrs[OVPN_ATTR_HMAC_ALG])
 			return -EINVAL;
