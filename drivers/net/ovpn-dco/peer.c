@@ -42,28 +42,37 @@ static void ovpn_peer_ping(struct timer_list *t)
 	ovpn_keepalive_xmit(peer);
 }
 
+/* remove peer if it is currenly attached to ovpn_struct */
+void ovpn_peer_evict(struct ovpn_peer *peer, int del_reason)
+{
+	struct ovpn_struct *ovpn = peer->ovpn;
+	struct ovpn_peer *tmp;
+
+	if (!ovpn)
+		return;
+
+	/* check if peer in ovpn_struct is the same one we got */
+	spin_lock_bh(&ovpn->lock);
+	tmp = rcu_dereference_protected(ovpn->peer,
+					lockdep_is_held(&ovpn->lock));
+	/* if peer is the same - detach it from ovpn_struct and delete */
+	if (tmp == peer) {
+		RCU_INIT_POINTER(ovpn->peer, NULL);
+		ovpn_peer_delete(peer, del_reason);
+	}
+	spin_unlock_bh(&ovpn->lock);
+}
+
 static void ovpn_peer_expire(struct timer_list *t)
 {
-	struct ovpn_peer *tmp, *peer = from_timer(peer, t, keepalive_recv);
-	struct ovpn_struct *ovpn;
+	struct ovpn_peer *peer = from_timer(peer, t, keepalive_recv);
 
 	rcu_read_lock();
 	pr_debug("peer expired: %pIScp\n",
 		 &rcu_dereference(peer->bind)->sapair.remote.u);
 	rcu_read_unlock();
 
-	ovpn = peer->ovpn;
-	if (!ovpn)
-		return;
-
-	spin_lock_bh(&ovpn->lock);
-	tmp = rcu_dereference_protected(ovpn->peer,
-					lockdep_is_held(&ovpn->lock));
-	if (tmp == peer) {
-		RCU_INIT_POINTER(ovpn->peer, NULL);
-		ovpn_peer_delete(peer, OVPN_DEL_PEER_REASON_EXPIRED);
-	}
-	spin_unlock_bh(&ovpn->lock);
+	ovpn_peer_evict(peer, OVPN_DEL_PEER_REASON_EXPIRED);
 }
 
 /* Construct a new peer */

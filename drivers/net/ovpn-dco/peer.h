@@ -151,4 +151,6 @@ int ovpn_peer_xmit_explicit_exit_notify(struct ovpn_peer *peer)
 
 void ovpn_peer_keepalive_set(struct ovpn_peer *peer, u32 interval, u32 timeout);
 
+void ovpn_peer_evict(struct ovpn_peer *peer, int del_reason);
+
 #endif /* _NET_OVPN_DCO_OVPNPEER_H_ */
