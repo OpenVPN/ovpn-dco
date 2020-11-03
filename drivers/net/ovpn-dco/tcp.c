@@ -71,9 +71,11 @@ void ovpn_tcp_sock_detach(struct socket *sock)
 		goto release;
 
 	/* restore CBs that were saved in ovpn_sock_set_tcp_cb() */
+	write_lock_bh(&sock->sk->sk_callback_lock);
 	sock->sk->sk_state_change = peer->tcp.sk_cb.sk_state_change;
 	sock->sk->sk_data_ready = peer->tcp.sk_cb.sk_data_ready;
 	sock->sk->sk_write_space = peer->tcp.sk_cb.sk_write_space;
+	write_unlock_bh(&sock->sk->sk_callback_lock);
 
 	/* cancel any ongoing work. Done after removing the CBs so that these workers cannot be
 	 * re-armed
