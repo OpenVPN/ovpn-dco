@@ -23,13 +23,14 @@ static void ovpn_tcp_state_change(struct sock *sk)
 static void ovpn_tcp_data_ready(struct sock *sk)
 {
 	struct ovpn_struct *ovpn;
-	struct ovpn_peer *peer;
+	struct ovpn_peer *peer = NULL;
 
 	rcu_read_lock();
 	ovpn = rcu_dereference_sk_user_data(sk);
+	if (ovpn)
+		peer = ovpn_peer_get(ovpn);
 	rcu_read_unlock();
 
-	peer = ovpn_peer_get(ovpn);
 	if (!peer)
 		return;
 
@@ -40,13 +41,14 @@ static void ovpn_tcp_data_ready(struct sock *sk)
 static void ovpn_tcp_write_space(struct sock *sk)
 {
 	struct ovpn_struct *ovpn;
-	struct ovpn_peer *peer;
+	struct ovpn_peer *peer = NULL;
 
 	rcu_read_lock();
 	ovpn = rcu_dereference_sk_user_data(sk);
+	if (ovpn)
+		peer = ovpn_peer_get(ovpn);
 	rcu_read_unlock();
 
-	peer = ovpn_peer_get(ovpn);
 	if (!peer)
 		return;
 
@@ -57,15 +59,14 @@ static void ovpn_tcp_write_space(struct sock *sk)
 void ovpn_tcp_sock_detach(struct socket *sock)
 {
 	struct ovpn_struct *ovpn;
-	struct ovpn_peer *peer;
+	struct ovpn_peer *peer = NULL;
 
 	rcu_read_lock();
 	ovpn = rcu_dereference_sk_user_data(sock->sk);
+	if (ovpn)
+		peer = ovpn_peer_get(ovpn);
 	rcu_read_unlock();
-	if (!ovpn)
-		goto release;
 
-	peer = ovpn_peer_get(ovpn);
 	if (!peer)
 		goto release;
 
