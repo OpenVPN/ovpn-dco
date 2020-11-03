@@ -185,7 +185,7 @@ static void ovpn_dellink(struct net_device *dev, struct list_head *head)
 	spin_lock_bh(&ovpn->lock);
 	peer = ovpn_peer_get(ovpn);
 	if (peer) {
-		rcu_assign_pointer(ovpn->peer, NULL);
+		RCU_INIT_POINTER(ovpn->peer, NULL);
 		ovpn_peer_delete(peer, OVPN_DEL_PEER_REASON_TEARDOWN);
 		ovpn_peer_put(peer);
 	}

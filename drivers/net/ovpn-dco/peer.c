@@ -60,7 +60,7 @@ static void ovpn_peer_expire(struct timer_list *t)
 	tmp = rcu_dereference_protected(ovpn->peer,
 					lockdep_is_held(&ovpn->lock));
 	if (tmp == peer) {
-		rcu_assign_pointer(ovpn->peer, NULL);
+		RCU_INIT_POINTER(ovpn->peer, NULL);
 		ovpn_peer_delete(peer, OVPN_DEL_PEER_REASON_EXPIRED);
 	}
 	spin_unlock_bh(&ovpn->lock);
