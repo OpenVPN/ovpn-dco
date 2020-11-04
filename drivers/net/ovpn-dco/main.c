@@ -249,8 +249,8 @@ err:
 
 static __exit void ovpn_cleanup(void)
 {
-	ovpn_netlink_unregister();
 	rtnl_link_unregister(&ovpn_link_ops);
+	ovpn_netlink_unregister();
 	rcu_barrier(); /* because we use call_rcu */
 }
 
