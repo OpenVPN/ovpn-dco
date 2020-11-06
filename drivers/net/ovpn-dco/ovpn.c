@@ -74,6 +74,10 @@ int ovpn_struct_init(struct net_device *dev)
 	if (!ovpn->events_wq)
 		return -ENOMEM;
 
+	dev->tstats = netdev_alloc_pcpu_stats(struct pcpu_sw_netstats);
+	if (!dev->tstats)
+		return -ENOMEM;
+
 	err = security_tun_dev_alloc_security(&ovpn->security);
 	if (err < 0)
 		return err;
@@ -108,6 +112,11 @@ static void tun_netdev_write(struct ovpn_peer *peer, struct sk_buff *skb)
 	/* set transport header */
 	skb->transport_header = 0;
 	skb_probe_transport_header(skb);
+
+	/* update per-cpu RX stats with the stored size of encrypted packet */
+
+	/* we are in softirq context - hence no locking nor disable preemption needed */
+	update_per_cpu_stats(peer->ovpn->dev, false, OVPN_SKB_CB(skb)->rx_stats_size);
 
 	/* cause packet to be "received" by tun interface */
 	napi_gro_receive(&peer->napi, skb);

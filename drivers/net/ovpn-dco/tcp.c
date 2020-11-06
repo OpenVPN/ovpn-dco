@@ -159,6 +159,14 @@ static int ovpn_tcp_send_one(struct ovpn_struct *ovpn, struct sk_buff *skb)
 	ret = kernel_sendmsg(ovpn->sock, &msg, &iv, 1, iv.iov_len);
 	if (ret > 0) {
 		__skb_pull(skb, ret);
+
+		/* since we update per-cpu stats in process context,
+		 * we need to disable softirqs
+		 */
+		local_bh_disable();
+		update_per_cpu_stats(ovpn->dev, true, ret);
+		local_bh_enable();
+
 		return 0;
 	}
 

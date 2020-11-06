@@ -24,27 +24,13 @@
 #include <linux/skbuff.h>
 #include <linux/version.h>
 
+#include <net/ip_tunnels.h>
+
 /* Driver info */
 #define DRV_NAME	"ovpn-dco"
 #define DRV_VERSION	OVPN_DCO_VERSION
 #define DRV_DESCRIPTION	"OpenVPN data channel offload (ovpn-dco)"
 #define DRV_COPYRIGHT	"(C) 2020 OpenVPN, Inc."
-
-static void
-ovpn_get_stats64(struct net_device *dev, struct rtnl_link_stats64 *tot)
-{
-	tot->rx_packets = dev->stats.rx_packets;
-	tot->tx_packets = dev->stats.tx_packets;
-	tot->rx_bytes = dev->stats.rx_bytes;
-	tot->tx_bytes = dev->stats.tx_bytes;
-
-	tot->rx_errors = dev->stats.rx_errors;
-	tot->rx_dropped = dev->stats.rx_dropped;
-	tot->rx_frame_errors = dev->stats.rx_frame_errors;
-
-	tot->tx_errors = dev->stats.tx_errors;
-	tot->tx_dropped = dev->stats.tx_dropped;
-}
 
 static void ovpn_struct_free(struct net_device *net)
 {
@@ -52,6 +38,7 @@ static void ovpn_struct_free(struct net_device *net)
 
 	ovpn_sock_detach(ovpn->sock);
 	security_tun_dev_free_security(ovpn->security);
+	free_percpu(net->tstats);
 	flush_workqueue(ovpn->crypto_wq);
 	flush_workqueue(ovpn->events_wq);
 	destroy_workqueue(ovpn->crypto_wq);
@@ -137,7 +124,7 @@ static const struct net_device_ops ovpn_netdev_ops = {
 	.ndo_open		= ovpn_net_open,
 	.ndo_stop		= ovpn_net_stop,
 	.ndo_start_xmit		= ovpn_net_xmit,
-	.ndo_get_stats64        = ovpn_get_stats64,
+	.ndo_get_stats64        = ip_tunnel_get_stats64,
 };
 
 static const struct ethtool_ops ovpn_ethtool_ops = {

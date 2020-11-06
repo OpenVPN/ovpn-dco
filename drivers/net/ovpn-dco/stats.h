@@ -5,6 +5,7 @@
  *
  *  Author:	James Yonan <james@openvpn.net>
  *		Antonio Quartulli <antonio@openvpn.net>
+ *		Lev Stipakov <lev@openvpn.net>
  */
 
 #ifndef _NET_OVPN_DCO_OVPNSTATS_H_
@@ -13,21 +14,24 @@
 #include <linux/jiffies.h>
 #include <linux/u64_stats_sync.h>
 
-/* per-CPU stats */
-
 struct ovpn_struct;
 
-struct ovpn_stats {
-	u64 rx_packets;
-	u64 tx_packets;
-	u64 rx_bytes;
-	u64 tx_bytes;
-};
+static inline void update_per_cpu_stats(struct net_device *dev, bool tx, size_t len)
+{
+	struct pcpu_sw_netstats *tstats = get_cpu_ptr(dev->tstats);
 
-struct ovpn_stats_percpu {
-	struct ovpn_stats s;
-	struct u64_stats_sync syncp;
-};
+	u64_stats_update_begin(&tstats->syncp);
+	if (tx) {
+		++tstats->tx_packets;
+		tstats->tx_bytes += len;
+	} else {
+		++tstats->rx_packets;
+		tstats->rx_bytes += len;
+	}
+
+	u64_stats_update_end(&tstats->syncp);
+	put_cpu_ptr(tstats);
+}
 
 /* per-peer stats, measured on transport layer */
 
@@ -68,26 +72,6 @@ struct ovpn_err_stats {
 	struct ovpn_err_stat stats[];
 };
 
-/* struct for OVPN_PERCPU_STATS */
-
-struct ovpn_percpu_stat {
-	u64 rx_bytes;
-	u64 tx_bytes;
-};
-
-struct ovpn_percpu_stats {
-	/* total stats, returned by kovpn */
-	unsigned int total_stats;
-	/* number of stats dimensioned below */
-	unsigned int n_stats;
-	/* stats indexed by CPU number */
-	struct ovpn_percpu_stat stats[];
-};
-
-void ovpn_stats_get(struct ovpn_struct *ovpn, struct ovpn_stats *ret);
-void ovpn_percpu_snapshot(struct ovpn_struct *ovpn,
-			  struct ovpn_percpu_stats *pcs);
 void ovpn_peer_stats_init(struct ovpn_peer_stats *ps);
-void debug_log_stats64(struct ovpn_struct *ovpn);
 
 #endif /* _NET_OVPN_DCO_OVPNSTATS_H_ */
