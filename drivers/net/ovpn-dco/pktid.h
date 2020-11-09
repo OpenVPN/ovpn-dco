@@ -19,24 +19,19 @@
  *
  *    00000005 521c3b01 4308c041 83ba3099
  *    [seq # ] [nonce_tail              ]
- *    [               16-byte full IV   ] -> NONCE_SIZE
+ *    [               12-byte full IV   ] -> NONCE_SIZE
  *    [4-bytes                            -> NONCE_WIRE_SIZE
  *    on wire]
  */
 
-/* AEAD nonce size -- this is the full AEAD IV size */
-#define NONCE_SIZE 16
+/* AEAD nonce size */
+#define NONCE_SIZE 12
 
 /* AEAD nonce size reduced by 4-byte nonce tail -- this is the
  * size of the AEAD Associated Data (AD) sent over the wire
  * and is normally the head of the IV
  */
 #define NONCE_WIRE_SIZE (NONCE_SIZE - sizeof(struct ovpn_nonce_tail))
-
-/* AEAD expected IV size */
-#ifndef EXPECTED_IV_SIZE
-#define EXPECTED_IV_SIZE 12
-#endif
 
 /* If no packets received for this length of time, set a backtrack floor
  * at highest received packet ID thus far.
@@ -50,12 +45,12 @@
 #define PKTID_WRAP_WARN 0xf0000000ULL
 #endif
 
-/* Last 12 bytes of AEAD nonce.
- * Normally is negotiated implicitly rather than
- * being sent explicitly over the wire.
+/* Last 8 bytes of AEAD nonce
+ * Provided by userspace and usually derived from
+ * key material generated during TLS handshake
  */
 struct ovpn_nonce_tail {
-	u8 u8[12];
+	u8 u8[8];
 };
 
 /* Packet-ID state for transmitter */
@@ -110,7 +105,7 @@ static inline int ovpn_pktid_xmit_next(struct ovpn_pktid_xmit *pid, u32 *pktid)
 	return 0;
 }
 
-/* Write the full 16-byte AEAD IV to dest */
+/* Write 12-byte AEAD IV to dest */
 static inline void ovpn_pktid_aead_write(const u32 pktid,
 					 const struct ovpn_nonce_tail *nt,
 					 unsigned char *dest)

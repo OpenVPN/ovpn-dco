@@ -37,7 +37,7 @@ static const struct nla_policy
 ovpn_netlink_policy_key_dir[OVPN_KEY_DIR_ATTR_MAX + 1] = {
 	[OVPN_KEY_DIR_ATTR_CIPHER_KEY] = { .type = NLA_BINARY, .len = U8_MAX },
 	[OVPN_KEY_DIR_ATTR_HMAC_KEY] = { .type = NLA_BINARY, .len = U8_MAX },
-	[OVPN_KEY_DIR_ATTR_NONCE_TAIL] = { .type = NLA_BINARY, .len = 12 },
+	[OVPN_KEY_DIR_ATTR_NONCE_TAIL] = { .type = NLA_BINARY, .len = 8 },
 };
 
 static const struct nla_policy
@@ -170,8 +170,11 @@ static int ovpn_netlink_get_key_dir(struct genl_info *info, struct nlattr *key,
 	switch (cipher) {
 	case OVPN_CIPHER_ALG_AES_GCM:
 		attr = attrs[OVPN_KEY_DIR_ATTR_NONCE_TAIL];
-		/* AES-256-GCM requires a 96bit nonce */
-		if (!attr || nla_len(attr) != 12)
+		/* AES-256-GCM requires a 96bit nonce,
+		 * Got it by combining 4-bytes packet id and
+		 * 8-bytes nonce-tail from userspace
+		 */
+		if (!attr || nla_len(attr) != 8)
 			return -EINVAL;
 
 		dir->nonce_tail = nla_data(attr);

@@ -92,9 +92,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks,
 		//ovpn_notify_pktid_wrap_pc(ks->peer, ks->key_id);
 	}
 
-	/* write 4 bytes packet id and 12 bytes nonce tail,
-	 * derived from key material, into 16 bytes nonce
-	 */
+	/* concat 4 bytes packet id and 8 bytes nonce tail into 12 bytes nonce */
 	ovpn_pktid_aead_write(pktid, &ks->u.ae.nonce_tail_xmit, iv);
 
 	/* make space for packet id and push it to the front */
@@ -263,8 +261,8 @@ static struct crypto_aead *ovpn_aead_init(const char *title,
 	}
 
 	/* basic AEAD assumption */
-	if (crypto_aead_ivsize(aead) != EXPECTED_IV_SIZE) {
-		pr_err("%s IV size must be %d\n", title, EXPECTED_IV_SIZE);
+	if (crypto_aead_ivsize(aead) != NONCE_SIZE) {
+		pr_err("%s IV size must be %d\n", title, NONCE_SIZE);
 		ret = -EINVAL;
 		goto error;
 	}
