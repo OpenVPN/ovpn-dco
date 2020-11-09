@@ -82,11 +82,9 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks,
 	__skb_push(skb, tag_size);
 	sg_set_buf(sg + nfrags + 1, skb->data, tag_size);
 
-	/* Prepend packet ID.
-	 * Nonce containing OpenVPN packet ID is both our IV (NONCE_SIZE)
-	 * and tail of our additional data (NONCE_WIRE_SIZE)
+	/* obtain packet ID, which is used both as a first
+	 * 4 bytes of nonce and last 4 bytes of associated data.
 	 */
-	__skb_push(skb, NONCE_WIRE_SIZE);
 	ret = ovpn_pktid_xmit_next(&ks->pid_xmit, &pktid);
 	if (unlikely(ret < 0)) {
 		if (ret != -1)
@@ -94,9 +92,13 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks,
 		//ovpn_notify_pktid_wrap_pc(ks->peer, ks->key_id);
 	}
 
-	/* place nonce at the beginning of the packet */
-	get_random_bytes(iv, NONCE_SIZE);
+	/* write 4 bytes packet id and 12 bytes nonce tail,
+	 * derived from key material, into 16 bytes nonce
+	 */
 	ovpn_pktid_aead_write(pktid, &ks->u.ae.nonce_tail_xmit, iv);
+
+	/* make space for packet id and push it to the front */
+	__skb_push(skb, NONCE_WIRE_SIZE);
 	memcpy(skb->data, iv, NONCE_WIRE_SIZE);
 
 	/* add packet op as head of additional data */
