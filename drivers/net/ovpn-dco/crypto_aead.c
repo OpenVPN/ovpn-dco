@@ -23,13 +23,13 @@ static int ovpn_aead_encap_overhead(const struct ovpn_crypto_key_slot *ks)
 {
 	return  OVPN_OP_SIZE_V2 +			/* OP header size */
 		4 +					/* Packet ID */
-		crypto_aead_authsize(ks->u.ae.encrypt);	/* Auth Tag */
+		crypto_aead_authsize(ks->encrypt);	/* Auth Tag */
 }
 
 static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks,
 			     struct sk_buff *skb)
 {
-	const unsigned int tag_size = crypto_aead_authsize(ks->u.ae.encrypt);
+	const unsigned int tag_size = crypto_aead_authsize(ks->encrypt);
 	const unsigned int head_size = ovpn_aead_encap_overhead(ks);
 	struct scatterlist sg[MAX_SKB_FRAGS + 2];
 	DECLARE_CRYPTO_WAIT(wait);
@@ -60,7 +60,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks,
 	if (unlikely(nfrags > ARRAY_SIZE(sg)))
 		return -ENOSPC;
 
-	req = aead_request_alloc(ks->u.ae.encrypt, GFP_KERNEL);
+	req = aead_request_alloc(ks->encrypt, GFP_KERNEL);
 	if (unlikely(!req))
 		return -ENOMEM;
 
@@ -93,7 +93,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks,
 	}
 
 	/* concat 4 bytes packet id and 8 bytes nonce tail into 12 bytes nonce */
-	ovpn_pktid_aead_write(pktid, &ks->u.ae.nonce_tail_xmit, iv);
+	ovpn_pktid_aead_write(pktid, &ks->nonce_tail_xmit, iv);
 
 	/* make space for packet id and push it to the front */
 	__skb_push(skb, NONCE_WIRE_SIZE);
@@ -109,7 +109,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks,
 	sg_set_buf(sg, skb->data, OVPN_OP_SIZE_V2 + NONCE_WIRE_SIZE);
 
 	/* setup async crypto operation */
-	aead_request_set_tfm(req, ks->u.ae.encrypt);
+	aead_request_set_tfm(req, ks->encrypt);
 	aead_request_set_callback(req, CRYPTO_TFM_REQ_MAY_BACKLOG |
 				       CRYPTO_TFM_REQ_MAY_SLEEP,
 				  crypto_req_done, &wait);
@@ -127,7 +127,7 @@ free_req:
 static int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks,
 			     struct sk_buff *skb, unsigned int op)
 {
-	const unsigned int tag_size = crypto_aead_authsize(ks->u.ae.decrypt);
+	const unsigned int tag_size = crypto_aead_authsize(ks->decrypt);
 	unsigned int payload_offset, opsize, ad_start;
 	const u32 opcode = ovpn_opcode_extract(op);
 	struct scatterlist sg[MAX_SKB_FRAGS + 2];
@@ -161,7 +161,7 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks,
 	if (unlikely(nfrags > ARRAY_SIZE(sg)))
 		return -ENOSPC;
 
-	req = aead_request_alloc(ks->u.ae.decrypt, GFP_KERNEL);
+	req = aead_request_alloc(ks->decrypt, GFP_KERNEL);
 	if (unlikely(!req))
 		return -ENOMEM;
 
@@ -194,11 +194,11 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks,
 
 	/* copy nonce into IV buffer */
 	memcpy(iv, skb->data + opsize, NONCE_WIRE_SIZE);
-	memcpy(iv + NONCE_WIRE_SIZE, ks->u.ae.nonce_tail_recv.u8,
+	memcpy(iv + NONCE_WIRE_SIZE, ks->nonce_tail_recv.u8,
 	       sizeof(struct ovpn_nonce_tail));
 
 	/* setup async crypto operation */
-	aead_request_set_tfm(req, ks->u.ae.decrypt);
+	aead_request_set_tfm(req, ks->decrypt);
 	aead_request_set_callback(req, CRYPTO_TFM_REQ_MAY_BACKLOG |
 				       CRYPTO_TFM_REQ_MAY_SLEEP,
 				  crypto_req_done, &wait);
@@ -286,8 +286,8 @@ static void ovpn_aead_crypto_key_slot_destroy(struct ovpn_crypto_key_slot *ks)
 	if (!ks)
 		return;
 
-	crypto_free_aead(ks->u.ae.encrypt);
-	crypto_free_aead(ks->u.ae.decrypt);
+	crypto_free_aead(ks->encrypt);
+	crypto_free_aead(ks->decrypt);
 	kfree(ks);
 }
 
@@ -322,24 +322,24 @@ ovpn_aead_crypto_key_slot_init(enum ovpn_cipher_alg alg,
 		return ERR_PTR(-ENOMEM);
 
 	ks->ops = &ovpn_aead_ops;
-	ks->u.ae.encrypt = NULL;
-	ks->u.ae.decrypt = NULL;
+	ks->encrypt = NULL;
+	ks->decrypt = NULL;
 	kref_init(&ks->refcount);
 	ks->key_id = key_id;
 
-	ks->u.ae.encrypt = ovpn_aead_init("encrypt", alg_name, encrypt_key,
-					  encrypt_keylen);
-	if (IS_ERR(ks->u.ae.encrypt)) {
-		ret = PTR_ERR(ks->u.ae.encrypt);
-		ks->u.ae.encrypt = NULL;
+	ks->encrypt = ovpn_aead_init("encrypt", alg_name, encrypt_key,
+				     encrypt_keylen);
+	if (IS_ERR(ks->encrypt)) {
+		ret = PTR_ERR(ks->encrypt);
+		ks->encrypt = NULL;
 		goto destroy_ks;
 	}
 
-	ks->u.ae.decrypt = ovpn_aead_init("decrypt", alg_name, decrypt_key,
-					  decrypt_keylen);
-	if (IS_ERR(ks->u.ae.decrypt)) {
-		ret = PTR_ERR(ks->u.ae.decrypt);
-		ks->u.ae.decrypt = NULL;
+	ks->decrypt = ovpn_aead_init("decrypt", alg_name, decrypt_key,
+				     decrypt_keylen);
+	if (IS_ERR(ks->decrypt)) {
+		ret = PTR_ERR(ks->decrypt);
+		ks->decrypt = NULL;
 		goto destroy_ks;
 	}
 
@@ -349,9 +349,9 @@ ovpn_aead_crypto_key_slot_init(enum ovpn_cipher_alg alg,
 		goto destroy_ks;
 	}
 
-	memcpy(ks->u.ae.nonce_tail_xmit.u8, encrypt_nonce_tail,
+	memcpy(ks->nonce_tail_xmit.u8, encrypt_nonce_tail,
 	       sizeof(struct ovpn_nonce_tail));
-	memcpy(ks->u.ae.nonce_tail_recv.u8, decrypt_nonce_tail,
+	memcpy(ks->nonce_tail_recv.u8, decrypt_nonce_tail,
 	       sizeof(struct ovpn_nonce_tail));
 
 	/* init packet ID generation/validation */
@@ -386,5 +386,4 @@ const struct ovpn_crypto_ops ovpn_aead_ops = {
 	.new         = ovpn_aead_crypto_key_slot_new,
 	.destroy     = ovpn_aead_crypto_key_slot_destroy,
 	.encap_overhead = ovpn_aead_encap_overhead,
-	.use_hmac    = false,
 };

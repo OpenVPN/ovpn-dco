@@ -58,23 +58,6 @@ void ovpn_crypto_state_release(struct ovpn_crypto_state *cs)
 	mutex_destroy(&cs->mutex);
 }
 
-int ovpn_crypto_encap_overhead(const struct ovpn_crypto_state *cs)
-{
-	const struct ovpn_crypto_key_slot *ks;
-	int ret;
-
-	rcu_read_lock();
-	ks = rcu_dereference(cs->primary);
-	if (!ks) {
-		rcu_read_unlock();
-		return -ENOENT;
-	}
-	ret = ks->ops->encap_overhead(ks);
-	rcu_read_unlock();
-
-	return ret;
-}
-
 /* Reset the ovpn_crypto_state object in a way that is atomic
  * to RCU readers.
  */
@@ -158,8 +141,6 @@ ovpn_crypto_select_family(const struct ovpn_peer_key_reset *pkr)
 		return &ovpn_none_ops;
 	case OVPN_CRYPTO_FAMILY_AEAD:
 		return &ovpn_aead_ops;
-//	case OVPN_CRYPTO_FAMILY_CBC_HMAC:
-//		return &ovpn_chm_ops;
 	default:
 		return NULL;
 	}
@@ -193,8 +174,6 @@ ovpn_keys_familiy_get(const struct ovpn_key_config *kc)
 		return OVPN_CRYPTO_FAMILY_NONE;
 	case OVPN_CIPHER_ALG_AES_GCM:
 		return OVPN_CRYPTO_FAMILY_AEAD;
-	case OVPN_CIPHER_ALG_AES_CBC:
-		return OVPN_CRYPTO_FAMILY_CBC_HMAC;
 	default:
 		return OVPN_CRYPTO_FAMILY_UNDEF;
 	}

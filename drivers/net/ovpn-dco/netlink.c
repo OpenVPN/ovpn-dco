@@ -36,7 +36,6 @@ static const struct genl_multicast_group ovpn_netlink_mcgrps[] = {
 static const struct nla_policy
 ovpn_netlink_policy_key_dir[OVPN_KEY_DIR_ATTR_MAX + 1] = {
 	[OVPN_KEY_DIR_ATTR_CIPHER_KEY] = { .type = NLA_BINARY, .len = U8_MAX },
-	[OVPN_KEY_DIR_ATTR_HMAC_KEY] = { .type = NLA_BINARY, .len = U8_MAX },
 	[OVPN_KEY_DIR_ATTR_NONCE_TAIL] = { .type = NLA_BINARY, .len = 8 },
 };
 
@@ -59,7 +58,6 @@ static const struct nla_policy ovpn_netlink_policy[OVPN_ATTR_MAX + 1] = {
 						       __OVPN_DEL_PEER_REASON_FIRST,
 						       __OVPN_DEL_PEER_REASON_AFTER_LAST - 1),
 	[OVPN_ATTR_CIPHER_ALG] = { .type = NLA_U16 },
-	[OVPN_ATTR_HMAC_ALG] = { .type = NLA_U16 },
 	[OVPN_ATTR_ENCRYPT_KEY] =
 		NLA_POLICY_NESTED(ovpn_netlink_policy_key_dir),
 	[OVPN_ATTR_DECRYPT_KEY] =
@@ -148,7 +146,7 @@ static void ovpn_post_doit(const struct genl_ops *ops, struct sk_buff *skb,
 }
 
 static int ovpn_netlink_get_key_dir(struct genl_info *info, struct nlattr *key,
-				    enum ovpn_cipher_alg cipher, enum ovpn_hmac_alg hmac,
+				    enum ovpn_cipher_alg cipher,
 				    struct ovpn_key_direction *dir)
 {
 	struct nlattr *attr, *attrs[OVPN_KEY_DIR_ATTR_MAX + 1];
@@ -180,17 +178,10 @@ static int ovpn_netlink_get_key_dir(struct genl_info *info, struct nlattr *key,
 		dir->nonce_tail = nla_data(attr);
 		dir->nonce_tail_size = nla_len(attr);
 		break;
-	default:
-		if (hmac == OVPN_HMAC_ALG_NONE)
-			break;
-
-		attr = attrs[OVPN_KEY_DIR_ATTR_HMAC_KEY];
-		if (!attr)
-			return -EINVAL;
-
-		dir->hmac_key = nla_data(attr);
-		dir->hmac_key_size = nla_len(attr);
+	case OVPN_CIPHER_ALG_NONE:
 		break;
+	default:
+		return -EINVAL;
 	}
 
 	return 0;
@@ -216,21 +207,14 @@ static int ovpn_netlink_new_key(struct sk_buff *skb, struct genl_info *info)
 	pkr.key.key_id = nla_get_u16(info->attrs[OVPN_ATTR_KEY_ID]);
 
 	pkr.key.cipher_alg = nla_get_u16(info->attrs[OVPN_ATTR_CIPHER_ALG]);
-	/* non AEAD algs must have an auth algorithm */
-	if (pkr.key.cipher_alg != OVPN_CIPHER_ALG_AES_GCM) {
-		if (!info->attrs[OVPN_ATTR_HMAC_ALG])
-			return -EINVAL;
-
-		pkr.key.hmac_alg = nla_get_u16(info->attrs[OVPN_ATTR_HMAC_ALG]);
-	}
 
 	ret = ovpn_netlink_get_key_dir(info, info->attrs[OVPN_ATTR_ENCRYPT_KEY],
-				       pkr.key.cipher_alg, pkr.key.hmac_alg, &pkr.key.encrypt);
+				       pkr.key.cipher_alg, &pkr.key.encrypt);
 	if (ret < 0)
 		return ret;
 
 	ret = ovpn_netlink_get_key_dir(info, info->attrs[OVPN_ATTR_DECRYPT_KEY],
-				       pkr.key.cipher_alg, pkr.key.hmac_alg, &pkr.key.decrypt);
+				       pkr.key.cipher_alg, &pkr.key.decrypt);
 	if (ret < 0)
 		return ret;
 

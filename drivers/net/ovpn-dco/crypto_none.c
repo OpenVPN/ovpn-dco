@@ -131,5 +131,4 @@ const struct ovpn_crypto_ops ovpn_none_ops = {
 	.new         = ovpn_none_crypto_key_slot_new,
 	.destroy     = ovpn_none_crypto_key_slot_destroy,
 	.encap_overhead = ovpn_none_encap_overhead,
-	.use_hmac    = true,
 };
