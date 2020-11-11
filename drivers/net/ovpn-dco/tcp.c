@@ -164,7 +164,7 @@ static int ovpn_tcp_send_one(struct ovpn_struct *ovpn, struct sk_buff *skb)
 		 * we need to disable softirqs
 		 */
 		local_bh_disable();
-		update_per_cpu_stats(ovpn->dev, true, ret);
+		dev_sw_netstats_tx_add(ovpn->dev, 1, ret);
 		local_bh_enable();
 
 		return 0;

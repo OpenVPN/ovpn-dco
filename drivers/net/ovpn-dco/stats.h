@@ -16,23 +16,6 @@
 
 struct ovpn_struct;
 
-static inline void update_per_cpu_stats(struct net_device *dev, bool tx, size_t len)
-{
-	struct pcpu_sw_netstats *tstats = get_cpu_ptr(dev->tstats);
-
-	u64_stats_update_begin(&tstats->syncp);
-	if (tx) {
-		++tstats->tx_packets;
-		tstats->tx_bytes += len;
-	} else {
-		++tstats->rx_packets;
-		tstats->rx_bytes += len;
-	}
-
-	u64_stats_update_end(&tstats->syncp);
-	put_cpu_ptr(tstats);
-}
-
 /* per-peer stats, measured on transport layer */
 
 /* one stat */

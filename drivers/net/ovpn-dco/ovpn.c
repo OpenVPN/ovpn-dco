@@ -116,7 +116,7 @@ static void tun_netdev_write(struct ovpn_peer *peer, struct sk_buff *skb)
 	/* update per-cpu RX stats with the stored size of encrypted packet */
 
 	/* we are in softirq context - hence no locking nor disable preemption needed */
-	update_per_cpu_stats(peer->ovpn->dev, false, OVPN_SKB_CB(skb)->rx_stats_size);
+	dev_sw_netstats_rx_add(peer->ovpn->dev, OVPN_SKB_CB(skb)->rx_stats_size);
 
 	/* cause packet to be "received" by tun interface */
 	napi_gro_receive(&peer->napi, skb);

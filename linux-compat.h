@@ -16,7 +16,37 @@
 
 #define dev_get_tstats64 ip_tunnel_get_stats64
 
+#include <linux/netdevice.h>
+
+static inline void dev_sw_netstats_tx_add(struct net_device *dev,
+					  unsigned int packets,
+					  unsigned int len)
+{
+	struct pcpu_sw_netstats *tstats = this_cpu_ptr(dev->tstats);
+
+	u64_stats_update_begin(&tstats->syncp);
+	tstats->tx_bytes += len;
+	tstats->tx_packets += packets;
+	u64_stats_update_end(&tstats->syncp);
+}
+
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0) */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
+
+#include <linux/netdevice.h>
+
+static inline void dev_sw_netstats_rx_add(struct net_device *dev, unsigned int len)
+{
+	struct pcpu_sw_netstats *tstats = this_cpu_ptr(dev->tstats);
+
+	u64_stats_update_begin(&tstats->syncp);
+	tstats->rx_bytes += len;
+	tstats->rx_packets++;
+	u64_stats_update_end(&tstats->syncp);
+}
+
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
 
