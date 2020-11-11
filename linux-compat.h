@@ -12,6 +12,12 @@
 #include <linux/kconfig.h>
 #include <linux/version.h>
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
+
+#define dev_get_tstats64 ip_tunnel_get_stats64
+
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) */
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
 
 #include <linux/skbuff.h>

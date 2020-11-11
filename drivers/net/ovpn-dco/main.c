@@ -124,7 +124,7 @@ static const struct net_device_ops ovpn_netdev_ops = {
 	.ndo_open		= ovpn_net_open,
 	.ndo_stop		= ovpn_net_stop,
 	.ndo_start_xmit		= ovpn_net_xmit,
-	.ndo_get_stats64        = ip_tunnel_get_stats64,
+	.ndo_get_stats64        = dev_get_tstats64,
 };
 
 static const struct ethtool_ops ovpn_ethtool_ops = {
