@@ -53,8 +53,7 @@ err:
 	return NULL;
 }
 
-/* UDP encapsulation receive handler.  See net/ipv[46]/udp.c.
- * Here we look at an incoming OpenVPN UDP packet.  If we are able
+/* Here we look at an incoming OpenVPN UDP packet.  If we are able
  * to process it, we will send it directly to tun interface.
  * Otherwise, send it up to userspace.
  * Called in softirq context.
@@ -142,7 +141,6 @@ static int ovpn_udp6_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 		.flowi6_oif = sk->sk_bound_dev_if,
 	};
 
-	/* based on scope ID usage from net/ipv6/udp.c */
 	if (bind->sapair.remote.u.in6.sin6_scope_id &&
 	    __ipv6_addr_needs_scope_id(__ipv6_addr_type(&fl.daddr)))
 		fl.flowi6_oif = bind->sapair.remote.u.in6.sin6_scope_id;
