@@ -41,7 +41,7 @@ enum ovpn_key_direction {
 };
 
 #define KEY_LEN (256 / 8)
-#define NONCE_LEN 12
+#define NONCE_LEN 8
 
 struct nl_ctx {
 	struct nl_sock *nl_sock;
