@@ -167,8 +167,9 @@ static int ovpn_netlink_get_key_dir(struct genl_info *info, struct nlattr *key,
 
 	switch (cipher) {
 	case OVPN_CIPHER_ALG_AES_GCM:
+	case OVPN_CIPHER_ALG_CHACHA20_POLY1305:
 		attr = attrs[OVPN_KEY_DIR_ATTR_NONCE_TAIL];
-		/* AES-256-GCM requires a 96bit nonce,
+		/* AES-256-GCM/CHACHA20-POLY1305 requires a 96bit nonce,
 		 * Got it by combining 4-bytes packet id and
 		 * 8-bytes nonce-tail from userspace
 		 */

@@ -312,6 +312,9 @@ ovpn_aead_crypto_key_slot_init(enum ovpn_cipher_alg alg,
 	case OVPN_CIPHER_ALG_AES_GCM:
 		alg_name = "gcm(aes)";
 		break;
+	case OVPN_CIPHER_ALG_CHACHA20_POLY1305:
+		alg_name = "rfc7539(chacha20,poly1305)";
+		break;
 	default:
 		return ERR_PTR(-EOPNOTSUPP);
 	}

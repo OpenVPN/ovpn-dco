@@ -173,6 +173,7 @@ ovpn_keys_familiy_get(const struct ovpn_key_config *kc)
 	case OVPN_CIPHER_ALG_NONE:
 		return OVPN_CRYPTO_FAMILY_NONE;
 	case OVPN_CIPHER_ALG_AES_GCM:
+	case OVPN_CIPHER_ALG_CHACHA20_POLY1305:
 		return OVPN_CRYPTO_FAMILY_AEAD;
 	default:
 		return OVPN_CRYPTO_FAMILY_UNDEF;
