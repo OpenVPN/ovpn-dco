@@ -20,12 +20,12 @@ const struct ovpn_crypto_ops ovpn_none_ops;
 static int ovpn_none_encap_overhead(const struct ovpn_crypto_key_slot *ks)
 {
 	return  OVPN_OP_SIZE_V2 +			/* OP header size */
-		4;					/* Packet ID */
+		sizeof(u32);				/* Packet ID */
 }
 
 static int ovpn_none_encrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb)
 {
-	const unsigned int head_size = ovpn_none_encap_overhead(ks);
+	const u32 head_size = ovpn_none_encap_overhead(ks);
 	u32 pktid, op;
 	int ret;
 
@@ -49,7 +49,7 @@ static int ovpn_none_encrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *sk
 	}
 
 	/* place seq # at the beginning of the packet */
-	__skb_push(skb, 4);
+	__skb_push(skb, sizeof(pktid));
 	*((__force __be32 *)skb->data) = htonl(pktid);
 
 	/* add packet op as head of additional data */
@@ -63,19 +63,14 @@ static int ovpn_none_encrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *sk
 
 static int ovpn_none_decrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb, unsigned int op)
 {
-	unsigned int payload_offset, opsize;
+	const u32 payload_offset = ovpn_none_encap_overhead(ks);
 	const u32 opcode = ovpn_opcode_extract(op);
+	const u32 opsize = OVPN_OP_SIZE_V2;
 	__be32 *pid;
 	int ret;
 
-	if (likely(opcode == OVPN_DATA_V2))
-		opsize = OVPN_OP_SIZE_V2;
-	else if (opcode == OVPN_DATA_V1)
-		opsize = OVPN_OP_SIZE_V1;
-	else
-		return -EINVAL;
-
-	payload_offset = opsize + 4;
+	if (unlikely(opcode != OVPN_DATA_V2))
+		return -EOPNOTSUPP;
 
 	/* sanity check on packet size, payload size must be >= 0 */
 	if (unlikely(skb->len - payload_offset < 0 || !pskb_may_pull(skb, payload_offset)))
