@@ -684,8 +684,6 @@ static int ovpn_new_key(struct ovpn_ctx *ovpn)
 	NLA_PUT_U16(ctx->nl_msg, OVPN_ATTR_KEY_ID, 0);
 
 	NLA_PUT_U16(ctx->nl_msg, OVPN_ATTR_CIPHER_ALG, ovpn->cipher);
-	if (ovpn->cipher != OVPN_CIPHER_ALG_AES_GCM)
-		NLA_PUT_U16(ctx->nl_msg, OVPN_ATTR_HMAC_ALG, OVPN_HMAC_ALG_NONE);
 
 	key_dir = nla_nest_start(ctx->nl_msg, OVPN_ATTR_ENCRYPT_KEY);
 	NLA_PUT(ctx->nl_msg, OVPN_KEY_DIR_ATTR_CIPHER_KEY, KEY_LEN,
