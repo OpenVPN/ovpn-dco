@@ -47,7 +47,7 @@ create_ns 0
 create_ns 1
 
 ip link del veth0
-ip link add veth0 type veth peer veth1
+ip link add veth0 type veth peer name veth1
 
 ipv6=0
 if [ "$1" == "-6" ]; then
