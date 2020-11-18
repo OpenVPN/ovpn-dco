@@ -14,14 +14,15 @@
 #include <net/if.h>
 #include <netinet/in.h>
 
+#include <linux/ovpn_dco.h>
+#include <linux/types.h>
+#include <linux/netlink.h>
+
 #include <netlink/socket.h>
 #include <netlink/netlink.h>
 #include <netlink/genl/genl.h>
 #include <netlink/genl/family.h>
 #include <netlink/genl/ctrl.h>
-
-#include <linux/ovpn_dco.h>
-#include <linux/types.h>
 
 #include <mbedtls/base64.h>
 #include <mbedtls/error.h>
