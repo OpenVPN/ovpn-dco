@@ -352,7 +352,7 @@ static int ovpn_read_cipher(const char *cipher, struct ovpn_ctx *ctx)
 	if (strcmp(cipher, "aes") == 0)
 		ctx->cipher = OVPN_CIPHER_ALG_AES_GCM;
 	else if (strcmp(cipher, "chachapoly") == 0)
-		ctx->cipher = OVPN_CIPHER_ALG_CHACHA20POLY1305;
+		ctx->cipher = OVPN_CIPHER_ALG_CHACHA20_POLY1305;
 	else if (strcmp(cipher, "none") == 0)
 		ctx->cipher = OVPN_CIPHER_ALG_NONE;
 	else
