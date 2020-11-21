@@ -148,7 +148,7 @@ out:
 static int ovpn_tcp_send_one(struct ovpn_struct *ovpn, struct sk_buff *skb)
 {
 	struct msghdr msg = { .msg_flags = MSG_DONTWAIT | MSG_NOSIGNAL };
-	struct kvec iv = { .iov_base = skb->data, iv.iov_len = skb->len };
+	struct kvec iv = { .iov_base = skb->data, .iov_len = skb->len };
 	int ret;
 
 	if (skb_linearize(skb) < 0) {
