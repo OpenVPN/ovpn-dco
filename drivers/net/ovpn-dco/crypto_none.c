@@ -66,14 +66,15 @@ static int ovpn_none_decrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *sk
 	const u32 payload_offset = ovpn_none_encap_overhead(ks);
 	const u32 opcode = ovpn_opcode_extract(op);
 	const u32 opsize = OVPN_OP_SIZE_V2;
+	int payload_len, ret;
 	__be32 *pid;
-	int ret;
 
 	if (unlikely(opcode != OVPN_DATA_V2))
 		return -EOPNOTSUPP;
 
 	/* sanity check on packet size, payload size must be >= 0 */
-	if (unlikely(skb->len - payload_offset < 0 || !pskb_may_pull(skb, payload_offset)))
+	payload_len = skb->len - payload_offset;
+	if (unlikely(payload_len < 0 || !pskb_may_pull(skb, payload_offset)))
 		return -EINVAL;
 
 	/* PID sits after the op */
