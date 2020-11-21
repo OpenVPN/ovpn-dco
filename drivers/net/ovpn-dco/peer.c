@@ -102,8 +102,11 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 			  NAPI_POLL_WEIGHT);
 	napi_enable(&peer->napi);
 
-	if (dst_cache_init(&peer->dst_cache, GFP_KERNEL) < 0)
+	ret = dst_cache_init(&peer->dst_cache, GFP_KERNEL);
+	if (ret < 0) {
+		pr_err("cannot initialize dst cache\n");
 		goto err;
+	}
 
 	ret = ptr_ring_init(&peer->tx_ring, OVPN_QUEUE_LEN, GFP_KERNEL);
 	if (ret < 0) {
