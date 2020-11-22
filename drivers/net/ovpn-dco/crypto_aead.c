@@ -130,7 +130,7 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks,
 	const unsigned int tag_size = crypto_aead_authsize(ks->decrypt);
 	unsigned int payload_offset, opsize, ad_start;
 	const u32 opcode = ovpn_opcode_extract(op);
-	struct scatterlist sg[MAX_SKB_FRAGS + 2];
+	struct scatterlist sg[MAX_SKB_FRAGS];
 	int ret, payload_len, nfrags;
 	u8 *sg_data, iv[NONCE_SIZE];
 	DECLARE_CRYPTO_WAIT(wait);
@@ -170,7 +170,7 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks,
 	 * 1, 2, 3, ...: payload,
 	 * n: auth_tag (len=tag_size)
 	 */
-	sg_init_table(sg, nfrags + 2);
+	sg_init_table(sg, nfrags);
 
 	/* packet op is head of additional data */
 	sg_data = skb->data;
