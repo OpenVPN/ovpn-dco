@@ -66,8 +66,8 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks,
 
 	/* sg table:
 	 * 0: op, wire nonce (AD, len=OVPN_OP_SIZE_V2+NONCE_WIRE_SIZE),
-	 * 1, 2, 3, ...: payload,
-	 * n: auth_tag (len=tag_size)
+	 * 1, 2, 3, ..., n: payload,
+	 * n+1: auth_tag (len=tag_size)
 	 */
 	sg_init_table(sg, nfrags + 2);
 
@@ -167,8 +167,8 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks,
 
 	/* sg table:
 	 * 0: op, wire nonce (AD, len=OVPN_OP_SIZE_V2+NONCE_WIRE_SIZE),
-	 * 1, 2, 3, ...: payload,
-	 * n: auth_tag (len=tag_size)
+	 * 1, 2, 3, ..., n: payload,
+	 * n+1: auth_tag (len=tag_size)
 	 */
 	sg_init_table(sg, nfrags);
 
