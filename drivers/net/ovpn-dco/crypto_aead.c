@@ -57,7 +57,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks,
 	if (unlikely(nfrags < 0))
 		return nfrags;
 
-	if (unlikely(nfrags > ARRAY_SIZE(sg)))
+	if (unlikely(nfrags + 2 > ARRAY_SIZE(sg)))
 		return -ENOSPC;
 
 	req = aead_request_alloc(ks->encrypt, GFP_KERNEL);
