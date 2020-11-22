@@ -197,11 +197,11 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	/* save original packet size for stats accounting */
 	OVPN_SKB_CB(skb)->rx_stats_size = skb->len;
 
-	/* we only handle OVPN_DATA_Vx packets from known peers here.
+	/* we only handle OVPN_DATA_V2 packets from known peers here.
 	 *
 	 * all other packets are sent to userspace via netlink
 	 */
-	if (unlikely(!ovpn_opcode_is_data(op))) {
+	if (unlikely(!ovpn_opcode_is_data_v2(op))) {
 		ret = ovpn_transport_to_userspace(peer->ovpn, skb);
 		if (ret < 0)
 			goto drop;

@@ -64,13 +64,9 @@ static int ovpn_none_encrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *sk
 static int ovpn_none_decrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb, unsigned int op)
 {
 	const u32 payload_offset = ovpn_none_encap_overhead(ks);
-	const u32 opcode = ovpn_opcode_extract(op);
 	const u32 opsize = OVPN_OP_SIZE_V2;
 	int payload_len, ret;
 	__be32 *pid;
-
-	if (unlikely(opcode != OVPN_DATA_V2))
-		return -EOPNOTSUPP;
 
 	/* sanity check on packet size, payload size must be >= 0 */
 	payload_len = skb->len - payload_offset;

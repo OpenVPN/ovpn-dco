@@ -128,7 +128,6 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks,
 			     struct sk_buff *skb, unsigned int op)
 {
 	const unsigned int tag_size = crypto_aead_authsize(ks->decrypt);
-	const u32 opcode = ovpn_opcode_extract(op);
 	struct scatterlist sg[MAX_SKB_FRAGS];
 	int ret, payload_len, nfrags;
 	u8 *sg_data, iv[NONCE_SIZE];
@@ -138,9 +137,6 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks,
 	struct sk_buff *trailer;
 	unsigned int sg_len;
 	__be32 *pid;
-
-	if (unlikely(opcode != OVPN_DATA_V2))
-		return -EINVAL;
 
 	payload_offset = OVPN_OP_SIZE_V2 + NONCE_WIRE_SIZE + tag_size;
 	payload_len = skb->len - payload_offset;

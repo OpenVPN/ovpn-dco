@@ -71,11 +71,11 @@ static inline unsigned int ovpn_op_compose(const unsigned int opcode,
 	return (opcode << OVPN_OPCODE_SHIFT) | key_id;
 }
 
-static inline bool ovpn_opcode_is_data(const unsigned int op)
+static inline bool ovpn_opcode_is_data_v2(const unsigned int op)
 {
 	const unsigned int opcode = ovpn_opcode_extract(op);
 
-	return opcode == OVPN_DATA_V2 || opcode == OVPN_DATA_V1;
+	return opcode == OVPN_DATA_V2;
 }
 
 /* 32 bit opcodes */
