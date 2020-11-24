@@ -128,7 +128,7 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks,
 			     struct sk_buff *skb, unsigned int op)
 {
 	const unsigned int tag_size = crypto_aead_authsize(ks->decrypt);
-	struct scatterlist sg[MAX_SKB_FRAGS];
+	struct scatterlist sg[MAX_SKB_FRAGS + 2];
 	int ret, payload_len, nfrags;
 	u8 *sg_data, iv[NONCE_SIZE];
 	unsigned int payload_offset;
@@ -150,7 +150,7 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks,
 	if (unlikely(nfrags < 0))
 		return nfrags;
 
-	if (unlikely(nfrags > ARRAY_SIZE(sg)))
+	if (unlikely(nfrags + 2 > ARRAY_SIZE(sg)))
 		return -ENOSPC;
 
 	req = aead_request_alloc(ks->decrypt, GFP_KERNEL);
@@ -162,7 +162,7 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks,
 	 * 1, 2, 3, ..., n: payload,
 	 * n+1: auth_tag (len=tag_size)
 	 */
-	sg_init_table(sg, nfrags);
+	sg_init_table(sg, nfrags + 2);
 
 	/* packet op is head of additional data */
 	sg_data = skb->data;
