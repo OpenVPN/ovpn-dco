@@ -17,10 +17,10 @@
 /* When the OpenVPN protocol is run in AEAD mode, use
  * the OpenVPN packet ID as the AEAD nonce:
  *
- *    00000005 521c3b01 4308c041 83ba3099
- *    [seq # ] [nonce_tail              ]
- *    [               12-byte full IV   ] -> NONCE_SIZE
- *    [4-bytes                            -> NONCE_WIRE_SIZE
+ *    00000005 521c3b01 4308c041
+ *    [seq # ] [  nonce_tail   ]
+ *    [     12-byte full IV    ] -> NONCE_SIZE
+ *    [4-bytes                   -> NONCE_WIRE_SIZE
  *    on wire]
  */
 

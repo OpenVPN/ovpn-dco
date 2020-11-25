@@ -39,7 +39,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks,
 	int nfrags, ret;
 	u32 pktid, op;
 
-	/* Sample AES-GCM head:
+	/* Sample AEAD header format:
 	 * 48000001 00000005 7e7046bd 444a7e28 cc6387b1 64a4d6c1 380275a...
 	 * [ OP32 ] [seq # ] [             auth tag            ] [ payload ... ]
 	 *          [4-byte
