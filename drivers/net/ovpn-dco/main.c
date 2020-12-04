@@ -13,6 +13,7 @@
 #include "ovpnstruct.h"
 #include "netlink.h"
 
+#include <linux/ethtool.h>
 #include <linux/genetlink.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
