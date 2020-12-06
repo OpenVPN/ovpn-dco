@@ -120,6 +120,8 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks,
 
 	/* encrypt it */
 	ret = crypto_wait_req(crypto_aead_encrypt(req), &wait);
+	if (ret < 0)
+		pr_err_ratelimited("%s: encrypt failed: %d\n", __func__, ret);
 
 free_req:
 	aead_request_free(req);
@@ -197,8 +199,10 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks,
 
 	/* decrypt it */
 	ret = crypto_wait_req(crypto_aead_decrypt(req), &wait);
-	if (ret < 0)
+	if (ret < 0) {
+		pr_err_ratelimited("%s: decrypt failed: %d\n", __func__, ret);
 		goto free_req;
+	}
 
 	/* PID sits after the op */
 	pid = (__force __be32 *)(skb->data + OVPN_OP_SIZE_V2);
