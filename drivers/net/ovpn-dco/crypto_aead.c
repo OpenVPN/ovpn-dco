@@ -17,6 +17,8 @@
 #include <linux/skbuff.h>
 #include <linux/printk.h>
 
+#define AUTH_TAG_SIZE	16
+
 const struct ovpn_crypto_ops ovpn_aead_ops;
 
 static int ovpn_aead_encap_overhead(const struct ovpn_crypto_key_slot *ks)
@@ -218,7 +220,6 @@ static struct crypto_aead *ovpn_aead_init(const char *title,
 					  const unsigned char *key,
 					  unsigned int keylen)
 {
-	const unsigned int auth_tag_size = 16;
 	struct crypto_aead *aead;
 	int ret;
 
@@ -237,7 +238,7 @@ static struct crypto_aead *ovpn_aead_init(const char *title,
 		goto error;
 	}
 
-	ret = crypto_aead_setauthsize(aead, auth_tag_size);
+	ret = crypto_aead_setauthsize(aead, AUTH_TAG_SIZE);
 	if (ret) {
 		pr_err("%s crypto_aead_setauthsize failed, err=%d\n", title,
 		       ret);
