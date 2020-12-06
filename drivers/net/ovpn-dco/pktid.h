@@ -24,10 +24,12 @@
  *    on wire]
  */
 
-/* AEAD nonce size */
+/* OpenVPN nonce size */
 #define NONCE_SIZE 12
+/* amount of bytes of the nonce received from user space */
+#define NONCE_TAIL_SIZE 8
 
-/* AEAD nonce size reduced by 4-byte nonce tail -- this is the
+/* OpenVPN nonce size reduced by 8-byte nonce tail -- this is the
  * size of the AEAD Associated Data (AD) sent over the wire
  * and is normally the head of the IV
  */
@@ -50,7 +52,7 @@
  * key material generated during TLS handshake
  */
 struct ovpn_nonce_tail {
-	u8 u8[8];
+	u8 u8[NONCE_TAIL_SIZE];
 };
 
 /* Packet-ID state for transmitter */

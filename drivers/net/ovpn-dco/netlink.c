@@ -36,7 +36,7 @@ static const struct genl_multicast_group ovpn_netlink_mcgrps[] = {
 static const struct nla_policy
 ovpn_netlink_policy_key_dir[OVPN_KEY_DIR_ATTR_MAX + 1] = {
 	[OVPN_KEY_DIR_ATTR_CIPHER_KEY] = { .type = NLA_BINARY, .len = U8_MAX },
-	[OVPN_KEY_DIR_ATTR_NONCE_TAIL] = { .type = NLA_BINARY, .len = 8 },
+	[OVPN_KEY_DIR_ATTR_NONCE_TAIL] = { .type = NLA_BINARY, .len = NONCE_TAIL_SIZE },
 };
 
 static const struct nla_policy
@@ -168,11 +168,11 @@ static int ovpn_netlink_get_key_dir(struct genl_info *info, struct nlattr *key,
 		dir->cipher_key_size = nla_len(attr);
 
 		attr = attrs[OVPN_KEY_DIR_ATTR_NONCE_TAIL];
-		/* AES-256-GCM/CHACHA20-POLY1305 requires a 96bit nonce,
-		 * Got it by combining 4-bytes packet id and
+		/* These algorithms require a 96bit nonce,
+		 * Construct it by combining 4-bytes packet id and
 		 * 8-bytes nonce-tail from userspace
 		 */
-		if (!attr || nla_len(attr) != 8)
+		if (!attr || nla_len(attr) != NONCE_TAIL_SIZE)
 			return -EINVAL;
 
 		dir->nonce_tail = nla_data(attr);
