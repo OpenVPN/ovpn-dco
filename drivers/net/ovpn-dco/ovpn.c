@@ -192,10 +192,6 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	unsigned int rx_stats_size;
 	int key_id, ret = -1;
 	__be16 proto;
-	u32 op;
-
-	/* get opcode */
-	op = ovpn_op32_from_skb(skb, NULL);
 
 	/* save original packet size for stats accounting */
 	OVPN_SKB_CB(skb)->rx_stats_size = skb->len;
@@ -204,7 +200,7 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	 *
 	 * all other packets are sent to userspace via netlink
 	 */
-	if (unlikely(!ovpn_opcode_is_data_v2(op))) {
+	if (unlikely(ovpn_opcode_from_skb(skb) != OVPN_DATA_V2)) {
 		ret = ovpn_transport_to_userspace(peer->ovpn, skb);
 		if (ret < 0)
 			goto drop;
@@ -217,7 +213,7 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	}
 
 	/* get the key slot matching the key Id in the received packet */
-	key_id = ovpn_key_id_extract(op);
+	key_id = ovpn_key_id_from_skb(skb);
 	ks = ovpn_crypto_key_id_to_slot(&peer->crypto, key_id);
 	if (unlikely(!ks))
 		goto drop;

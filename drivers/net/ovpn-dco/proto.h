@@ -53,65 +53,38 @@ enum {
 	OVPN_EXPLICIT_EXIT_NOTIFY_FIRST_BYTE = 0x28,
 };
 
-/* 8 bit opcodes */
-
-static inline unsigned int ovpn_opcode_extract(const unsigned int op)
+/**
+ * Extract the OP code from the skb head.
+ *
+ * Note: this function assumes that the skb head was pulled enough
+ * to access the first byte at the beginning of the data buffer.
+ *
+ * Return the OP code
+ */
+static inline u8 ovpn_opcode_from_skb(const struct sk_buff *skb)
 {
-	return op >> OVPN_OPCODE_SHIFT;
+	return *skb->data >> OVPN_OPCODE_SHIFT;
 }
 
-static inline unsigned int ovpn_key_id_extract(const unsigned int op)
+/**
+ * Extract the key ID code from the skb head.
+ *
+ * Note: this function assumes that the skb head was pulled enough
+ * to access the first at the beginning of the data buffer.
+ *
+ * Return the key ID
+ */
+
+static inline u8 ovpn_key_id_from_skb(const struct sk_buff *skb)
 {
-	return op & OVPN_KEY_ID_MASK;
+	return *skb->data & OVPN_KEY_ID_MASK;
 }
 
-static inline unsigned int ovpn_op_compose(const unsigned int opcode,
-					   const unsigned int key_id)
+static inline u32 ovpn_opcode_compose(u8 opcode, u8 key_id, u32 peer_id)
 {
-	return (opcode << OVPN_OPCODE_SHIFT) | key_id;
-}
+	const u8 op = (opcode << OVPN_OPCODE_SHIFT) | (key_id & OVPN_KEY_ID_MASK);
 
-static inline bool ovpn_opcode_is_data_v2(const unsigned int op)
-{
-	const unsigned int opcode = ovpn_opcode_extract(op);
-
-	return opcode == OVPN_DATA_V2;
-}
-
-/* 32 bit opcodes */
-
-static inline unsigned int ovpn_op32_compose(const unsigned int opcode,
-					     const unsigned int key_id,
-					     const int op_peer_id)
-{
-	const unsigned int op8 = ovpn_op_compose(opcode, key_id);
-
-	if (opcode == OVPN_DATA_V2)
-		return (op8 << 24) | (op_peer_id & 0x00FFFFFF);
-
-	return op8;
-}
-
-static inline unsigned int ovpn_op32_from_skb(const struct sk_buff *skb,
-					      int *op_peer_id)
-{
-	unsigned char op_buf[OVPN_OP_SIZE_V2];
-	const void *p = skb_header_pointer(skb, 0, OVPN_OP_SIZE_V2, op_buf);
-	u32 op;
-
-	if (unlikely(!p))
-		return 0;
-
-	op = ntohl(*(const __be32 *)p);
-	if (op_peer_id && ovpn_opcode_extract(op >> 24) == OVPN_DATA_V2) {
-		const int opi = op & 0x00FFFFFF;
-
-		*op_peer_id = -1;
-		if (opi != OVPN_OP_PEER_ID_UNDEF)
-			*op_peer_id = opi;
-	}
-
-	return op >> 24;
+	return (op << 24) | (peer_id & 0x00FFFFFF);
 }
 
 #endif /* _NET_OVPN_DCO_OVPNPROTO_H_ */
