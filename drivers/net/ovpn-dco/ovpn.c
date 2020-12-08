@@ -190,8 +190,9 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 {
 	struct ovpn_crypto_key_slot *ks;
 	unsigned int rx_stats_size;
-	int key_id, ret = -1;
 	__be16 proto;
+	int ret = -1;
+	u8 key_id;
 
 	/* save original packet size for stats accounting */
 	OVPN_SKB_CB(skb)->rx_stats_size = skb->len;

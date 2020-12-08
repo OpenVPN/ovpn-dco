@@ -36,7 +36,7 @@ struct ovpn_key_direction {
 /* all info for a particular symmetric key (primary or secondary) */
 struct ovpn_key_config {
 	enum ovpn_cipher_alg cipher_alg;
-	u16 key_id;
+	u8 key_id;
 	struct ovpn_key_direction encrypt;
 	struct ovpn_key_direction decrypt;
 };
@@ -62,7 +62,7 @@ struct ovpn_crypto_ops {
 struct ovpn_crypto_key_slot {
 	const struct ovpn_crypto_ops *ops;
 	int remote_peer_id;
-	int key_id;
+	u8 key_id;
 
 	struct crypto_aead *encrypt;
 	struct crypto_aead *decrypt;
@@ -98,7 +98,7 @@ static inline void ovpn_crypto_state_init(struct ovpn_crypto_state *cs)
 }
 
 static inline struct ovpn_crypto_key_slot *
-ovpn_crypto_key_id_to_slot(const struct ovpn_crypto_state *cs, int key_id)
+ovpn_crypto_key_id_to_slot(const struct ovpn_crypto_state *cs, u8 key_id)
 {
 	struct ovpn_crypto_key_slot *ks;
 
