@@ -50,15 +50,10 @@ struct ovpn_peer_key_reset {
 };
 
 struct ovpn_crypto_ops {
-	int (*encrypt)(struct ovpn_crypto_key_slot *ks,
-		       struct sk_buff *skb);
-
-	int (*decrypt)(struct ovpn_crypto_key_slot *ks,
-		       struct sk_buff *skb,
-		       unsigned int op);
+	int (*encrypt)(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb);
+	int (*decrypt)(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb);
 
 	struct ovpn_crypto_key_slot *(*new)(const struct ovpn_key_config *kc);
-
 	void (*destroy)(struct ovpn_crypto_key_slot *ks);
 
 	int (*encap_overhead)(const struct ovpn_crypto_key_slot *ks);

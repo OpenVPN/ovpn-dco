@@ -223,7 +223,7 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 		goto drop;
 
 	/* decrypt */
-	ret = ks->ops->decrypt(ks, skb, op);
+	ret = ks->ops->decrypt(ks, skb);
 
 	ovpn_crypto_key_slot_put(ks);
 

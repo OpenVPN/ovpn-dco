@@ -28,8 +28,7 @@ static int ovpn_aead_encap_overhead(const struct ovpn_crypto_key_slot *ks)
 		crypto_aead_authsize(ks->encrypt);	/* Auth Tag */
 }
 
-static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks,
-			     struct sk_buff *skb)
+static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb)
 {
 	const unsigned int tag_size = crypto_aead_authsize(ks->encrypt);
 	const unsigned int head_size = ovpn_aead_encap_overhead(ks);
@@ -128,8 +127,7 @@ free_req:
 	return ret;
 }
 
-static int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks,
-			     struct sk_buff *skb, unsigned int op)
+static int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb)
 {
 	const unsigned int tag_size = crypto_aead_authsize(ks->decrypt);
 	struct scatterlist sg[MAX_SKB_FRAGS + 2];
