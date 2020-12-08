@@ -200,6 +200,11 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	 *
 	 * all other packets are sent to userspace via netlink
 	 */
+	if (!pskb_may_pull(skb, 1)) {
+		ret = -ENODATA;
+		goto drop;
+	}
+
 	if (unlikely(ovpn_opcode_from_skb(skb) != OVPN_DATA_V2)) {
 		ret = ovpn_transport_to_userspace(peer->ovpn, skb);
 		if (ret < 0)
