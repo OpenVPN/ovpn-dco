@@ -144,8 +144,14 @@ static int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *sk
 	payload_len = skb->len - payload_offset;
 
 	/* sanity check on packet size, payload size must be >= 0 */
-	if (unlikely(payload_len < 0 || !pskb_may_pull(skb, payload_offset)))
+	if (unlikely(payload_len < 0))
 		return -EINVAL;
+
+	/* Prepare the skb data buffer to be accessed up until the auth tag.
+	 * This is required because this area is directly mapped into the sg list.
+	 */
+	if (unlikely(!pskb_may_pull(skb, payload_offset)))
+		return -ENODATA;
 
 	/* get number of skb frags and ensure that packet data is writable */
 	nfrags = skb_cow_data(skb, 0, &trailer);
