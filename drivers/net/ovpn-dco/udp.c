@@ -80,7 +80,9 @@ int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 	if (!peer)
 		goto drop;
 
-	ovpn_recv(ovpn, peer, skb);
+	if (!ovpn_recv(ovpn, peer, skb))
+		goto drop;
+
 	return 0;
 
 drop:

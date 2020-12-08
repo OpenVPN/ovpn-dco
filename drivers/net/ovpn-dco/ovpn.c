@@ -169,7 +169,7 @@ static int ovpn_transport_to_userspace(struct ovpn_struct *ovpn,
 }
 
 /* enqueue the packet and schedule RX consumer */
-void ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
+bool ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	       struct sk_buff *skb)
 {
 	int ret;
@@ -177,11 +177,13 @@ void ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	ret = __ptr_ring_produce(&peer->rx_ring, skb);
 	if (ret < 0) {
 		ovpn_peer_put(peer);
-		return;
+		return false;
 	}
 
 	if (!queue_work(ovpn->crypto_wq, &peer->decrypt_work))
 		ovpn_peer_put(peer);
+
+	return true;
 }
 
 static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)

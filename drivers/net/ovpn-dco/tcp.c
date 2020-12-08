@@ -254,7 +254,9 @@ static int ovpn_tcp_rx_one(struct ovpn_peer *peer)
 
 			/* hold reference to peer as requird by ovpn_recv() */
 			ovpn_peer_hold(peer);
-			ovpn_recv(peer->ovpn, peer, peer->tcp.skb);
+			if (!ovpn_recv(peer->ovpn, peer, peer->tcp.skb))
+				/* skb not handled - free it now */
+				kfree_skb(peer->tcp.skb);
 
 			peer->tcp.skb = NULL;
 			peer->tcp.offset = 0;
