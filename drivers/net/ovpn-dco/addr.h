@@ -17,14 +17,6 @@
 
 extern u32 ovpn_hashrnd __read_mostly;
 
-struct ovpn_addr {
-	bool v6;
-	union {
-		struct in_addr a4;
-		struct in6_addr a6;
-	} u;
-};
-
 /* our basic transport layer address */
 struct ovpn_sockaddr {
 	unsigned short int family;
