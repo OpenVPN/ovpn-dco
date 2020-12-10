@@ -14,9 +14,11 @@
 #include "proto.h"
 #include "udp.h"
 
+#include <linux/inetdevice.h>
+#include <net/addrconf.h>
 #include <net/dst_cache.h>
 #include <net/route.h>
-#include <net/ip6_route.h>
+#include <net/ipv6_stubs.h>
 #include <net/udp_tunnel.h>
 
 /* Lookup ovpn_peer using incoming encrypted transport packet.
@@ -96,9 +98,8 @@ static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 {
 	struct rtable *rt;
 	struct flowi4 fl = {
-		.saddr = bind->sapair.local.u.in4.sin_addr.s_addr,
 		.daddr = bind->sapair.remote.u.in4.sin_addr.s_addr,
-		.fl4_sport = bind->sapair.local.u.in4.sin_port,
+		.fl4_sport = inet_sk(sk)->inet_sport,
 		.fl4_dport = bind->sapair.remote.u.in4.sin_port,
 		.flowi4_proto = sk->sk_protocol,
 		.flowi4_mark = sk->sk_mark,
@@ -106,13 +107,18 @@ static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	};
 
 	rt = dst_cache_get_ip4(cache, &fl.saddr);
-	if (rt)
+	if (rt && likely(inet_confirm_addr(sock_net(sk), NULL, 0, fl.saddr, RT_SCOPE_HOST)))
 		goto transmit;
+
+	/* we may end up here when the cached address is not usable anymore.
+	 * In this case we reset address/cache and perform a new look up
+	 */
+	fl.saddr = 0;
+	dst_cache_reset(cache);
 
 	rt = ip_route_output_flow(sock_net(sk), &fl, sk);
 	if (IS_ERR(rt)) {
-		net_dbg_ratelimited("%s: no route to host %pISpc\n",
-				    ovpn->dev->name,
+		net_dbg_ratelimited("%s: no route to host %pISpc\n", ovpn->dev->name,
 				    &bind->sapair.remote.u.in4);
 		return -EHOSTUNREACH;
 	}
@@ -134,27 +140,27 @@ static int ovpn_udp6_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	int ret;
 
 	struct flowi6 fl = {
-		.saddr = bind->sapair.local.u.in6.sin6_addr,
 		.daddr = bind->sapair.remote.u.in6.sin6_addr,
-		.fl6_sport = bind->sapair.local.u.in6.sin6_port,
+		.fl6_sport = inet_sk(sk)->inet_sport,
 		.fl6_dport = bind->sapair.remote.u.in6.sin6_port,
 		.flowi6_proto = sk->sk_protocol,
 		.flowi6_mark = sk->sk_mark,
-		.flowi6_oif = sk->sk_bound_dev_if,
+		.flowi6_oif = bind->sapair.remote.u.in6.sin6_scope_id,
 	};
 
-	if (bind->sapair.remote.u.in6.sin6_scope_id &&
-	    __ipv6_addr_needs_scope_id(__ipv6_addr_type(&fl.daddr)))
-		fl.flowi6_oif = bind->sapair.remote.u.in6.sin6_scope_id;
-
 	dst = dst_cache_get_ip6(cache, &fl.saddr);
-	if (dst)
+	if (dst && likely(ipv6_chk_addr(sock_net(sk), &fl.saddr, NULL, 0)))
 		goto transmit;
 
-	dst = ip6_route_output(sock_net(sk), sk, &fl);
-	if (unlikely(dst->error < 0)) {
-		ret = dst->error;
-		dst_release(dst);
+	/* we may end up here when the cached address is not usable anymore.
+	 * In this case we reset address/cache and perform a new look up
+	 */
+	fl.saddr = in6addr_any;
+	dst_cache_reset(cache);
+
+	dst = ipv6_stub->ipv6_dst_lookup_flow(sock_net(sk), sk, &fl, NULL);
+	if (IS_ERR(dst)) {
+		ret = PTR_ERR(dst);
 		return ret;
 	}
 	dst_cache_set_ip6(cache, dst, &fl.saddr);
@@ -184,7 +190,7 @@ static int ovpn_udp_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	if (!skb->destructor)
 		skb->sk = NULL;
 
-	switch (bind->sapair.local.family) {
+	switch (bind->sapair.remote.u.in4.sin_family) {
 	case AF_INET:
 		ret = ovpn_udp4_output(ovpn, bind, cache, sk, skb);
 		break;
