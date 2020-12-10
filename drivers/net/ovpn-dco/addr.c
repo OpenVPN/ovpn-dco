@@ -14,13 +14,6 @@
 #include <net/ipv6.h>
 #include <net/ip.h>
 
-u32 ovpn_hashrnd __read_mostly;
-
-void ovpn_hash_secret_init(void)
-{
-	get_random_once(&ovpn_hashrnd, sizeof(ovpn_hashrnd));
-}
-
 /* Construct an ovpn_sockaddr_pair object from src/dest addr/port
  * addresses in an skb.
  */

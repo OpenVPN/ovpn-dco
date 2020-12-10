@@ -210,9 +210,6 @@ static int __init ovpn_init(void)
 
 	pr_info("%s %s -- %s\n", DRV_DESCRIPTION, DRV_VERSION, DRV_COPYRIGHT);
 
-	/* init random secret used to prevent hash collision attacks */
-	ovpn_hash_secret_init();
-
 	/* init RTNL link ops */
 	err = rtnl_link_register(&ovpn_link_ops);
 	if (err) {

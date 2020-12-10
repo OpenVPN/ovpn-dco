@@ -15,8 +15,6 @@
 #include <linux/in6.h>
 #include <net/ipv6.h>
 
-extern u32 ovpn_hashrnd __read_mostly;
-
 /* our basic transport layer address */
 struct ovpn_sockaddr {
 	unsigned short int family;
@@ -34,13 +32,6 @@ struct ovpn_sockaddr_pair {
 	struct ovpn_sockaddr remote; /* peer source address */
 };
 
-/* assumes that ovpn_hash_secret_init has been called */
-static __always_inline u32 ovpn_hash_3words(const u32 a, const u32 b,
-					    const u32 c)
-{
-	return jhash_3words(a, b, c, ovpn_hashrnd);
-}
-
 /* mask out the non-prefix bits in an IPv4 address */
 static inline __be32 ovpn_ipv4_network_addr(const __be32 addr,
 					    const unsigned int prefix_len)
@@ -50,24 +41,6 @@ static inline __be32 ovpn_ipv4_network_addr(const __be32 addr,
 
 	return addr & htonl(~((1 << (32 - prefix_len)) - 1));
 }
-
-/* return an IPv4 address / prefix_len hash */
-static inline u32 ovpn_ipv4_hash(const __be32 addr,
-				 const unsigned int prefix_len)
-{
-	return ovpn_hash_3words(AF_INET, addr, prefix_len);
-}
-
-#if IS_ENABLED(CONFIG_IPV6)
-/* return an IPv6 address / prefix_len hash */
-static inline u32 ovpn_ipv6_hash(const struct in6_addr *addr,
-				 const unsigned int prefix_len)
-{
-	return jhash_2words(AF_INET6,
-			    prefix_len,
-			    __ipv6_addr_jhash(addr, ovpn_hashrnd));
-}
-#endif
 
 /* Compare two ovpn_sockaddr_pair objects for equality,
  * considering family, addr, and port.
@@ -176,7 +149,5 @@ int ovpn_sockaddr_pair_from_skb(struct ovpn_sockaddr_pair *sapair,
 int ovpn_sockaddr_pair_from_sock(struct ovpn_sockaddr_pair *sapair,
 				 struct sock *sk,
 				 const bool tcp);
-
-void ovpn_hash_secret_init(void);
 
 #endif /* _NET_OVPN_DCO_OVPNADDR_H_ */
