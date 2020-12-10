@@ -5,14 +5,15 @@
 #  Author:	Antonio Quartulli <antonio@openvpn.net>
 
 set -x
+set -e
 
 OVPN_CLI=./ovpn-cli
 ALG=${ALG:-aes}
 
 function create_ns() {
-	ip -n peer$1 link del tun0
-	ip -n peer$1 link del veth$1
-	ip netns del peer$1
+	ip -n peer$1 link del tun0 || true
+	ip -n peer$1 link del veth$1 || true
+	ip netns del peer$1 || true
 	ip netns add peer$1
 }
 
@@ -46,7 +47,7 @@ function setup_ns() {
 create_ns 0
 create_ns 1
 
-ip link del veth0
+ip link del veth0 || true
 ip link add veth0 type veth peer name veth1
 
 ipv6=0
