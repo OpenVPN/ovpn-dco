@@ -143,11 +143,4 @@ static inline int skb_protocol_to_ip_ver(const struct sk_buff *skb)
 	}
 }
 
-int ovpn_sockaddr_pair_from_skb(struct ovpn_sockaddr_pair *sapair,
-				struct sk_buff *skb);
-
-int ovpn_sockaddr_pair_from_sock(struct ovpn_sockaddr_pair *sapair,
-				 struct sock *sk,
-				 const bool tcp);
-
 #endif /* _NET_OVPN_DCO_OVPNADDR_H_ */

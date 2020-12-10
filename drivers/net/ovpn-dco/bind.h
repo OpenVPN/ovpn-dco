@@ -15,6 +15,8 @@
 #include <linux/skbuff.h>
 #include <linux/spinlock.h>
 
+struct ovpn_peer;
+
 struct ovpn_bind {
 	struct ovpn_sockaddr_pair sapair;  /* local/remote sockaddrs */
 	struct rcu_head rcu;
@@ -99,12 +101,6 @@ static inline bool ovpn_bind_test_peer(const struct ovpn_bind *bind,
 
 bool ovpn_bind_get_sockaddr_pair(const struct ovpn_peer *peer,
 				 struct ovpn_sockaddr_pair *sapair);
-
-struct ovpn_struct;
-struct ovpn_peer;
-
-int ovpn_bind_record_peer(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
-			  struct sk_buff *skb, spinlock_t *lock);
 
 struct ovpn_bind *
 ovpn_bind_from_sockaddr_pair(const struct ovpn_sockaddr_pair *pair);

@@ -62,38 +62,6 @@ void ovpn_bind_reset(struct ovpn_peer *peer, struct ovpn_bind *new)
 		call_rcu(&old->rcu, ovpn_bind_release_rcu);
 }
 
-/* Save sockaddr of incoming packet.
- * rcu_read_lock must be held on entry but
- * will be released prior to exit.
- * Called in softirq context.
- */
-int ovpn_bind_record_peer(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
-			  struct sk_buff *skb, spinlock_t *lock)
-{
-	struct ovpn_sockaddr_pair sapair;
-	struct ovpn_bind *bind;
-	struct socket *sock;
-	int err;
-
-	ovpn_rcu_lockdep_assert_held();
-
-	err = ovpn_sockaddr_pair_from_skb(&sapair, skb);
-	if (unlikely(err < 0))
-		return err;
-
-	sock = peer->sock;
-	if (unlikely(!sock))
-		return -ENODEV;
-
-	bind = ovpn_bind_from_sockaddr_pair(&sapair);
-	if (IS_ERR(bind))
-		return PTR_ERR(bind);
-
-	ovpn_bind_reset(peer, bind);
-
-	return 0;
-}
-
 /* Get the ovpn_sockaddr_pair of the current binding and
  * save in sapair.  If binding is undefined, zero sapair.
  * Return true on success or false if binding is undefined.
