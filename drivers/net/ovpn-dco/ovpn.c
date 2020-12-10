@@ -287,7 +287,7 @@ void ovpn_decrypt_work(struct work_struct *work)
 
 	peer = container_of(work, struct ovpn_peer, decrypt_work);
 	while ((skb = __ptr_ring_consume(&peer->rx_ring))) {
-		if (ovpn_decrypt_one(peer, skb) == 0) {
+		if (likely(ovpn_decrypt_one(peer, skb) == 0)) {
 			/* if a packet has been enqueued for NAPI, signal
 			 * availability to the networking stack
 			 */
@@ -358,7 +358,7 @@ void ovpn_encrypt_work(struct work_struct *work)
 			 * packet, because it does not really make sense to send
 			 * only part of it at this point
 			 */
-			if (!ovpn_encrypt_one(peer, curr)) {
+			if (unlikely(!ovpn_encrypt_one(peer, curr))) {
 				kfree_skb_list(skb);
 				skb = NULL;
 				break;
@@ -407,7 +407,7 @@ static void ovpn_queue_skb(struct ovpn_struct *ovpn, struct sk_buff *skb)
 	}
 
 	ret = __ptr_ring_produce(&peer->tx_ring, skb);
-	if (ret < 0) {
+	if (unlikely(ret < 0)) {
 		pr_err_ratelimited("%s: cannot queue packet to TX ring\n", __func__);
 		goto drop;
 	}
@@ -549,7 +549,7 @@ int ovpn_send_data(struct ovpn_struct *ovpn, const u8 *data, size_t len)
 	}
 
 	peer = ovpn_peer_get(ovpn);
-	if (!peer) {
+	if (unlikely(!peer)) {
 		pr_debug("no peer to send data to\n");
 		return -EHOSTUNREACH;
 	}
