@@ -74,16 +74,22 @@ int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 	__skb_pull(skb, sizeof(struct udphdr));
 
 	ovpn = ovpn_from_udp_sock(sk);
-	if (unlikely(!ovpn))
+	if (unlikely(!ovpn)) {
+		pr_err_ratelimited("%s: cannot obtain ovpn object from UDP socket\n", __func__);
 		goto drop;
+	}
 
 	/* lookup peer */
 	peer = ovpn_lookup_peer_via_transport(ovpn, skb);
-	if (!peer)
+	if (!peer) {
+		pr_err_ratelimited("%s: cannot lookup peer from skb\n", __func__);
 		goto drop;
+	}
 
-	if (!ovpn_recv(ovpn, peer, skb))
+	if (!ovpn_recv(ovpn, peer, skb)) {
+		pr_err_ratelimited("%s: cannot handle incoming packet\n", __func__);
 		goto drop;
+	}
 
 	return 0;
 
@@ -223,14 +229,18 @@ void ovpn_udp_send_skb(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 
 	/* get socket info */
 	sock = peer->sock;
-	if (unlikely(!sock))
+	if (unlikely(!sock)) {
+		pr_debug_ratelimited("%s: no sock for remote peer\n", __func__);
 		goto out;
+	}
 
 	rcu_read_lock();
 	/* get binding */
 	bind = rcu_dereference(peer->bind);
-	if (unlikely(!bind))
+	if (unlikely(!bind)) {
+		pr_debug_ratelimited("%s: no bind for remote peer\n", __func__);
 		goto out_unlock;
+	}
 
 	/* note event of authenticated packet xmit for keepalive */
 	ovpn_peer_keepalive_xmit_reset(peer);
