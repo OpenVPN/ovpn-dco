@@ -31,7 +31,7 @@ function setup_ns() {
 
 	if [ $tcp -eq 0 ]; then
 		ip netns exec peer$1 $OVPN_CLI tun0 start_udp $5 $8
-		ip netns exec peer$1 $OVPN_CLI tun0 new_peer $2 $5 $6 $7
+		ip netns exec peer$1 $OVPN_CLI tun0 new_peer $6 $7
 		ip netns exec peer$1 $OVPN_CLI tun0 new_key $ALG $1 data64.key
 	else
 		if [ $1 -eq 0 ]; then

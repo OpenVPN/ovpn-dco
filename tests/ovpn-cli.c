@@ -61,17 +61,12 @@ struct ovpn_ctx {
 
 	sa_family_t sa_family;
 
-	union {
-		struct in_addr in4;
-		struct in6_addr in6;
-	} local;
 	__u16 lport;
 
 	union {
-		struct in_addr in4;
-		struct in6_addr in6;
+		struct sockaddr_in in4;
+		struct sockaddr_in6 in6;
 	} remote;
-	__u16 rport;
 
 	unsigned int ifindex;
 
@@ -453,9 +448,6 @@ static int ovpn_udp_socket(struct ovpn_ctx *ctx, sa_family_t family)
 
 static int ovpn_listen(struct ovpn_ctx *ctx, sa_family_t family)
 {
-	struct sockaddr_in6 *in6;
-	struct sockaddr_in *in4;
-	struct sockaddr in;
 	socklen_t socklen;
 	int ret;
 
@@ -469,8 +461,8 @@ static int ovpn_listen(struct ovpn_ctx *ctx, sa_family_t family)
 		goto err;
 	}
 
-	socklen = sizeof(in);
-	ret = accept(ctx->socket, (struct sockaddr *)&in, &socklen);
+	socklen = sizeof(ctx->remote);
+	ret = accept(ctx->socket, (struct sockaddr *)&ctx->remote, &socklen);
 	if (ret < 0) {
 		perror("accept");
 		goto err;
@@ -479,15 +471,8 @@ static int ovpn_listen(struct ovpn_ctx *ctx, sa_family_t family)
 	fprintf(stderr, "Connection received!\n");
 
 	switch (socklen) {
-	case sizeof(*in4):
-		in4 = (struct sockaddr_in *)&in;
-		ctx->remote.in4 = in4->sin_addr;
-		ctx->rport = ntohs(in4->sin_port);
-		break;
-	case sizeof(*in6):
-		in6 = (struct sockaddr_in6 *)&in;
-		ctx->remote.in6 = in6->sin6_addr;
-		ctx->rport = ntohs(in6->sin6_port);
+	case sizeof(struct sockaddr_in):
+	case sizeof(struct sockaddr_in6):
 		break;
 	default:
 		fprintf(stderr, "error: expecting IPv4 or IPv6 connection\n");
@@ -499,8 +484,6 @@ static int ovpn_listen(struct ovpn_ctx *ctx, sa_family_t family)
 	close(ctx->socket);
 	ctx->socket = ret;
 
-	ctx->sa_family = family;
-
 	return 0;
 err:
 	close(ctx->socket);
@@ -509,76 +492,33 @@ err:
 
 static int ovpn_connect(struct ovpn_ctx *ovpn)
 {
-	struct sockaddr_in6 in6, *local6;
-	struct sockaddr_in in4, *local4;
-	struct sockaddr *in, local;
 	socklen_t socklen;
 	int s, ret;
 
-	s = socket(ovpn->sa_family, SOCK_STREAM, 0);
+	s = socket(ovpn->remote.in4.sin_family, SOCK_STREAM, 0);
 	if (s < 0) {
 		perror("cannot create socket");
 		return -1;
 	}
 
-	switch (ovpn->sa_family) {
+	switch (ovpn->remote.in4.sin_family) {
 	case AF_INET:
-		memset(&in4, 0, sizeof(in4));
-		in4.sin_family = ovpn->sa_family;
-		in4.sin_addr = ovpn->remote.in4;
-		in4.sin_port = htons(ovpn->rport);
-		in = (struct sockaddr *)&in4;
-		socklen = sizeof(in4);
+		socklen = sizeof(struct sockaddr_in);
 		break;
 	case AF_INET6:
-		memset(&in6, 0, sizeof(in6));
-		in6.sin6_family = ovpn->sa_family;
-		in6.sin6_addr = ovpn->remote.in6;
-		in6.sin6_port = htons(ovpn->rport);
-		in = (struct sockaddr *)&in6;
-		socklen = sizeof(in6);
+		socklen = sizeof(struct sockaddr_in6);
 		break;
 	default:
 		return -EOPNOTSUPP;
 	}
 
-	ret = connect(s, in, socklen);
+	ret = connect(s, (struct sockaddr *)&ovpn->remote, socklen);
 	if (ret < 0) {
 		perror("connect");
 		goto err;
 	}
 
-	socklen = sizeof(local);
-	ret = getsockname(s, &local, &socklen);
-	if (ret < 0) {
-		perror("getsockname");
-		goto err;
-	}
-
 	fprintf(stderr, "connected\n");
-
-	switch (ovpn->sa_family) {
-	case AF_INET:
-		if (socklen != sizeof(*local4)) {
-			fprintf(stderr, "Expected IPv4 client!\n");
-			ret = -EINVAL;
-			goto err;
-		}
-		local4 = (struct sockaddr_in *)&local;
-		ovpn->local.in4 = local4->sin_addr;
-		ovpn->lport = local4->sin_port;
-		break;
-	case AF_INET6:
-		if (socklen != sizeof(*local6)) {
-			fprintf(stderr, "Expected IPv6 client!\n");
-			ret = -EINVAL;
-			goto err;
-		}
-		local6 = (struct sockaddr_in6 *)&local;
-		ovpn->local.in6 = local6->sin6_addr;
-		ovpn->lport = local6->sin6_port;
-		break;
-	}
 
 	ovpn->socket = s;
 
@@ -609,20 +549,19 @@ nla_put_failure:
 
 static int ovpn_new_peer(struct ovpn_ctx *ovpn)
 {
-	struct nlattr *addr;
 	struct nl_ctx *ctx;
 	size_t alen;
 	int ret = -1;
 
-	switch (ovpn->sa_family) {
+	switch (ovpn->remote.in4.sin_family) {
 	case AF_INET:
-		alen = sizeof(struct in_addr);
+		alen = sizeof(struct sockaddr_in);
 		break;
 	case AF_INET6:
-		alen = sizeof(struct in6_addr);
+		alen = sizeof(struct sockaddr_in6);
 		break;
 	default:
-		fprintf(stderr, "Invalid family for local/remote address\n");
+		fprintf(stderr, "Invalid family for remote socket address\n");
 		return -1;
 	}
 
@@ -630,19 +569,7 @@ static int ovpn_new_peer(struct ovpn_ctx *ovpn)
 	if (!ctx)
 		return -ENOMEM;
 
-	addr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_SOCKADDR_REMOTE);
-
-	NLA_PUT(ctx->nl_msg, OVPN_SOCKADDR_ATTR_ADDRESS, alen, &ovpn->remote);
-	NLA_PUT_U16(ctx->nl_msg, OVPN_SOCKADDR_ATTR_PORT, ovpn->rport);
-
-	nla_nest_end(ctx->nl_msg, addr);
-
-	addr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_SOCKADDR_LOCAL);
-
-	NLA_PUT(ctx->nl_msg, OVPN_SOCKADDR_ATTR_ADDRESS, alen, &ovpn->local);
-	NLA_PUT_U16(ctx->nl_msg, OVPN_SOCKADDR_ATTR_PORT, ovpn->lport);
-
-	nla_nest_end(ctx->nl_msg, addr);
+	NLA_PUT(ctx->nl_msg, OVPN_ATTR_SOCKADDR_REMOTE, alen, &ovpn->remote);
 
 	ret = ovpn_nl_msg_send(ctx, NULL);
 nla_put_failure:
@@ -1037,9 +964,7 @@ static void usage(const char *cmd)
 	fprintf(stderr, "\tlocal-port: src TCP port\n\n");
 
 	fprintf(stderr,
-		"* new_peer <laddr> <lport> <raddr> <rport>: set peer link\n");
-	fprintf(stderr, "\tlocal-addr: src IP address\n");
-	fprintf(stderr, "\tlocal-port: src UDP port\n");
+		"* new_peer <raddr> <rport>: set peer link\n");
 	fprintf(stderr, "\tremote-addr: peer IP address\n");
 	fprintf(stderr, "\tremote-port: peer UDP port\n\n");
 
@@ -1068,59 +993,41 @@ static void usage(const char *cmd)
 	fprintf(stderr, "\tstring: message to send to the peer\n");
 }
 
-static int ovpn_parse_new_peer(struct ovpn_ctx *ovpn, int argc, char *argv[])
+static int ovpn_parse_remote(struct ovpn_ctx *ovpn, const char *host, const char *service)
 {
 	int ret;
+	struct addrinfo *result;
+	struct addrinfo hints = {
+		.ai_family = AF_UNSPEC,
+		.ai_socktype = SOCK_DGRAM,
+		.ai_protocol = IPPROTO_UDP
+	};
 
-	if (argc < 7) {
+	ret = getaddrinfo(host, service, &hints, &result);
+	if (ret == EAI_NONAME || ret == EAI_FAIL)
+		return -1;
+
+	if (!(result->ai_family == AF_INET && result->ai_addrlen == sizeof(struct sockaddr_in)) &&
+	    !(result->ai_family == AF_INET6 && result->ai_addrlen == sizeof(struct sockaddr_in6))) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	memcpy(&ovpn->remote, result->ai_addr, result->ai_addrlen);
+	ret = 0;
+out:
+	freeaddrinfo(result);
+	return ret;
+}
+
+static int ovpn_parse_new_peer(struct ovpn_ctx *ovpn, int argc, char *argv[])
+{
+	if (argc < 5) {
 		usage(argv[0]);
 		return -1;
 	}
 
-	/* assume IPv4 unless parsing fallsback to IPv6 */
-	ovpn->sa_family = AF_INET;
-
-	ret = inet_pton(AF_INET, argv[3], &ovpn->local);
-	if (ret < 1) {
-		/* parsing IPv4 failed, try with IPv6 */
-		ret = inet_pton(AF_INET6, argv[3], &ovpn->local);
-		if (ret < 1) {
-			fprintf(stderr, "invalid local address\n");
-			return -1;
-		}
-
-		/* valid IPv6 found */
-		ovpn->sa_family = AF_INET6;
-	}
-
-	ovpn->lport = strtoul(argv[4], NULL, 10);
-	if (errno == ERANGE || ovpn->lport > 65535) {
-		fprintf(stderr, "lport value out of range\n");
-		return -1;
-	}
-
-	ret = inet_pton(AF_INET, argv[5], &ovpn->remote);
-	if (ret < 1) {
-		ret = inet_pton(AF_INET6, argv[5], &ovpn->remote);
-		if (ret < 1) {
-			fprintf(stderr, "invalid remote address\n");
-			return -1;
-		}
-
-		/* make sure we had already switched to IPv6 for the local
-		 * address
-		 */
-		if (ovpn->sa_family != AF_INET6)
-			return -1;
-	}
-
-	ovpn->rport = strtoul(argv[6], NULL, 10);
-	if (errno == ERANGE || ovpn->rport > 65535) {
-		fprintf(stderr, "rport value out of range\n");
-		return -1;
-	}
-
-	return 0;
+	return ovpn_parse_remote(ovpn, argv[3], argv[4]);
 }
 
 static int ovpn_parse_set_peer(struct ovpn_ctx *ovpn, int argc, char *argv[])
@@ -1232,23 +1139,10 @@ int main(int argc, char *argv[])
 
 		ovpn.sa_family = AF_INET;
 
-		ret = inet_pton(AF_INET, argv[3], &ovpn.remote);
-		if (ret < 1) {
-			/* parsing IPv4 failed, try with IPv6 */
-			ret = inet_pton(AF_INET6, argv[3], &ovpn.remote);
-			if (ret < 1) {
-				fprintf(stderr, "can't parse destination IP: %s\n", argv[3]);
-				return -1;
-			}
-
-			/* valid IPv6 found */
-			ovpn.sa_family = AF_INET6;
-		}
-
-		ovpn.rport = strtoul(argv[4], NULL, 10);
-		if (errno == ERANGE || ovpn.rport > 65535) {
-			fprintf(stderr, "rport value out of range\n");
-			return -1;
+		ret = ovpn_parse_remote(&ovpn, argv[3], argv[4]);
+		if (ret < 0) {
+			fprintf(stderr, "Cannot resolve remote\n");
+			return ret;
 		}
 
 		ret = ovpn_connect(&ovpn);
