@@ -137,14 +137,11 @@ static inline void ovpn_peer_keepalive_xmit_reset(struct ovpn_peer *peer)
 	mod_timer(&peer->keepalive_xmit, jiffies + delta);
 }
 
-struct ovpn_peer *
-ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn,
-			    const struct ovpn_sockaddr_pair *sapair);
+struct ovpn_peer *ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn, const struct sockaddr *sa);
 
 void ovpn_peer_delete(struct ovpn_peer *peer, enum ovpn_del_peer_reason reason);
 
-int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer,
-			     const struct ovpn_sockaddr_pair *sapair);
+int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer, const struct sockaddr *sa);
 
 int ovpn_peer_xmit_explicit_exit_notify(struct ovpn_peer *peer)
 	__must_hold(ovpn_config_mutex);

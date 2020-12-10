@@ -98,9 +98,9 @@ static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 {
 	struct rtable *rt;
 	struct flowi4 fl = {
-		.daddr = bind->sapair.remote.u.in4.sin_addr.s_addr,
+		.daddr = bind->sa.in4.sin_addr.s_addr,
 		.fl4_sport = inet_sk(sk)->inet_sport,
-		.fl4_dport = bind->sapair.remote.u.in4.sin_port,
+		.fl4_dport = bind->sa.in4.sin_port,
 		.flowi4_proto = sk->sk_protocol,
 		.flowi4_mark = sk->sk_mark,
 		.flowi4_oif = sk->sk_bound_dev_if,
@@ -119,7 +119,7 @@ static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	rt = ip_route_output_flow(sock_net(sk), &fl, sk);
 	if (IS_ERR(rt)) {
 		net_dbg_ratelimited("%s: no route to host %pISpc\n", ovpn->dev->name,
-				    &bind->sapair.remote.u.in4);
+				    &bind->sa.in4);
 		return -EHOSTUNREACH;
 	}
 	dst_cache_set_ip4(cache, &rt->dst, fl.saddr);
@@ -140,12 +140,12 @@ static int ovpn_udp6_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	int ret;
 
 	struct flowi6 fl = {
-		.daddr = bind->sapair.remote.u.in6.sin6_addr,
+		.daddr = bind->sa.in6.sin6_addr,
 		.fl6_sport = inet_sk(sk)->inet_sport,
-		.fl6_dport = bind->sapair.remote.u.in6.sin6_port,
+		.fl6_dport = bind->sa.in6.sin6_port,
 		.flowi6_proto = sk->sk_protocol,
 		.flowi6_mark = sk->sk_mark,
-		.flowi6_oif = bind->sapair.remote.u.in6.sin6_scope_id,
+		.flowi6_oif = bind->sa.in6.sin6_scope_id,
 	};
 
 	dst = dst_cache_get_ip6(cache, &fl.saddr);
@@ -190,7 +190,7 @@ static int ovpn_udp_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	if (!skb->destructor)
 		skb->sk = NULL;
 
-	switch (bind->sapair.remote.u.in4.sin_family) {
+	switch (bind->sa.in4.sin_family) {
 	case AF_INET:
 		ret = ovpn_udp4_output(ovpn, bind, cache, sk, skb);
 		break;

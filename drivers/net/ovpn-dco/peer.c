@@ -35,8 +35,7 @@ static void ovpn_peer_ping(struct timer_list *t)
 	struct ovpn_peer *peer = from_timer(peer, t, keepalive_xmit);
 
 	rcu_read_lock();
-	pr_debug("sending ping to peer %pIScp\n",
-		 &rcu_dereference(peer->bind)->sapair.remote.u);
+	pr_debug("sending ping to peer %pIScp\n", &rcu_dereference(peer->bind)->sa);
 	rcu_read_unlock();
 
 	ovpn_keepalive_xmit(peer);
@@ -68,8 +67,7 @@ static void ovpn_peer_expire(struct timer_list *t)
 	struct ovpn_peer *peer = from_timer(peer, t, keepalive_recv);
 
 	rcu_read_lock();
-	pr_debug("peer expired: %pIScp\n",
-		 &rcu_dereference(peer->bind)->sapair.remote.u);
+	pr_debug("peer expired: %pIScp\n", &rcu_dereference(peer->bind)->sa);
 	rcu_read_unlock();
 
 	ovpn_peer_evict(peer, OVPN_DEL_PEER_REASON_EXPIRED);
@@ -173,14 +171,13 @@ err:
 	return ERR_PTR(ret);
 }
 
-/* Reset the ovpn_sockaddr_pair associated with a peer */
-int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer,
-			     const struct ovpn_sockaddr_pair *sapair)
+/* Reset the ovpn_sockaddr associated with a peer */
+int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer, const struct sockaddr *sa)
 {
 	struct ovpn_bind *bind;
 
 	/* create new ovpn_bind object */
-	bind = ovpn_bind_from_sockaddr_pair(sapair);
+	bind = ovpn_bind_from_sockaddr(sa);
 	if (IS_ERR(bind))
 		return PTR_ERR(bind);
 
@@ -263,8 +260,7 @@ void ovpn_peer_delete(struct ovpn_peer *peer, enum ovpn_del_peer_reason reason)
 }
 
 struct ovpn_peer *
-ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn,
-			    const struct ovpn_sockaddr_pair *sapair)
+ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn, const struct sockaddr *sa)
 {
 	struct ovpn_peer *peer;
 	int ret;
@@ -275,7 +271,7 @@ ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn,
 		return peer;
 
 	/* set peer sockaddr */
-	ret = ovpn_peer_reset_sockaddr(peer, sapair);
+	ret = ovpn_peer_reset_sockaddr(peer, sa);
 	if (ret < 0) {
 		ovpn_peer_release(peer);
 		return ERR_PTR(ret);
@@ -291,8 +287,7 @@ void ovpn_peer_keepalive_set(struct ovpn_peer *peer, u32 interval, u32 timeout)
 
 	rcu_read_lock();
 	pr_debug("scheduling keepalive for %pIScp: interval=%u timeout=%u\n",
-		 &rcu_dereference(peer->bind)->sapair.remote.u, interval,
-		 timeout);
+		 &rcu_dereference(peer->bind)->sa, interval, timeout);
 	rcu_read_unlock();
 
 	peer->keepalive_interval = interval;

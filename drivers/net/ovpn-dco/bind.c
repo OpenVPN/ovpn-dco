@@ -14,26 +14,33 @@
 #include <net/route.h>
 #include <net/sock.h>
 
-/* Given a remote/local sockaddr pair, compute the skb hash
+/* Given a remote sockaddr, compute the skb hash
  * and get a dst_entry so we can send packets to the remote.
  * Called from process context or softirq (must be indicated with
  * process_context bool).
  */
-struct ovpn_bind *
-ovpn_bind_from_sockaddr_pair(const struct ovpn_sockaddr_pair *pair)
+struct ovpn_bind *ovpn_bind_from_sockaddr(const struct sockaddr *sa)
 {
 	struct ovpn_bind *bind;
+	size_t sa_len;
 	int err;
 
-	err = ovpn_sockaddr_pair_validate(pair);
+	if (sa->sa_family == AF_INET)
+		sa_len = sizeof(struct sockaddr_in);
+	else if (sa->sa_family == AF_INET6)
+		sa_len = sizeof(struct sockaddr_in6);
+	else
+		return ERR_PTR(-EAFNOSUPPORT);
+
+	err = ovpn_sockaddr_validate(sa);
 	if (err < 0)
 		return ERR_PTR(err);
 
-	bind = kmalloc(sizeof(*bind), GFP_KERNEL);
+	bind = kzalloc(sizeof(*bind), GFP_KERNEL);
 	if (unlikely(!bind))
 		return ERR_PTR(-ENOMEM);
 
-	bind->sapair = *pair;
+	memcpy(&bind->sa, sa, sa_len);
 
 	return bind;
 }
@@ -60,27 +67,4 @@ void ovpn_bind_reset(struct ovpn_peer *peer, struct ovpn_bind *new)
 
 	if (old)
 		call_rcu(&old->rcu, ovpn_bind_release_rcu);
-}
-
-/* Get the ovpn_sockaddr_pair of the current binding and
- * save in sapair.  If binding is undefined, zero sapair.
- * Return true on success or false if binding is undefined.
- */
-bool ovpn_bind_get_sockaddr_pair(const struct ovpn_peer *peer,
-				 struct ovpn_sockaddr_pair *sapair)
-{
-	struct ovpn_bind *bind;
-	bool ret = false;
-
-	memset(sapair, 0, sizeof(*sapair));
-
-	rcu_read_lock();
-	bind = rcu_dereference(peer->bind);
-	if (bind) {
-		*sapair = bind->sapair;
-		ret = true;
-	}
-	rcu_read_unlock();
-
-	return ret;
 }

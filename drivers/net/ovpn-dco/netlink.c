@@ -39,13 +39,6 @@ ovpn_netlink_policy_key_dir[OVPN_KEY_DIR_ATTR_MAX + 1] = {
 	[OVPN_KEY_DIR_ATTR_NONCE_TAIL] = NLA_POLICY_EXACT_LEN(NONCE_TAIL_SIZE),
 };
 
-static const struct nla_policy
-ovpn_netlink_policy_sockaddr[OVPN_SOCKADDR_ATTR_MAX + 1] = {
-	/* IPv4 only supported for now */
-	[OVPN_SOCKADDR_ATTR_ADDRESS] = NLA_POLICY_MIN_LEN(4),
-	[OVPN_SOCKADDR_ATTR_PORT] = { .type = NLA_U16 },
-};
-
 static const struct nla_policy ovpn_netlink_policy[OVPN_ATTR_MAX + 1] = {
 	[OVPN_ATTR_IFINDEX] = { .type = NLA_U32 },
 	[OVPN_ATTR_MODE] = { .type = NLA_U8 },
@@ -65,10 +58,7 @@ static const struct nla_policy ovpn_netlink_policy[OVPN_ATTR_MAX + 1] = {
 	[OVPN_ATTR_KEY_ID] = { .type = NLA_U16 },
 	[OVPN_ATTR_KEEPALIVE_INTERVAL] = { .type = NLA_U32 },
 	[OVPN_ATTR_KEEPALIVE_TIMEOUT] = { .type = NLA_U32 },
-	[OVPN_ATTR_SOCKADDR_REMOTE] =
-		NLA_POLICY_NESTED(ovpn_netlink_policy_sockaddr),
-	[OVPN_ATTR_SOCKADDR_LOCAL] =
-		NLA_POLICY_NESTED(ovpn_netlink_policy_sockaddr),
+	[OVPN_ATTR_SOCKADDR_REMOTE] = NLA_POLICY_MIN_LEN(sizeof(struct sockaddr)),
 };
 
 static struct net_device *
@@ -275,100 +265,34 @@ static int ovpn_netlink_swap_keys(struct sk_buff *skb, struct genl_info *info)
 	return 0;
 }
 
-static void ovpn_netlink_parse_sockaddr4(struct genl_info *info,
-					 struct nlattr *attrs[],
-					 struct sockaddr_in *sin)
-{
-	__be32 *addr;
-
-	sin->sin_family = AF_INET;
-	sin->sin_port = htons(nla_get_u16(attrs[OVPN_SOCKADDR_ATTR_PORT]));
-	addr = nla_data(attrs[OVPN_SOCKADDR_ATTR_ADDRESS]);
-	sin->sin_addr.s_addr = *addr;
-}
-
-#if IS_ENABLED(CONFIG_IPV6)
-static void ovpn_netlink_parse_sockaddr6(struct genl_info *info,
-					 struct nlattr *attrs[],
-					 struct sockaddr_in6 *sin)
-{
-	sin->sin6_family = AF_INET6;
-	sin->sin6_port = htons(nla_get_u16(attrs[OVPN_SOCKADDR_ATTR_PORT]));
-	memcpy(&sin->sin6_addr, nla_data(attrs[OVPN_SOCKADDR_ATTR_ADDRESS]),
-	       sizeof(sin->sin6_addr));
-}
-#endif
-
-static int ovpn_netlink_parse_sockaddr(struct genl_info *info,
-				       struct nlattr *key,
-				       struct ovpn_sockaddr *sa)
-{
-	struct nlattr *attrs[OVPN_SOCKADDR_ATTR_MAX + 1];
-	size_t addr_len;
-	int ret;
-
-	ret = nla_parse_nested(attrs, OVPN_SOCKADDR_ATTR_MAX, key,
-			       ovpn_netlink_policy_sockaddr, info->extack);
-	if (ret) {
-		pr_err("error while parsing sockaddr: %s\n",
-		       info->extack ? info->extack->_msg : "null");
-		return -EINVAL;
-	}
-
-	if (!attrs[OVPN_SOCKADDR_ATTR_ADDRESS] ||
-	    !attrs[OVPN_SOCKADDR_ATTR_PORT])
-		return -EINVAL;
-
-	/* decide address family based on address length */
-	addr_len = nla_len(attrs[OVPN_SOCKADDR_ATTR_ADDRESS]);
-	switch (addr_len) {
-	case sizeof(struct in_addr):
-		sa->family = AF_INET;
-		ovpn_netlink_parse_sockaddr4(info, attrs, &sa->u.in4);
-		return 0;
-#if IS_ENABLED(CONFIG_IPV6)
-	case sizeof(struct in6_addr):
-		sa->family = AF_INET6;
-		ovpn_netlink_parse_sockaddr6(info, attrs, &sa->u.in6);
-		return 0;
-#endif
-	}
-
-	return -EAFNOSUPPORT;
-}
-
 static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 {
 	struct ovpn_struct *ovpn = info->user_ptr[0];
-	struct ovpn_sockaddr_pair pair;
 	struct ovpn_peer *old, *new;
-	struct nlattr *attr;
-	int ret;
+	struct sockaddr *sa;
+	size_t sa_len;
 
-	if (!info->attrs[OVPN_ATTR_SOCKADDR_REMOTE] ||
-	    !info->attrs[OVPN_ATTR_SOCKADDR_LOCAL])
+	if (!info->attrs[OVPN_ATTR_SOCKADDR_REMOTE])
 		return -EINVAL;
 
-	memset(&pair, 0, sizeof(pair));
-
-	attr = info->attrs[OVPN_ATTR_SOCKADDR_REMOTE];
-	ret = ovpn_netlink_parse_sockaddr(info, attr, &pair.remote);
-	if (ret < 0)
-		return ret;
-
-	attr = info->attrs[OVPN_ATTR_SOCKADDR_LOCAL];
-	ret = ovpn_netlink_parse_sockaddr(info, attr, &pair.local);
-	if (ret < 0)
-		return ret;
-
-	/* local and remote endpoint must be both IPv4 or IPv6 */
-	if (pair.remote.family != pair.local.family)
+	sa = nla_data(info->attrs[OVPN_ATTR_SOCKADDR_REMOTE]);
+	sa_len = nla_len(info->attrs[OVPN_ATTR_SOCKADDR_REMOTE]);
+	switch (sa_len) {
+	case sizeof(struct sockaddr_in):
+		if (sa->sa_family != AF_INET)
+			return -EINVAL;
+		break;
+	case sizeof(struct sockaddr_in6):
+		if (sa->sa_family != AF_INET6)
+			return -EINVAL;
+		break;
+	default:
 		return -EINVAL;
+	}
 
-	new = ovpn_peer_new_with_sockaddr(ovpn, &pair);
+	new = ovpn_peer_new_with_sockaddr(ovpn, sa);
 	if (IS_ERR(new)) {
-		pr_err("cannot create new peer object for %pIScp\n",
-		       &pair.remote.u);
+		pr_err("cannot create new peer object for %pIScp\n", sa);
 		return PTR_ERR(new);
 	}
 
@@ -380,8 +304,7 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 		ovpn_peer_put(old);
 	spin_unlock_bh(&ovpn->lock);
 
-	pr_debug("%s: added peer %pIScp <-> %pIScp\n", __func__,
-		 &pair.local.u, &pair.remote.u);
+	pr_debug("%s: added peer (%pIScp)\n", __func__, sa);
 
 	return 0;
 }
