@@ -32,7 +32,7 @@ void ovpn_explicit_exit_notify_xmit(struct ovpn_peer *peer);
 
 netdev_tx_t ovpn_net_xmit(struct sk_buff *skb, struct net_device *dev);
 
-bool ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer, struct sk_buff *skb);
+int ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer, struct sk_buff *skb);
 
 void ovpn_encrypt_work(struct work_struct *work);
 void ovpn_decrypt_work(struct work_struct *work);

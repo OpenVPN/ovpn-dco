@@ -57,7 +57,7 @@ enum {
  * Extract the OP code from the skb head.
  *
  * Note: this function assumes that the skb head was pulled enough
- * to access the first byte at the beginning of the data buffer.
+ * to access the first byte.
  *
  * Return the OP code
  */

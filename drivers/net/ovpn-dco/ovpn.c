@@ -151,8 +151,7 @@ int ovpn_napi_poll(struct napi_struct *napi, int budget)
 	return work_done;
 }
 
-static int ovpn_transport_to_userspace(struct ovpn_struct *ovpn,
-				       struct sk_buff *skb)
+static int ovpn_transport_to_userspace(struct ovpn_struct *ovpn, struct sk_buff *skb)
 {
 	int ret;
 
@@ -168,22 +167,42 @@ static int ovpn_transport_to_userspace(struct ovpn_struct *ovpn,
 	return 0;
 }
 
-/* enqueue the packet and schedule RX consumer */
-bool ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
-	       struct sk_buff *skb)
+/* Entry point for processing an incoming packet (in skb form)
+ *
+ * Enqueue the packet and schedule RX consumer.
+ * Reference to peer is dropped only in case of success.
+ *
+ * Return 0  if the packet was handled (and consumed)
+ * Return <0 in case of error (return value is error code)
+ */
+int ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer, struct sk_buff *skb)
 {
 	int ret;
 
-	ret = __ptr_ring_produce(&peer->rx_ring, skb);
-	if (ret < 0) {
+	/* Make sure the first byte of the skb data buffer after the UDP header is accessible.
+	 * It is going to be used to fetch the OP code now and the key ID later
+	 */
+	if (unlikely(!pskb_may_pull(skb, 1)))
+		return -ENODATA;
+
+	/* only DATA_V2 packets are handled in kernel space, the rest goes to user space */
+	if (unlikely(ovpn_opcode_from_skb(skb) != OVPN_DATA_V2)) {
+		ret = ovpn_transport_to_userspace(ovpn, skb);
+		if (ret < 0)
+			return ret;
+
 		ovpn_peer_put(peer);
-		return false;
+		return 0;
 	}
+
+	ret = __ptr_ring_produce(&peer->rx_ring, skb);
+	if (unlikely(ret < 0))
+		return -ENOSPC;
 
 	if (!queue_work(ovpn->crypto_wq, &peer->decrypt_work))
 		ovpn_peer_put(peer);
 
-	return true;
+	return 0;
 }
 
 static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
@@ -196,27 +215,6 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 
 	/* save original packet size for stats accounting */
 	OVPN_SKB_CB(skb)->rx_stats_size = skb->len;
-
-	/* we only handle OVPN_DATA_V2 packets from known peers here.
-	 *
-	 * all other packets are sent to userspace via netlink
-	 */
-	if (!pskb_may_pull(skb, 1)) {
-		ret = -ENODATA;
-		goto drop;
-	}
-
-	if (unlikely(ovpn_opcode_from_skb(skb) != OVPN_DATA_V2)) {
-		ret = ovpn_transport_to_userspace(peer->ovpn, skb);
-		if (ret < 0)
-			goto drop;
-
-		/* even though the packet handling was successful, return -1 to
-		 * tell the caller that no packet was enqueued for delivery to
-		 * the tun interface, therefore NAPI should not be scheduled
-		 */
-		return -1;
-	}
 
 	/* get the key slot matching the key Id in the received packet */
 	key_id = ovpn_key_id_from_skb(skb);
