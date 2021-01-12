@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*  OpenVPN data channel accelerator
  *
- *  Copyright (C) 2020 OpenVPN, Inc.
+ *  Copyright (C) 2020-2021 OpenVPN, Inc.
  *
  *  Author:	Antonio Quartulli <antonio@openvpn.net>
  *		James Yonan <james@openvpn.net>
@@ -31,7 +31,7 @@
 #define DRV_NAME	"ovpn-dco"
 #define DRV_VERSION	OVPN_DCO_VERSION
 #define DRV_DESCRIPTION	"OpenVPN data channel offload (ovpn-dco)"
-#define DRV_COPYRIGHT	"(C) 2020 OpenVPN, Inc."
+#define DRV_COPYRIGHT	"(C) 2020-2021 OpenVPN, Inc."
 
 static void ovpn_struct_free(struct net_device *net)
 {

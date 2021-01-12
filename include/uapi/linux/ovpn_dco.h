@@ -2,7 +2,7 @@
 /*
  *  OpenVPN data channel accelerator
  *
- *  Copyright (C) 2019-2020 OpenVPN, Inc.
+ *  Copyright (C) 2019-2021 OpenVPN, Inc.
  *
  *  Author:	James Yonan <james@openvpn.net>
  *		Antonio Quartulli <antonio@openvpn.net>

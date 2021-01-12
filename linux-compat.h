@@ -4,6 +4,7 @@
  *  Copyright (C) 2020 OpenVPN, Inc.
  *
  *  Author:	Lev Stipakov <lev@openvpn.net>
+ *		Antonio Quartulli <antonio@openvpn.net>
  */
 
 #ifndef _NET_OVPN_DCO_LINUX_COMPAT_H_
