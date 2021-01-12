@@ -23,40 +23,6 @@
 #include <net/ipv6_stubs.h>
 #include <net/udp_tunnel.h>
 
-/* Lookup ovpn_peer using incoming encrypted transport packet.
- * This is for looking up transport -> ovpn packets.
- */
-static struct ovpn_peer *
-ovpn_lookup_peer_via_transport(struct ovpn_struct *ovpn,
-			       struct sk_buff *skb)
-{
-	struct ovpn_peer *peer;
-	struct ovpn_bind *bind;
-
-	rcu_read_lock();
-	peer = ovpn_peer_get(ovpn);
-	if (unlikely(!peer))
-		goto err;
-
-	bind = rcu_dereference(peer->bind);
-	if (unlikely(!bind))
-		goto err;
-
-	/* only one peer is supported at the moment. check if it's the one the
-	 * skb was received from and return it
-	 */
-	if (unlikely(!ovpn_bind_skb_match(bind, skb)))
-		goto err;
-
-	rcu_read_unlock();
-	return peer;
-
-err:
-	ovpn_peer_put(peer);
-	rcu_read_unlock();
-	return NULL;
-}
-
 /**
  * Start processing a received UDP packet.
  * If the first byte of the payload is DATA_V2, the packet is further processed,
@@ -74,6 +40,7 @@ int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 {
 	struct ovpn_peer *peer = NULL;
 	struct ovpn_struct *ovpn;
+	u32 peer_id;
 	int ret;
 
 	ovpn = ovpn_from_udp_sock(sk);
@@ -82,11 +49,29 @@ int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 		goto drop;
 	}
 
-	/* lookup peer */
-	peer = ovpn_lookup_peer_via_transport(ovpn, skb);
-	if (unlikely(!peer)) {
-		pr_debug_ratelimited("%s: packet from unknown peer going to userspace\n", __func__);
-		return 1;
+	/* Make sure the first 4 bytes of the skb data buffer after the UDP header are accessible.
+	 * They are required to fetch the OP code, the key ID and the peer ID.
+	 */
+	if (unlikely(!pskb_may_pull(skb, sizeof(struct udphdr) + 4))) {
+		pr_debug_ratelimited("%s: packet too small\n", __func__);
+		goto drop;
+	}
+
+	if (likely(ovpn_opcode_from_skb(skb, sizeof(struct udphdr)) == OVPN_DATA_V2)) {
+		peer_id = ovpn_peer_id_from_skb(skb, sizeof(struct udphdr));
+		peer = ovpn_peer_lookup_id(ovpn, peer_id);
+		if (!peer) {
+			pr_err_ratelimited("%s: received data from unknown peer (id: %d)\n",
+					   __func__, peer_id);
+			goto drop;
+		}
+	} else {
+		peer = ovpn_peer_lookup_transp_addr(ovpn, skb);
+		if (!peer) {
+			pr_debug("%s: control packet from unknown peer, sending to userspace",
+				 __func__);
+			return 1;
+		}
 	}
 
 	/* pop off outer UDP header */
@@ -240,7 +225,7 @@ void ovpn_udp_send_skb(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	skb->ip_summed = CHECKSUM_NONE;
 
 	/* get socket info */
-	sock = peer->sock;
+	sock = peer->sock->sock;
 	if (unlikely(!sock)) {
 		pr_debug_ratelimited("%s: no sock for remote peer\n", __func__);
 		goto out;
@@ -265,4 +250,48 @@ out_unlock:
 out:
 	if (ret < 0)
 		kfree_skb(skb);
+}
+
+/* Set UDP encapsulation callbacks */
+int ovpn_udp_socket_attach(struct socket *sock, struct ovpn_struct *ovpn)
+{
+	struct udp_tunnel_sock_cfg cfg = {
+		.sk_user_data = ovpn,
+		.encap_type = UDP_ENCAP_OVPNINUDP,
+		.encap_rcv = ovpn_udp_encap_recv,
+	};
+	struct ovpn_socket *old_data;
+
+	/* sanity check */
+	if (sock->sk->sk_protocol != IPPROTO_UDP) {
+		pr_err("%s: expected UDP socket\n", __func__);
+		return -EINVAL;
+	}
+
+	/* make sure no pre-existing encapsulation handler exists */
+	rcu_read_lock();
+	old_data = rcu_dereference_sk_user_data(sock->sk);
+	rcu_read_unlock();
+	if (old_data) {
+		if (old_data->ovpn == ovpn) {
+			pr_debug("%s: provided socket already owned by this interface\n", __func__);
+			return -EALREADY;
+		}
+
+		pr_err("%s: provided socket already taken by other user\n", __func__);
+		return -EBUSY;
+	}
+
+	setup_udp_tunnel_sock(sock_net(sock->sk), sock, &cfg);
+
+	return 0;
+}
+
+/* Detach socket from encapsulation handler and/or other callbacks */
+void ovpn_udp_socket_detach(struct socket *sock)
+{
+	struct udp_tunnel_sock_cfg cfg = { };
+
+	setup_udp_tunnel_sock(sock_net(sock->sk), sock, &cfg);
+	sockfd_put(sock);
 }

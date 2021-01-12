@@ -22,6 +22,18 @@
 struct ovpn_peer {
 	struct ovpn_struct *ovpn;
 
+	u32 id;
+
+	struct {
+		struct in_addr ipv4;
+		struct in6_addr ipv6;
+	} vpn_addrs;
+
+	struct hlist_node hash_entry_id;
+	struct hlist_node hash_entry_addr4;
+	struct hlist_node hash_entry_addr6;
+	struct hlist_node hash_entry_transp_addr;
+
 	/* work objects to handle encryption/decryption of packets.
 	 * these works are queued on the ovpn->crypt_wq workqueue.
 	 */
@@ -34,7 +46,7 @@ struct ovpn_peer {
 
 	struct napi_struct napi;
 
-	struct socket *sock;
+	struct ovpn_socket *sock;
 
 	/* state of the TCP reading. Needed to keep track of how much of a single packet has already
 	 * been read from the stream and how much is missing
@@ -105,8 +117,6 @@ int ovpn_update_peer_by_sockaddr_pc(struct ovpn_peer *peer);
 void ovpn_peer_release_kref(struct kref *kref);
 void ovpn_peer_release(struct ovpn_peer *peer);
 
-struct ovpn_peer *ovpn_peer_get(struct ovpn_struct *ovpn);
-
 static inline bool ovpn_peer_hold(struct ovpn_peer *peer)
 {
 	return kref_get_unless_zero(&peer->refcount);
@@ -137,9 +147,9 @@ static inline void ovpn_peer_keepalive_xmit_reset(struct ovpn_peer *peer)
 	mod_timer(&peer->keepalive_xmit, jiffies + delta);
 }
 
-struct ovpn_peer *ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn, const struct sockaddr *sa);
-
-void ovpn_peer_delete(struct ovpn_peer *peer, enum ovpn_del_peer_reason reason);
+struct ovpn_peer *
+ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn, const struct sockaddr *sa,
+			    struct socket *sock);
 
 int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer, const struct sockaddr *sa);
 
@@ -148,6 +158,13 @@ int ovpn_peer_xmit_explicit_exit_notify(struct ovpn_peer *peer)
 
 void ovpn_peer_keepalive_set(struct ovpn_peer *peer, u32 interval, u32 timeout);
 
-void ovpn_peer_evict(struct ovpn_peer *peer, int del_reason);
+int ovpn_peer_add(struct ovpn_struct *ovpn, struct ovpn_peer *peer);
+int ovpn_peer_del(struct ovpn_peer *peer, enum ovpn_del_peer_reason reason);
+struct ovpn_peer *ovpn_peer_find(struct ovpn_struct *ovpn, u32 peer_id);
+void ovpn_peers_free(struct ovpn_struct *ovpn);
+
+struct ovpn_peer *ovpn_peer_lookup_transp_addr(struct ovpn_struct *ovpn, struct sk_buff *skb);
+struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_buff *skb);
+struct ovpn_peer *ovpn_peer_lookup_id(struct ovpn_struct *ovpn, u32 peer_id);
 
 #endif /* _NET_OVPN_DCO_OVPNPEER_H_ */

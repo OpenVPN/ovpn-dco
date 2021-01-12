@@ -11,13 +11,10 @@
 
 #include <linux/workqueue.h>
 
-void ovpn_tcp_tx_work(struct work_struct *work);
-void ovpn_tcp_rx_work(struct work_struct *work);
-
 void ovpn_queue_tcp_skb(struct ovpn_peer *peer, struct sk_buff *skb);
 
-int ovpn_tcp_sock_attach(struct socket *sock, struct ovpn_peer *peer);
-void ovpn_tcp_sock_detach(struct socket *sock);
+int ovpn_tcp_socket_attach(struct socket *sock, struct ovpn_peer *peer);
+void ovpn_tcp_socket_detach(struct socket *sock);
 
 /* Prepare skb and enqueue it for sending to peer.
  *

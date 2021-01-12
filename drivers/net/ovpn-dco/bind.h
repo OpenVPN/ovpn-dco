@@ -22,8 +22,7 @@ struct ovpn_bind {
 	struct rcu_head rcu;
 };
 
-static inline bool ovpn_bind_skb_match(const struct ovpn_bind *bind,
-				       struct sk_buff *skb)
+static inline bool ovpn_bind_skb_match(const struct ovpn_bind *bind, struct sk_buff *skb)
 {
 	const unsigned short family = skb_protocol_to_family(skb);
 	const struct ovpn_sockaddr *sa = &bind->sa;

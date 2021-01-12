@@ -31,13 +31,14 @@ struct ovpn_struct {
 	 */
 	struct workqueue_struct *events_wq;
 
-	/* associated peer. in client mode we need only one peer. will be
-	 * extended with a table later
-	 */
-	struct ovpn_peer __rcu *peer;
-	struct socket *sock;
-	enum ovpn_mode mode;
-	enum ovpn_proto proto;
+	/* list of known peers */
+	struct {
+		DECLARE_HASHTABLE(by_id, 12);
+		DECLARE_HASHTABLE(by_transp_addr, 12);
+		DECLARE_HASHTABLE(by_vpn_addr, 12);
+		/* protects write access to any of the hashtables above */
+		spinlock_t lock;
+	} peers;
 
 	unsigned int max_tun_queue_len;
 

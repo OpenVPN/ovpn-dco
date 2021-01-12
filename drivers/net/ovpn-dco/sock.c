@@ -18,54 +18,60 @@
 #include <net/udp.h>
 #include <net/udp_tunnel.h>
 
-/* Detach socket from encapsulation handler and/or other callbacks */
-static void ovpn_sock_unset_udp_cb(struct socket *sock)
-{
-	struct udp_tunnel_sock_cfg cfg = { };
-
-	setup_udp_tunnel_sock(sock_net(sock->sk), sock, &cfg);
-	sockfd_put(sock);
-}
-
 /* Finalize release of socket, called after RCU grace period */
-void ovpn_sock_detach(struct socket *sock)
+static void ovpn_socket_detach(struct socket *sock)
 {
 	if (!sock)
 		return;
 
 	if (sock->sk->sk_protocol == IPPROTO_UDP)
-		ovpn_sock_unset_udp_cb(sock);
+		ovpn_udp_socket_detach(sock);
 	else if (sock->sk->sk_protocol == IPPROTO_TCP)
-		ovpn_tcp_sock_detach(sock);
+		ovpn_tcp_socket_detach(sock);
 }
 
-/* Set UDP encapsulation callbacks */
-int ovpn_sock_attach_udp(struct socket *sock, struct ovpn_struct *ovpn)
+void ovpn_socket_release_kref(struct kref *kref)
 {
-	struct udp_tunnel_sock_cfg cfg = {
-		.sk_user_data = ovpn,
-		.encap_type = UDP_ENCAP_OVPNINUDP,
-		.encap_rcv = ovpn_udp_encap_recv,
-	};
-	void *old_data;
+	struct ovpn_socket *sock = container_of(kref, struct ovpn_socket, refcount);
 
-	if (sock->sk->sk_protocol != IPPROTO_UDP) {
-		pr_err("%s: expected UDP socket\n", __func__);
-		return -EINVAL;
-	}
+	ovpn_socket_detach(sock->sock);
+	kfree_rcu(sock, rcu);
+}
 
-	/* make sure no pre-existing encapsulation handler exists */
+static bool ovpn_socket_hold(struct ovpn_socket *sock)
+{
+	return kref_get_unless_zero(&sock->refcount);
+}
+
+static struct ovpn_socket *ovpn_socket_get(struct socket *sock)
+{
+	struct ovpn_socket *ovpn_sock;
+
 	rcu_read_lock();
-	old_data = rcu_dereference_sk_user_data(sock->sk);
-	rcu_read_unlock();
-	if (old_data) {
-		pr_err("provided socket already taken by other user\n");
-		return -EBUSY;
+	ovpn_sock = rcu_dereference_sk_user_data(sock->sk);
+	if (!ovpn_socket_hold(ovpn_sock)) {
+		pr_warn("%s: found ovpn_socket with ref = 0\n", __func__);
+		ovpn_sock = NULL;
 	}
+	rcu_read_unlock();
 
-	setup_udp_tunnel_sock(sock_net(sock->sk), sock, &cfg);
+	return ovpn_sock;
+}
 
-	return 0;
+/* Finalize release of socket, called after RCU grace period */
+static int ovpn_socket_attach(struct socket *sock, struct ovpn_peer *peer)
+{
+	int ret = -ENOTSUPP;
+
+	if (!sock || !peer)
+		return -EINVAL;
+
+	if (sock->sk->sk_protocol == IPPROTO_UDP)
+		ret = ovpn_udp_socket_attach(sock, peer->ovpn);
+	else if (sock->sk->sk_protocol == IPPROTO_TCP)
+		ret = ovpn_tcp_socket_attach(sock, peer);
+
+	return ret;
 }
 
 /* Return the encapsulation overhead of the socket */
@@ -81,25 +87,57 @@ int ovpn_sock_holder_encap_overhead(struct socket *sock)
 
 struct ovpn_struct *ovpn_from_udp_sock(struct sock *sk)
 {
-	struct ovpn_struct *ovpn;
-	struct ovpn_peer *peer;
+	struct ovpn_socket *ovpn_sock;
 
 	ovpn_rcu_lockdep_assert_held();
 
 	if (unlikely(READ_ONCE(udp_sk(sk)->encap_type) != UDP_ENCAP_OVPNINUDP))
 		return NULL;
 
-	ovpn = rcu_dereference_sk_user_data(sk);
-	if (unlikely(!ovpn))
-		return NULL;
-
-	peer = rcu_dereference(ovpn->peer);
-	if (unlikely(!peer))
+	ovpn_sock = rcu_dereference_sk_user_data(sk);
+	if (unlikely(!ovpn_sock))
 		return NULL;
 
 	/* make sure that sk matches our stored transport socket */
-	if (unlikely(!peer->sock || sk != peer->sock->sk))
+	if (unlikely(!ovpn_sock->sock || sk != ovpn_sock->sock->sk))
 		return NULL;
 
-	return ovpn;
+	return ovpn_sock->ovpn;
+}
+
+struct ovpn_socket *ovpn_socket_new(struct socket *sock, struct ovpn_peer *peer)
+{
+	struct ovpn_socket *ovpn_sock;
+	int ret;
+
+	ret = ovpn_socket_attach(sock, peer);
+	if (ret < 0 && ret != -EALREADY)
+		return ERR_PTR(ret);
+
+	/* if this socket is already owned by this interface, just increase the refcounter */
+	if (ret == -EALREADY) {
+		ovpn_sock = ovpn_socket_get(sock);
+		return ovpn_sock;
+	}
+
+	ovpn_sock = kmalloc(sizeof(*ovpn_sock), GFP_KERNEL);
+	if (!ovpn_sock)
+		return ERR_PTR(-ENOMEM);
+
+	ovpn_sock->ovpn = peer->ovpn;
+	ovpn_sock->sock = sock;
+	kref_init(&ovpn_sock->refcount);
+
+	/* UDP sockets are shared session wide, therefore they are linked to the ovpn_struct
+	 * representing the session
+	 */
+	if (sock->sk->sk_protocol == IPPROTO_UDP)
+		ovpn_sock->ovpn = peer->ovpn;
+	/* TCP sockets are per-peer, therefore they are linked to their unique peer */
+	else if (sock->sk->sk_protocol == IPPROTO_TCP)
+		ovpn_sock->peer = peer;
+
+	rcu_assign_sk_user_data(sock->sk, ovpn_sock);
+
+	return ovpn_sock;
 }

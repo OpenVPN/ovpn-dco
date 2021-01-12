@@ -38,6 +38,6 @@ void ovpn_encrypt_work(struct work_struct *work);
 void ovpn_decrypt_work(struct work_struct *work);
 int ovpn_napi_poll(struct napi_struct *napi, int budget);
 
-int ovpn_send_data(struct ovpn_struct *ovpn, const u8 *data, size_t len);
+int ovpn_send_data(struct ovpn_struct *ovpn, u32 peer_id, const u8 *data, size_t len);
 
 #endif /* _NET_OVPN_DCO_OVPN_H_ */

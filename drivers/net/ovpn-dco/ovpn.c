@@ -62,7 +62,7 @@ int ovpn_struct_init(struct net_device *dev)
 		return err;
 
 	spin_lock_init(&ovpn->lock);
-	RCU_INIT_POINTER(ovpn->peer, NULL);
+	spin_lock_init(&ovpn->peers.lock);
 
 	ovpn->crypto_wq = alloc_workqueue("ovpn-crypto-wq-%s",
 					  WQ_CPU_INTENSIVE | WQ_MEM_RECLAIM, 0,
@@ -179,14 +179,13 @@ int ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer, struct sk_buff *
 {
 	int ret;
 
-	/* Make sure the first byte of the skb data buffer after the UDP header is accessible.
-	 * It is going to be used to fetch the OP code now and the key ID later
+	/* At this point we know the packet is from a configured peer.
+	 * DATA_V2 packets are handled in kernel space, the rest goes to user space.
+	 *
+	 * Packets are sent to userspace via netlink API in order to be consistenbt across
+	 * UDP and TCP.
 	 */
-	if (unlikely(!pskb_may_pull(skb, 1)))
-		return -ENODATA;
-
-	/* only DATA_V2 packets are handled in kernel space, the rest goes to user space */
-	if (unlikely(ovpn_opcode_from_skb(skb) != OVPN_DATA_V2)) {
+	if (unlikely(ovpn_opcode_from_skb(skb, 0) != OVPN_DATA_V2)) {
 		ret = ovpn_transport_to_userspace(ovpn, skb);
 		if (ret < 0)
 			return ret;
@@ -368,13 +367,11 @@ void ovpn_encrypt_work(struct work_struct *work)
 			skb_list_walk_safe(skb, curr, next) {
 				skb_mark_not_on_list(curr);
 
-				switch (peer->ovpn->proto) {
-				case OVPN_PROTO_UDP4:
-				case OVPN_PROTO_UDP6:
+				switch (peer->sock->sock->sk->sk_protocol) {
+				case IPPROTO_UDP:
 					ovpn_udp_send_skb(peer->ovpn, peer, curr);
 					break;
-				case OVPN_PROTO_TCP4:
-				case OVPN_PROTO_TCP6:
+				case IPPROTO_TCP:
 					ovpn_tcp_send_skb(peer, curr);
 					break;
 				default:
@@ -395,10 +392,10 @@ void ovpn_encrypt_work(struct work_struct *work)
 /* Put skb into TX queue and schedule a consumer */
 static void ovpn_queue_skb(struct ovpn_struct *ovpn, struct sk_buff *skb)
 {
-	struct ovpn_peer *peer;
+	struct ovpn_peer *peer = NULL;
 	int ret;
 
-	peer = ovpn_peer_get(ovpn);
+	peer = ovpn_peer_lookup_vpn_addr(ovpn, skb);
 	if (unlikely(!peer)) {
 		pr_info_ratelimited("%s: no peer to send data to\n", __func__);
 		goto drop;
@@ -528,7 +525,7 @@ void ovpn_explicit_exit_notify_xmit(struct ovpn_peer *peer)
  * For UDP transport: just sent the skb to peer
  * For TCP transport: put skb into TX queue
  */
-int ovpn_send_data(struct ovpn_struct *ovpn, const u8 *data, size_t len)
+int ovpn_send_data(struct ovpn_struct *ovpn, u32 peer_id, const u8 *data, size_t len)
 {
 	u16 skb_len = SKB_HEADER_LEN + len;
 	struct ovpn_peer *peer;
@@ -536,20 +533,15 @@ int ovpn_send_data(struct ovpn_struct *ovpn, const u8 *data, size_t len)
 	bool tcp = false;
 	int ret = 0;
 
-	switch (ovpn->proto) {
-	case OVPN_PROTO_TCP4:
-	case OVPN_PROTO_TCP6:
-		skb_len += sizeof(u16);
-		tcp = true;
-		break;
-	default:
-		break;
-	}
-
-	peer = ovpn_peer_get(ovpn);
+	peer = ovpn_peer_lookup_id(ovpn, peer_id);
 	if (unlikely(!peer)) {
 		pr_debug("no peer to send data to\n");
 		return -EHOSTUNREACH;
+	}
+
+	if (peer->sock->sock->sk->sk_protocol == IPPROTO_TCP) {
+		skb_len += sizeof(u16);
+		tcp = true;
 	}
 
 	skb = alloc_skb(skb_len, GFP_ATOMIC);

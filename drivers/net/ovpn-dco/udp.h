@@ -17,6 +17,8 @@
 #include <linux/types.h>
 #include <net/sock.h>
 
+int ovpn_udp_socket_attach(struct socket *sock, struct ovpn_struct *ovpn);
+void ovpn_udp_socket_detach(struct socket *sock);
 int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb);
 void ovpn_udp_send_skb(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 		       struct sk_buff *skb);

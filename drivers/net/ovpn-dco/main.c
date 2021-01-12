@@ -37,7 +37,6 @@ static void ovpn_struct_free(struct net_device *net)
 {
 	struct ovpn_struct *ovpn = netdev_priv(net);
 
-	ovpn_sock_detach(ovpn->sock);
 	security_tun_dev_free_security(ovpn->security);
 	free_percpu(net->tstats);
 	flush_workqueue(ovpn->crypto_wq);
@@ -168,18 +167,9 @@ static void ovpn_setup(struct net_device *dev)
 static void ovpn_dellink(struct net_device *dev, struct list_head *head)
 {
 	struct ovpn_struct *ovpn = netdev_priv(dev);
-	struct ovpn_peer *peer;
 
-	spin_lock_bh(&ovpn->lock);
-	peer = ovpn_peer_get(ovpn);
-	if (peer) {
-		RCU_INIT_POINTER(ovpn->peer, NULL);
-		ovpn_peer_delete(peer, OVPN_DEL_PEER_REASON_TEARDOWN);
-		ovpn_peer_put(peer);
-	}
-	spin_unlock_bh(&ovpn->lock);
-
-	unregister_netdevice_queue(dev, head); /* calls ovpn_net_uninit */
+	ovpn_peers_free(ovpn);
+	unregister_netdevice_queue(dev, head);
 }
 
 /**
