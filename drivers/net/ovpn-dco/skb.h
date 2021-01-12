@@ -32,7 +32,18 @@ static inline u32 ovpn_skb_queue_len(const struct sk_buff_head *list)
 
 static inline int ovpn_ip_check_protocol(struct sk_buff *skb)
 {
-	__be16 proto = ip_tunnel_parse_protocol(skb);
+	__be16 proto = 0;
+
+	/* skb could be non-linear,
+	 * make sure IP header is in non-fragmented part
+	 */
+	if (!pskb_network_may_pull(skb, sizeof(struct iphdr)))
+		return -EINVAL;
+
+	if (ip_hdr(skb)->version == 4)
+		proto = htons(ETH_P_IP);
+	else if (ip_hdr(skb)->version == 6)
+		proto = htons(ETH_P_IPV6);
 
 	if (unlikely(!proto))
 		return -EPROTONOSUPPORT;
@@ -45,7 +56,18 @@ static inline int ovpn_ip_check_protocol(struct sk_buff *skb)
 
 static inline int ovpn_ip_header_probe(struct sk_buff *skb)
 {
-	__be16 proto = ip_tunnel_parse_protocol(skb);
+	__be16 proto = 0;
+
+	/* skb could be non-linear,
+	 * make sure IP header is in non-fragmented part
+	 */
+	if (!pskb_network_may_pull(skb, sizeof(struct iphdr)))
+		return -EINVAL;
+
+	if (ip_hdr(skb)->version == 4)
+		proto = htons(ETH_P_IP);
+	else if (ip_hdr(skb)->version == 6)
+		proto = htons(ETH_P_IPV6);
 
 	if (!proto)
 		return -EPROTONOSUPPORT;

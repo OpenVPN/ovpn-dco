@@ -49,27 +49,6 @@ static inline void dev_sw_netstats_rx_add(struct net_device *dev, unsigned int l
 
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
-
-#include <linux/skbuff.h>
-#include <linux/ip.h>
-#include <linux/ipv6.h>
-
-static inline __be16 ip_tunnel_parse_protocol(const struct sk_buff *skb)
-{
-	if (skb_network_header(skb) >= skb->head &&
-	    (skb_network_header(skb) + sizeof(struct iphdr)) <= skb_tail_pointer(skb) &&
-	    ip_hdr(skb)->version == 4)
-		return htons(ETH_P_IP);
-	if (skb_network_header(skb) >= skb->head &&
-	    (skb_network_header(skb) + sizeof(struct ipv6hdr)) <= skb_tail_pointer(skb) &&
-	    ipv6_hdr(skb)->version == 6)
-		return htons(ETH_P_IPV6);
-	return 0;
-}
-
-#endif
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
 
 /* Iterate through singly-linked GSO fragments of an skb. */
