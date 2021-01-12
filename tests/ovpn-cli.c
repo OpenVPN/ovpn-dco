@@ -68,6 +68,11 @@ struct ovpn_ctx {
 		struct sockaddr_in6 in6;
 	} remote;
 
+	union {
+		struct sockaddr_in in4;
+		struct sockaddr_in6 in6;
+	} peer_ip;
+
 	unsigned int ifindex;
 
 	int socket;
@@ -528,30 +533,19 @@ err:
 	return ret;
 }
 
-static int ovpn_start(struct ovpn_ctx *ovpn, enum ovpn_proto proto)
-{
-	struct nl_ctx *ctx;
-	int ret = -1;
-
-	ctx = nl_ctx_alloc(ovpn, OVPN_CMD_START_VPN);
-	if (!ctx)
-		return -ENOMEM;
-
-	NLA_PUT_U32(ctx->nl_msg, OVPN_ATTR_SOCKET, ovpn->socket);
-	NLA_PUT_U8(ctx->nl_msg, OVPN_ATTR_PROTO, proto);
-	NLA_PUT_U8(ctx->nl_msg, OVPN_ATTR_MODE, OVPN_MODE_CLIENT);
-
-	ret = ovpn_nl_msg_send(ctx, NULL);
-nla_put_failure:
-	nl_ctx_free(ctx);
-	return ret;
-}
-
 static int ovpn_new_peer(struct ovpn_ctx *ovpn)
 {
+	struct nlattr *attr;
 	struct nl_ctx *ctx;
 	size_t alen;
 	int ret = -1;
+
+	ctx = nl_ctx_alloc(ovpn, OVPN_CMD_NEW_PEER);
+	if (!ctx)
+		return -ENOMEM;
+
+	attr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_NEW_PEER);
+	NLA_PUT_U32(ctx->nl_msg, OVPN_NEW_PEER_ATTR_SOCKET, ovpn->socket);
 
 	switch (ovpn->remote.in4.sin_family) {
 	case AF_INET:
@@ -562,14 +556,25 @@ static int ovpn_new_peer(struct ovpn_ctx *ovpn)
 		break;
 	default:
 		fprintf(stderr, "Invalid family for remote socket address\n");
-		return -1;
+		goto nla_put_failure;
+	}
+	NLA_PUT(ctx->nl_msg, OVPN_NEW_PEER_ATTR_SOCKADDR_REMOTE, alen, &ovpn->remote);
+
+	switch (ovpn->peer_ip.in4.sin_family) {
+	case AF_INET:
+		NLA_PUT_U32(ctx->nl_msg, OVPN_NEW_PEER_ATTR_IPV4,
+			    ovpn->peer_ip.in4.sin_addr.s_addr);
+		break;
+	case AF_INET6:
+		NLA_PUT(ctx->nl_msg, OVPN_NEW_PEER_ATTR_IPV6, sizeof(struct in6_addr),
+			&ovpn->peer_ip.in6.sin6_addr);
+		break;
+	default:
+		fprintf(stderr, "Invalid family for peer address\n");
+		goto nla_put_failure;
 	}
 
-	ctx = nl_ctx_alloc(ovpn, OVPN_CMD_NEW_PEER);
-	if (!ctx)
-		return -ENOMEM;
-
-	NLA_PUT(ctx->nl_msg, OVPN_ATTR_SOCKADDR_REMOTE, alen, &ovpn->remote);
+	nla_nest_end(ctx->nl_msg, attr);
 
 	ret = ovpn_nl_msg_send(ctx, NULL);
 nla_put_failure:
@@ -579,6 +584,7 @@ nla_put_failure:
 
 static int ovpn_set_peer(struct ovpn_ctx *ovpn)
 {
+	struct nlattr *attr;
 	struct nl_ctx *ctx;
 	int ret = -1;
 
@@ -586,10 +592,12 @@ static int ovpn_set_peer(struct ovpn_ctx *ovpn)
 	if (!ctx)
 		return -ENOMEM;
 
-	NLA_PUT_U32(ctx->nl_msg, OVPN_ATTR_KEEPALIVE_INTERVAL,
+	attr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_SET_PEER);
+	NLA_PUT_U32(ctx->nl_msg, OVPN_SET_PEER_ATTR_KEEPALIVE_INTERVAL,
 		    ovpn->keepalive_interval);
-	NLA_PUT_U32(ctx->nl_msg, OVPN_ATTR_KEEPALIVE_TIMEOUT,
+	NLA_PUT_U32(ctx->nl_msg, OVPN_SET_PEER_ATTR_KEEPALIVE_TIMEOUT,
 		    ovpn->keepalive_timeout);
+	nla_nest_end(ctx->nl_msg, attr);
 
 	ret = ovpn_nl_msg_send(ctx, NULL);
 nla_put_failure:
@@ -599,7 +607,7 @@ nla_put_failure:
 
 static int ovpn_new_key(struct ovpn_ctx *ovpn)
 {
-	struct nlattr *key_dir;
+	struct nlattr *attr, *key_dir;
 	struct nl_ctx *ctx;
 	int ret = -1;
 
@@ -607,25 +615,27 @@ static int ovpn_new_key(struct ovpn_ctx *ovpn)
 	if (!ctx)
 		return -ENOMEM;
 
-	NLA_PUT_U32(ctx->nl_msg, OVPN_ATTR_REMOTE_PEER_ID, 0);
-	NLA_PUT_U8(ctx->nl_msg, OVPN_ATTR_KEY_SLOT, OVPN_KEY_SLOT_PRIMARY);
-	NLA_PUT_U16(ctx->nl_msg, OVPN_ATTR_KEY_ID, 0);
+	attr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_NEW_KEY);
+	NLA_PUT_U32(ctx->nl_msg, OVPN_NEW_KEY_ATTR_REMOTE_PEER_ID, 0);
+	NLA_PUT_U8(ctx->nl_msg, OVPN_NEW_KEY_ATTR_KEY_SLOT, OVPN_KEY_SLOT_PRIMARY);
+	NLA_PUT_U16(ctx->nl_msg, OVPN_NEW_KEY_ATTR_KEY_ID, 0);
 
-	NLA_PUT_U16(ctx->nl_msg, OVPN_ATTR_CIPHER_ALG, ovpn->cipher);
+	NLA_PUT_U16(ctx->nl_msg, OVPN_NEW_KEY_ATTR_CIPHER_ALG, ovpn->cipher);
 
-	key_dir = nla_nest_start(ctx->nl_msg, OVPN_ATTR_ENCRYPT_KEY);
+	key_dir = nla_nest_start(ctx->nl_msg, OVPN_NEW_KEY_ATTR_ENCRYPT_KEY);
 	NLA_PUT(ctx->nl_msg, OVPN_KEY_DIR_ATTR_CIPHER_KEY, KEY_LEN,
 		ovpn->key_enc);
 	NLA_PUT(ctx->nl_msg, OVPN_KEY_DIR_ATTR_NONCE_TAIL, NONCE_LEN,
 		ovpn->nonce);
 	nla_nest_end(ctx->nl_msg, key_dir);
 
-	key_dir = nla_nest_start(ctx->nl_msg, OVPN_ATTR_DECRYPT_KEY);
+	key_dir = nla_nest_start(ctx->nl_msg, OVPN_NEW_KEY_ATTR_DECRYPT_KEY);
 	NLA_PUT(ctx->nl_msg, OVPN_KEY_DIR_ATTR_CIPHER_KEY, KEY_LEN,
 		ovpn->key_dec);
 	NLA_PUT(ctx->nl_msg, OVPN_KEY_DIR_ATTR_NONCE_TAIL, NONCE_LEN,
 		ovpn->nonce);
 	nla_nest_end(ctx->nl_msg, key_dir);
+	nla_nest_end(ctx->nl_msg, attr);
 
 	ret = ovpn_nl_msg_send(ctx, NULL);
 nla_put_failure:
@@ -635,6 +645,7 @@ nla_put_failure:
 
 static int ovpn_del_key(struct ovpn_ctx *ovpn)
 {
+	struct nlattr *attr;
 	struct nl_ctx *ctx;
 	int ret = -1;
 
@@ -642,7 +653,9 @@ static int ovpn_del_key(struct ovpn_ctx *ovpn)
 	if (!ctx)
 		return -ENOMEM;
 
-	NLA_PUT_U8(ctx->nl_msg, OVPN_ATTR_KEY_SLOT, OVPN_KEY_SLOT_PRIMARY);
+	attr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_DEL_KEY);
+	NLA_PUT_U8(ctx->nl_msg, OVPN_DEL_KEY_ATTR_KEY_SLOT, OVPN_KEY_SLOT_PRIMARY);
+	nla_nest_end(ctx->nl_msg, attr);
 
 	ret = ovpn_nl_msg_send(ctx, NULL);
 nla_put_failure:
@@ -666,6 +679,7 @@ static int ovpn_swap_keys(struct ovpn_ctx *ovpn)
 
 static int ovpn_send_data(struct ovpn_ctx *ovpn, const void *data, size_t len)
 {
+	struct nlattr *attr;
 	struct nl_ctx *ctx;
 	int ret = -1;
 
@@ -673,7 +687,9 @@ static int ovpn_send_data(struct ovpn_ctx *ovpn, const void *data, size_t len)
 	if (!ctx)
 		return -ENOMEM;
 
-	NLA_PUT(ctx->nl_msg, OVPN_ATTR_PACKET, len, data);
+	attr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_PACKET);
+	NLA_PUT(ctx->nl_msg, OVPN_PACKET_ATTR_PACKET, len, data);
+	nla_nest_end(ctx->nl_msg, attr);
 
 	ret = ovpn_nl_msg_send(ctx, NULL);
 nla_put_failure:
@@ -681,25 +697,25 @@ nla_put_failure:
 	return ret;
 }
 
-static int ovpn_handle_packet(struct nl_msg *msg, void *arg)
+/*static int ovpn_handle_packet(struct nl_msg *msg, void *arg)
 {
 	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
-	struct nlattr *attrs[OVPN_ATTR_MAX + 1];
+	struct nlattr *attrs[OVPN_PACKET_ATTR_MAX + 1];
 	const __u8 *data;
 	size_t i, len;
 
 	fprintf(stderr, "received message\n");
 
-	nla_parse(attrs, OVPN_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
+	nla_parse(attrs, OVPN_PACKET_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
 		  genlmsg_attrlen(gnlh, 0), NULL);
 
-	if (!attrs[OVPN_ATTR_PACKET]) {
+	if (!attrs[OVPN_PACKET_ATTR_PACKET]) {
 		fprintf(stderr, "no packet content in netlink message\n");
 		return NL_SKIP;
 	}
 
-	len = nla_len(attrs[OVPN_ATTR_PACKET]);
-	data = nla_data(attrs[OVPN_ATTR_PACKET]);
+	len = nla_len(attrs[OVPN_PACKET_ATTR_PACKET]);
+	data = nla_data(attrs[OVPN_PACKET_ATTR_PACKET]);
 
 	fprintf(stderr, "received message, len=%zd:\n", len);
 	for (i = 0; i < len; i++) {
@@ -710,14 +726,14 @@ static int ovpn_handle_packet(struct nl_msg *msg, void *arg)
 	fprintf(stderr, "\n");
 
 	return NL_SKIP;
-}
+}*/
 
 static int nl_seq_check(struct nl_msg *msg, void *arg)
 {
 	return NL_OK;
 }
 
-static struct nl_ctx *ovpn_register(struct ovpn_ctx *ovpn)
+/*static struct nl_ctx *ovpn_register(struct ovpn_ctx *ovpn)
 {
 	struct nl_ctx *ctx;
 	int ret;
@@ -736,7 +752,7 @@ static struct nl_ctx *ovpn_register(struct ovpn_ctx *ovpn)
 	}
 
 	return ctx;
-}
+}*/
 
 struct mcast_handler_args {
 	const char *group;
@@ -798,7 +814,7 @@ static int ovpn_handle_msg(struct nl_msg *msg, void *arg)
 	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
 	struct nlattr *attrs[OVPN_ATTR_MAX + 1];
 	struct nlmsghdr *nlh = nlmsg_hdr(msg);
-	enum ovpn_del_peer_reason reason;
+	//enum ovpn_del_peer_reason reason;
 	char ifname[IF_NAMESIZE];
 	__u32 ifindex;
 
@@ -829,7 +845,7 @@ static int ovpn_handle_msg(struct nl_msg *msg, void *arg)
 
 	switch (gnlh->cmd) {
 	case OVPN_CMD_DEL_PEER:
-		if (!attrs[OVPN_ATTR_DEL_PEER_REASON]) {
+		/*if (!attrs[OVPN_ATTR_DEL_PEER_REASON]) {
 			fprintf(stderr, "no reason in DEL_PEER message\n");
 			return NL_STOP;
 		}
@@ -837,6 +853,8 @@ static int ovpn_handle_msg(struct nl_msg *msg, void *arg)
 		fprintf(stderr,
 			"received CMD_DEL_PEER, ifname: %s reason: %d\n",
 			ifname, reason);
+		*/
+		fprintf(stdout, "received CMD_DEL_PEER\n");
 		break;
 	default:
 		fprintf(stderr, "received unknown command: %d\n", gnlh->cmd);
@@ -953,9 +971,6 @@ static void usage(const char *cmd)
 		cmd);
 	fprintf(stderr, "\tiface: tun interface name\n\n");
 
-	fprintf(stderr, "* start_udp <lport>: start UDP-based VPN session on port\n");
-	fprintf(stderr, "\tlocal-port: UDP port to listen to\n\n");
-
 	fprintf(stderr, "* connect <raddr> <rport>: start connecting peer of TCP-based VPN session\n");
 	fprintf(stderr, "\tremote-addr: peer IP address\n");
 	fprintf(stderr, "\tremote-port: peer TCP port\n\n");
@@ -963,10 +978,11 @@ static void usage(const char *cmd)
 	fprintf(stderr, "* listen <lport>: start listening peer of TCP-based VPN session\n");
 	fprintf(stderr, "\tlocal-port: src TCP port\n\n");
 
-	fprintf(stderr,
-		"* new_peer <raddr> <rport>: set peer link\n");
+	fprintf(stderr, "* new_peer <lport> <raddr> <rport> <vpnaddr>: add new peer\n");
+	fprintf(stderr, "\tlocal-port: local UDP port\n");
 	fprintf(stderr, "\tremote-addr: peer IP address\n");
-	fprintf(stderr, "\tremote-port: peer UDP port\n\n");
+	fprintf(stderr, "\tremote-port: peer UDP port\n");
+	fprintf(stderr, "\tvpn-ip: peer VPN IP\n\n");
 
 	fprintf(stderr,
 		"* set_peer <keepalive_interval> <keepalive_timeout>: set peer attributes\n");
@@ -993,7 +1009,8 @@ static void usage(const char *cmd)
 	fprintf(stderr, "\tstring: message to send to the peer\n");
 }
 
-static int ovpn_parse_remote(struct ovpn_ctx *ovpn, const char *host, const char *service)
+static int ovpn_parse_remote(struct ovpn_ctx *ovpn, const char *host, const char *service,
+			     const char *vpn_addr)
 {
 	int ret;
 	struct addrinfo *result;
@@ -1014,6 +1031,19 @@ static int ovpn_parse_remote(struct ovpn_ctx *ovpn, const char *host, const char
 	}
 
 	memcpy(&ovpn->remote, result->ai_addr, result->ai_addrlen);
+
+	ret = getaddrinfo(vpn_addr, NULL, &hints, &result);
+	if (ret == EAI_NONAME || ret == EAI_FAIL)
+		return -1;
+
+	if (!(result->ai_family == AF_INET && result->ai_addrlen == sizeof(struct sockaddr_in)) &&
+	    !(result->ai_family == AF_INET6 && result->ai_addrlen == sizeof(struct sockaddr_in6))) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	memcpy(&ovpn->peer_ip, result->ai_addr, result->ai_addrlen);
+
 	ret = 0;
 out:
 	freeaddrinfo(result);
@@ -1022,12 +1052,12 @@ out:
 
 static int ovpn_parse_new_peer(struct ovpn_ctx *ovpn, int argc, char *argv[])
 {
-	if (argc < 5) {
+	if (argc < 6) {
 		usage(argv[0]);
 		return -1;
 	}
 
-	return ovpn_parse_remote(ovpn, argv[3], argv[4]);
+	return ovpn_parse_remote(ovpn, argv[3], argv[4], argv[5]);
 }
 
 static int ovpn_parse_set_peer(struct ovpn_ctx *ovpn, int argc, char *argv[])
@@ -1056,7 +1086,7 @@ int main(int argc, char *argv[])
 {
 	sa_family_t family = AF_INET;
 	struct ovpn_ctx ovpn;
-	struct nl_ctx *ctx;
+//	struct nl_ctx *ctx;
 	int ret;
 
 	if (argc < 3) {
@@ -1073,32 +1103,7 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	if (!strcmp(argv[2], "start_udp")) {
-		if (argc < 4) {
-			usage(argv[0]);
-			return -1;
-		}
-
-		ovpn.lport = strtoul(argv[3], NULL, 10);
-		if (errno == ERANGE || ovpn.lport > 65535) {
-			fprintf(stderr, "lport value out of range\n");
-			return -1;
-		}
-
-		if (argc > 4 && !strcmp(argv[4], "ipv6"))
-			family = AF_INET6;
-
-		ret = ovpn_udp_socket(&ovpn, family);
-		if (ret < 0)
-			return ret;
-
-		ret = ovpn_start(&ovpn, OVPN_PROTO_UDP4);
-		if (ret < 0) {
-			fprintf(stderr, "cannot start VPN\n");
-			close(ovpn.socket);
-			return ret;
-		}
-	} else if (!strcmp(argv[2], "listen")) {
+	if (!strcmp(argv[2], "listen")) {
 		if (argc < 4) {
 			usage(argv[0]);
 			return -1;
@@ -1119,27 +1124,20 @@ int main(int argc, char *argv[])
 			return ret;
 		}
 
-		ret = ovpn_start(&ovpn, OVPN_PROTO_TCP4);
-		if (ret < 0) {
-			fprintf(stderr, "cannot start VPN\n");
-			close(ovpn.socket);
-			return ret;
-		}
-
 		ret = ovpn_new_peer(&ovpn);
 		if (ret < 0) {
 			fprintf(stderr, "cannot add peer to VPN\n");
 			return ret;
 		}
 	} else if (!strcmp(argv[2], "connect")) {
-		if (argc < 4) {
+		if (argc < 5) {
 			usage(argv[0]);
 			return -1;
 		}
 
 		ovpn.sa_family = AF_INET;
 
-		ret = ovpn_parse_remote(&ovpn, argv[3], argv[4]);
+		ret = ovpn_parse_remote(&ovpn, argv[3], argv[4], argv[5]);
 		if (ret < 0) {
 			fprintf(stderr, "Cannot resolve remote\n");
 			return ret;
@@ -1151,13 +1149,6 @@ int main(int argc, char *argv[])
 			return ret;
 		}
 
-		ret = ovpn_start(&ovpn, OVPN_PROTO_TCP4);
-		if (ret < 0) {
-			fprintf(stderr, "cannot start VPN\n");
-			close(ovpn.socket);
-			return ret;
-		}
-
 		ret = ovpn_new_peer(&ovpn);
 		if (ret < 0) {
 			fprintf(stderr, "cannot add peer to VPN\n");
@@ -1165,6 +1156,24 @@ int main(int argc, char *argv[])
 			return ret;
 		}
 	} else if (!strcmp(argv[2], "new_peer")) {
+		if (argc < 4) {
+			usage(argv[0]);
+			return -1;
+		}
+
+		ovpn.lport = strtoul(argv[3], NULL, 10);
+		if (errno == ERANGE || ovpn.lport > 65535) {
+			fprintf(stderr, "lport value out of range\n");
+			return -1;
+		}
+
+		argv++;
+		argc--;
+
+		ret = ovpn_udp_socket(&ovpn, AF_INET);
+		if (ret < 0)
+			return ret;
+
 		ret = ovpn_parse_new_peer(&ovpn, argc, argv);
 		if (ret < 0)
 			return ret;
@@ -1219,7 +1228,7 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "cannot swap keys\n");
 			return ret;
 		}
-	} else if (!strcmp(argv[2], "recv")) {
+	}/* else if (!strcmp(argv[2], "recv")) {
 		ctx = ovpn_register(&ovpn);
 		if (!ctx) {
 			fprintf(stderr, "cannot register for packets\n");
@@ -1228,7 +1237,7 @@ int main(int argc, char *argv[])
 
 		ret = ovpn_nl_recvmsgs(ctx);
 		nl_ctx_free(ctx);
-	} else if (!strcmp(argv[2], "send")) {
+	}*/ else if (!strcmp(argv[2], "send")) {
 		if (argc < 4) {
 			usage(argv[0]);
 			return -1;
