@@ -30,7 +30,10 @@ static inline u32 ovpn_skb_queue_len(const struct sk_buff_head *list)
 	return READ_ONCE(list->qlen);
 }
 
-static inline int ovpn_ip_check_protocol(struct sk_buff *skb)
+/* Return IP protocol version from skb header.
+ * Return 0 if protocol is not IPv4/IPv6 or cannot be read.
+ */
+static inline __be16 ovpn_ip_check_protocol(struct sk_buff *skb)
 {
 	__be16 proto = 0;
 
@@ -38,42 +41,14 @@ static inline int ovpn_ip_check_protocol(struct sk_buff *skb)
 	 * make sure IP header is in non-fragmented part
 	 */
 	if (!pskb_network_may_pull(skb, sizeof(struct iphdr)))
-		return -EINVAL;
+		return 0;
 
 	if (ip_hdr(skb)->version == 4)
 		proto = htons(ETH_P_IP);
 	else if (ip_hdr(skb)->version == 6)
 		proto = htons(ETH_P_IPV6);
 
-	if (unlikely(!proto))
-		return -EPROTONOSUPPORT;
-
-	if (unlikely(skb->protocol != proto))
-		return -EINVAL;
-
-	return 0;
-}
-
-static inline int ovpn_ip_header_probe(struct sk_buff *skb)
-{
-	__be16 proto = 0;
-
-	/* skb could be non-linear,
-	 * make sure IP header is in non-fragmented part
-	 */
-	if (!pskb_network_may_pull(skb, sizeof(struct iphdr)))
-		return -EINVAL;
-
-	if (ip_hdr(skb)->version == 4)
-		proto = htons(ETH_P_IP);
-	else if (ip_hdr(skb)->version == 6)
-		proto = htons(ETH_P_IPV6);
-
-	if (!proto)
-		return -EPROTONOSUPPORT;
-
-	skb->protocol = proto;
-	return 0;
+	return proto;
 }
 
 #endif /* _NET_OVPN_DCO_SKB_H_ */

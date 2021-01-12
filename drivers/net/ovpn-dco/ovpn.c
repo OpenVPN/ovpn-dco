@@ -191,6 +191,7 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	struct ovpn_crypto_key_slot *ks;
 	unsigned int rx_stats_size;
 	int key_id, ret = -1;
+	__be16 proto;
 	u32 op;
 
 	/* get opcode */
@@ -242,8 +243,8 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	 * tun interface
 	 */
 	skb_reset_network_header(skb);
-	ret = ovpn_ip_header_probe(skb);
-	if (unlikely(ret < 0)) {
+	proto = ovpn_ip_check_protocol(skb);
+	if (unlikely(!proto)) {
 		/* check if null packet */
 		if (unlikely(!pskb_may_pull(skb, 1))) {
 			ret = -EINVAL;
@@ -261,8 +262,10 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 			return -1;
 		}
 
+		ret = -EPROTONOSUPPORT;
 		goto drop;
 	}
+	skb->protocol = proto;
 
 	ret = __ptr_ring_produce(&peer->netif_rx_ring, skb);
 drop:
@@ -416,14 +419,15 @@ netdev_tx_t ovpn_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	struct ovpn_struct *ovpn = netdev_priv(dev);
 	struct sk_buff *segments, *tmp, *curr, *next;
 	struct sk_buff_head skb_list;
+	__be16 proto;
 	int ret;
 
 	/* reset netfilter state */
 	nf_reset_ct(skb);
 
 	/* verify IP header size in network packet */
-	ret = ovpn_ip_check_protocol(skb);
-	if (unlikely(ret < 0)) {
+	proto = ovpn_ip_check_protocol(skb);
+	if (unlikely(!proto || (skb->protocol != proto))) {
 		net_dbg_ratelimited("%s: dropping malformed payload packet\n",
 				    dev->name);
 		goto drop;
