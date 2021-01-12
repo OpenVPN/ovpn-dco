@@ -1020,17 +1020,19 @@ static int ovpn_parse_remote(struct ovpn_ctx *ovpn, const char *host, const char
 		.ai_protocol = IPPROTO_UDP
 	};
 
-	ret = getaddrinfo(host, service, &hints, &result);
-	if (ret == EAI_NONAME || ret == EAI_FAIL)
-		return -1;
+	if (host) {
+		ret = getaddrinfo(host, service, &hints, &result);
+		if (ret == EAI_NONAME || ret == EAI_FAIL)
+			return -1;
 
-	if (!(result->ai_family == AF_INET && result->ai_addrlen == sizeof(struct sockaddr_in)) &&
-	    !(result->ai_family == AF_INET6 && result->ai_addrlen == sizeof(struct sockaddr_in6))) {
-		ret = -EINVAL;
-		goto out;
+		if (!(result->ai_family == AF_INET && result->ai_addrlen == sizeof(struct sockaddr_in)) &&
+		    !(result->ai_family == AF_INET6 && result->ai_addrlen == sizeof(struct sockaddr_in6))) {
+			ret = -EINVAL;
+			goto out;
+		}
+
+		memcpy(&ovpn->remote, result->ai_addr, result->ai_addrlen);
 	}
-
-	memcpy(&ovpn->remote, result->ai_addr, result->ai_addrlen);
 
 	ret = getaddrinfo(vpn_addr, NULL, &hints, &result);
 	if (ret == EAI_NONAME || ret == EAI_FAIL)
@@ -1104,7 +1106,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (!strcmp(argv[2], "listen")) {
-		if (argc < 4) {
+		if (argc < 5) {
 			usage(argv[0]);
 			return -1;
 		}
@@ -1115,7 +1117,13 @@ int main(int argc, char *argv[])
 			return -1;
 		}
 
-		if (argc > 4 && !strcmp(argv[4], "ipv6"))
+		ret = ovpn_parse_remote(&ovpn, NULL, NULL, argv[4]);
+		if (ret < 0) {
+			fprintf(stderr, "Cannot resolve remote\n");
+			return ret;
+		}
+
+		if (argc > 5 && !strcmp(argv[5], "ipv6"))
 			family = AF_INET6;
 
 		ret = ovpn_listen(&ovpn, family);
@@ -1130,7 +1138,7 @@ int main(int argc, char *argv[])
 			return ret;
 		}
 	} else if (!strcmp(argv[2], "connect")) {
-		if (argc < 5) {
+		if (argc < 6) {
 			usage(argv[0]);
 			return -1;
 		}
