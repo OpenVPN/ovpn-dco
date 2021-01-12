@@ -105,9 +105,9 @@ static int ovpn_get_link_ksettings(struct net_device *dev,
 static void ovpn_get_drvinfo(struct net_device *dev,
 			     struct ethtool_drvinfo *info)
 {
-	strlcpy(info->driver, DRV_NAME, sizeof(info->driver));
-	strlcpy(info->version, DRV_VERSION, sizeof(info->version));
-	strlcpy(info->bus_info, "ovpn", sizeof(info->bus_info));
+	strscpy(info->driver, DRV_NAME, sizeof(info->driver));
+	strscpy(info->version, DRV_VERSION, sizeof(info->version));
+	strscpy(info->bus_info, "ovpn", sizeof(info->bus_info));
 }
 
 bool ovpn_dev_is_valid(const struct net_device *dev)
