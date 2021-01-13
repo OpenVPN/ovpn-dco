@@ -400,13 +400,11 @@ struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_
 struct ovpn_peer *ovpn_peer_lookup_transp_addr(struct ovpn_struct *ovpn, struct sk_buff *skb)
 {
 	struct ovpn_peer *peer = NULL, *tmp;
-	struct sockaddr sa = { 0 };
+	struct sockaddr_in6 sa6 = { 0 };
+	struct sockaddr_in sa4 = { 0 };
 	struct hlist_head *head;
-	struct sockaddr_in6 *sa6;
-	struct sockaddr_in *sa4;
 	struct ovpn_bind *bind;
 	sa_family_t sa_fam;
-	size_t salen;
 	bool found;
 	u32 index;
 
@@ -414,24 +412,19 @@ struct ovpn_peer *ovpn_peer_lookup_transp_addr(struct ovpn_struct *ovpn, struct 
 
 	switch (sa_fam) {
 	case AF_INET:
-		sa4 = (struct sockaddr_in *)&sa;
-
-		sa4->sin_family = AF_INET;
-		sa4->sin_addr.s_addr = ip_hdr(skb)->saddr;
-		sa4->sin_port = udp_hdr(skb)->source;
-		salen = sizeof(*sa4);
+		sa4.sin_family = AF_INET;
+		sa4.sin_addr.s_addr = ip_hdr(skb)->saddr;
+		sa4.sin_port = udp_hdr(skb)->source;
+		index = ovpn_peer_index(ovpn->peers.by_transp_addr, &sa4, sizeof(sa4));
 		break;
 	case AF_INET6:
-		sa6 = (struct sockaddr_in6 *)&sa;
-
-		sa6->sin6_family = AF_INET6;
-		sa6->sin6_addr = ipv6_hdr(skb)->saddr;
-		sa6->sin6_port = udp_hdr(skb)->source;
-		salen = sizeof(*sa6);
+		sa6.sin6_family = AF_INET6;
+		sa6.sin6_addr = ipv6_hdr(skb)->saddr;
+		sa6.sin6_port = udp_hdr(skb)->source;
+		index = ovpn_peer_index(ovpn->peers.by_transp_addr, &sa6, sizeof(sa6));
 		break;
 	}
 
-	index = ovpn_peer_index(ovpn->peers.by_transp_addr, &sa, salen);
 	head = &ovpn->peers.by_transp_addr[index];
 
 	rcu_read_lock();
@@ -447,17 +440,17 @@ struct ovpn_peer *ovpn_peer_lookup_transp_addr(struct ovpn_struct *ovpn, struct 
 
 		switch (sa_fam) {
 		case AF_INET:
-			if (sa4->sin_addr.s_addr != bind->sa.in4.sin_addr.s_addr)
+			if (sa4.sin_addr.s_addr != bind->sa.in4.sin_addr.s_addr)
 				break;
-			if (sa4->sin_port != bind->sa.in4.sin_port)
+			if (sa4.sin_port != bind->sa.in4.sin_port)
 				break;
 			found = true;
 			break;
 		case AF_INET6:
-			if (memcmp(&sa6->sin6_addr, &bind->sa.in6.sin6_addr,
+			if (memcmp(&sa6.sin6_addr, &bind->sa.in6.sin6_addr,
 				   sizeof(struct in6_addr)))
 				break;
-			if (sa6->sin6_port != bind->sa.in6.sin6_port)
+			if (sa6.sin6_port != bind->sa.in6.sin6_port)
 				break;
 			found = true;
 			break;
