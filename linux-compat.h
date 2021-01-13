@@ -13,6 +13,11 @@
 #include <linux/kconfig.h>
 #include <linux/version.h>
 
+/* not part of any kernel yet */
+#ifndef NLA_POLICY_MAX_LEN
+#define NLA_POLICY_MAX_LEN(_len)       { .type = NLA_BINARY, .len = U8_MAX }
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0)
 
 #define dev_get_tstats64 ip_tunnel_get_stats64
