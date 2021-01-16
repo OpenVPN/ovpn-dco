@@ -323,7 +323,7 @@ static bool ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	}
 
 	/* encrypt */
-	ret = ks->ops->encrypt(ks, skb);
+	ret = ks->ops->encrypt(ks, skb, peer->id);
 	if (unlikely(ret < 0)) {
 		pr_err_ratelimited("%s: error during encryption: %d\n", __func__, ret);
 		goto err;

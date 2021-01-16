@@ -107,7 +107,7 @@ enum ovpn_netlink_key_dir_attrs {
 
 enum ovpn_netlink_new_key_attrs {
 	OVPN_NEW_KEY_ATTR_UNSPEC = 0,
-	OVPN_NEW_KEY_ATTR_REMOTE_PEER_ID,
+	OVPN_NEW_KEY_ATTR_PEER_ID,
 	OVPN_NEW_KEY_ATTR_KEY_SLOT,
 	OVPN_NEW_KEY_ATTR_KEY_ID,
 	OVPN_NEW_KEY_ATTR_CIPHER_ALG,
@@ -120,7 +120,7 @@ enum ovpn_netlink_new_key_attrs {
 
 enum ovpn_netlink_del_key_attrs {
 	OVPN_DEL_KEY_ATTR_UNSPEC = 0,
-	OVPN_DEL_KEY_ATTR_REMOTE_PEER_ID,
+	OVPN_DEL_KEY_ATTR_PEER_ID,
 	OVPN_DEL_KEY_ATTR_KEY_SLOT,
 
 	__OVPN_DEL_KEY_ATTR_AFTER_LAST,
@@ -129,7 +129,7 @@ enum ovpn_netlink_del_key_attrs {
 
 enum ovpn_netlink_swap_keys_attrs {
 	OVPN_SWAP_KEYS_ATTR_UNSPEC = 0,
-	OVPN_SWAP_KEYS_ATTR_REMOTE_PEER_ID,
+	OVPN_SWAP_KEYS_ATTR_PEER_ID,
 
 	__OVPN_SWAP_KEYS_ATTR_AFTER_LAST,
 	OVPN_SWAP_KEYS_ATTR_MAX = __OVPN_SWAP_KEYS_ATTR_AFTER_LAST - 1,
@@ -138,6 +138,7 @@ enum ovpn_netlink_swap_keys_attrs {
 
 enum ovpn_netlink_new_peer_attrs {
 	OVPN_NEW_PEER_ATTR_UNSPEC = 0,
+	OVPN_NEW_PEER_ATTR_PEER_ID,
 	OVPN_NEW_PEER_ATTR_SOCKADDR_REMOTE,
 	OVPN_NEW_PEER_ATTR_PROTO,
 	OVPN_NEW_PEER_ATTR_SOCKET,
@@ -150,7 +151,7 @@ enum ovpn_netlink_new_peer_attrs {
 
 enum ovpn_netlink_set_peer_attrs {
 	OVPN_SET_PEER_ATTR_UNSPEC = 0,
-	OVPN_SET_PEER_ATTR_REMOTE_PEER_ID,
+	OVPN_SET_PEER_ATTR_PEER_ID,
 	OVPN_SET_PEER_ATTR_KEEPALIVE_INTERVAL,
 	OVPN_SET_PEER_ATTR_KEEPALIVE_TIMEOUT,
 
@@ -169,7 +170,7 @@ enum ovpn_netlink_del_peer_attrs {
 enum ovpn_netlink_packet_attrs {
 	OVPN_PACKET_ATTR_UNSPEC = 0,
 	OVPN_PACKET_ATTR_PACKET,
-	OVPN_PACKET_ATTR_REMOTE_PEER_ID,
+	OVPN_PACKET_ATTR_PEER_ID,
 
 	__OVPN_PACKET_ATTR_AFTER_LAST,
 	OVPN_PACKET_ATTR_MAX = __OVPN_PACKET_ATTR_AFTER_LAST - 1,

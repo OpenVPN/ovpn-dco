@@ -42,7 +42,7 @@ static const struct nla_policy ovpn_netlink_policy_key_dir[OVPN_KEY_DIR_ATTR_MAX
 
 /** CMD_NEW_KEY policy */
 static const struct nla_policy ovpn_netlink_policy_new_key[OVPN_NEW_KEY_ATTR_MAX + 1] = {
-	[OVPN_NEW_KEY_ATTR_REMOTE_PEER_ID] = { .type = NLA_U32 },
+	[OVPN_NEW_KEY_ATTR_PEER_ID] = { .type = NLA_U32 },
 	[OVPN_NEW_KEY_ATTR_KEY_SLOT] = NLA_POLICY_RANGE(NLA_U8, __OVPN_KEY_SLOT_FIRST,
 							__OVPN_KEY_SLOT_AFTER_LAST - 1),
 	[OVPN_NEW_KEY_ATTR_KEY_ID] = { .type = NLA_U8 },
@@ -53,18 +53,19 @@ static const struct nla_policy ovpn_netlink_policy_new_key[OVPN_NEW_KEY_ATTR_MAX
 
 /** CMD_DEL_KEY policy */
 static const struct nla_policy ovpn_netlink_policy_del_key[OVPN_DEL_KEY_ATTR_MAX + 1] = {
-	[OVPN_DEL_KEY_ATTR_REMOTE_PEER_ID] = { .type = NLA_U32 },
+	[OVPN_DEL_KEY_ATTR_PEER_ID] = { .type = NLA_U32 },
 	[OVPN_DEL_KEY_ATTR_KEY_SLOT] = NLA_POLICY_RANGE(NLA_U8, __OVPN_KEY_SLOT_FIRST,
 							__OVPN_KEY_SLOT_AFTER_LAST - 1),
 };
 
 /** CMD_SWAP_KEYS policy */
 static const struct nla_policy ovpn_netlink_policy_swap_keys[OVPN_SWAP_KEYS_ATTR_MAX + 1] = {
-	[OVPN_SWAP_KEYS_ATTR_REMOTE_PEER_ID] = { .type = NLA_U32 },
+	[OVPN_SWAP_KEYS_ATTR_PEER_ID] = { .type = NLA_U32 },
 };
 
 /** CMD_NEW_PEER policy */
 static const struct nla_policy ovpn_netlink_policy_new_peer[OVPN_NEW_PEER_ATTR_MAX + 1] = {
+	[OVPN_NEW_PEER_ATTR_PEER_ID] = { .type = NLA_U32 },
 	[OVPN_NEW_PEER_ATTR_SOCKADDR_REMOTE] = NLA_POLICY_MIN_LEN(sizeof(struct sockaddr)),
 	[OVPN_NEW_PEER_ATTR_PROTO] = { .type = NLA_U8 },
 	[OVPN_NEW_PEER_ATTR_SOCKET] = { .type = NLA_U32 },
@@ -74,7 +75,7 @@ static const struct nla_policy ovpn_netlink_policy_new_peer[OVPN_NEW_PEER_ATTR_M
 
 /** CMD_SET_PEER policy */
 static const struct nla_policy ovpn_netlink_policy_set_peer[OVPN_SET_PEER_ATTR_MAX + 1] = {
-	[OVPN_SET_PEER_ATTR_REMOTE_PEER_ID] = { .type = NLA_U32 },
+	[OVPN_SET_PEER_ATTR_PEER_ID] = { .type = NLA_U32 },
 	[OVPN_SET_PEER_ATTR_KEEPALIVE_INTERVAL] = { .type = NLA_U32 },
 	[OVPN_SET_PEER_ATTR_KEEPALIVE_TIMEOUT] = { .type = NLA_U32 },
 };
@@ -87,7 +88,7 @@ static const struct nla_policy ovpn_netlink_policy_del_peer[OVPN_DEL_PEER_ATTR_M
 
 /** CMD_PACKET polocy */
 static const struct nla_policy ovpn_netlink_policy_packet[OVPN_PACKET_ATTR_MAX + 1] = {
-	[OVPN_PACKET_ATTR_REMOTE_PEER_ID] = { .type = NLA_U32 },
+	[OVPN_PACKET_ATTR_PEER_ID] = { .type = NLA_U32 },
 	[OVPN_PACKET_ATTR_PACKET] = NLA_POLICY_MAX_LEN(1280),
 };
 
@@ -214,6 +215,7 @@ static int ovpn_netlink_new_key(struct sk_buff *skb, struct genl_info *info)
 	struct ovpn_struct *ovpn = info->user_ptr[0];
 	struct ovpn_peer_key_reset pkr;
 	struct ovpn_peer *peer;
+	u32 peer_id;
 	int ret;
 
 	ret = nla_parse_nested(attrs, OVPN_NEW_KEY_ATTR_MAX, info->attrs[OVPN_ATTR_NEW_KEY],
@@ -221,7 +223,7 @@ static int ovpn_netlink_new_key(struct sk_buff *skb, struct genl_info *info)
 	if (ret)
 		return ret;
 
-	if (!attrs[OVPN_NEW_KEY_ATTR_REMOTE_PEER_ID] ||
+	if (!attrs[OVPN_NEW_KEY_ATTR_PEER_ID] ||
 	    !attrs[OVPN_NEW_KEY_ATTR_KEY_SLOT] ||
 	    !attrs[OVPN_NEW_KEY_ATTR_KEY_ID] ||
 	    !attrs[OVPN_NEW_KEY_ATTR_CIPHER_ALG] ||
@@ -229,7 +231,7 @@ static int ovpn_netlink_new_key(struct sk_buff *skb, struct genl_info *info)
 	    !attrs[OVPN_NEW_KEY_ATTR_DECRYPT_KEY])
 		return -EINVAL;
 
-	pkr.remote_peer_id = nla_get_u32(attrs[OVPN_NEW_KEY_ATTR_REMOTE_PEER_ID]);
+	peer_id = nla_get_u32(attrs[OVPN_NEW_KEY_ATTR_PEER_ID]);
 	pkr.slot = nla_get_u8(attrs[OVPN_NEW_KEY_ATTR_KEY_SLOT]);
 	pkr.key.key_id = nla_get_u16(attrs[OVPN_NEW_KEY_ATTR_KEY_ID]);
 
@@ -247,7 +249,7 @@ static int ovpn_netlink_new_key(struct sk_buff *skb, struct genl_info *info)
 
 	pkr.crypto_family = ovpn_keys_familiy_get(&pkr.key);
 
-	peer = ovpn_peer_lookup_id(ovpn, pkr.remote_peer_id);
+	peer = ovpn_peer_lookup_id(ovpn, peer_id);
 	if (!peer)
 		return -ENOENT;
 
@@ -255,11 +257,17 @@ static int ovpn_netlink_new_key(struct sk_buff *skb, struct genl_info *info)
 	/* get crypto family and check for consistency */
 	ret = ovpn_crypto_state_select_family(&peer->crypto, &pkr);
 	if (ret < 0) {
-		pr_debug("cannot select crypto family for peer\n");
+		pr_debug("%s: cannot select crypto family for peer %u\n", __func__, peer_id);
 		goto unlock;
 	}
 
 	ret = ovpn_crypto_state_reset(&peer->crypto, &pkr);
+	if (!ret) {
+		pr_debug("%s: cannot install new key for peer %u\n", __func__, peer_id);
+		goto unlock;
+	}
+
+	pr_debug("%s: new key installed (id=%u) for peer %u\n", __func__, pkr.key.key_id, peer_id);
 unlock:
 	mutex_unlock(&peer->crypto.mutex);
 	ovpn_peer_put(peer);
@@ -280,10 +288,10 @@ static int ovpn_netlink_del_key(struct sk_buff *skb, struct genl_info *info)
 	if (ret)
 		return ret;
 
-	if (!attrs[OVPN_DEL_KEY_ATTR_REMOTE_PEER_ID] || !attrs[OVPN_DEL_KEY_ATTR_KEY_SLOT])
+	if (!attrs[OVPN_DEL_KEY_ATTR_PEER_ID] || !attrs[OVPN_DEL_KEY_ATTR_KEY_SLOT])
 		return -EINVAL;
 
-	peer_id = nla_get_u32(attrs[OVPN_DEL_KEY_ATTR_REMOTE_PEER_ID]);
+	peer_id = nla_get_u32(attrs[OVPN_DEL_KEY_ATTR_PEER_ID]);
 	slot = nla_get_u8(attrs[OVPN_DEL_KEY_ATTR_KEY_SLOT]);
 
 	peer = ovpn_peer_lookup_id(ovpn, peer_id);
@@ -309,10 +317,10 @@ static int ovpn_netlink_swap_keys(struct sk_buff *skb, struct genl_info *info)
 	if (ret)
 		return ret;
 
-	if (!attrs[OVPN_SWAP_KEYS_ATTR_REMOTE_PEER_ID])
+	if (!attrs[OVPN_SWAP_KEYS_ATTR_PEER_ID])
 		return -EINVAL;
 
-	peer_id = nla_get_u32(attrs[OVPN_SWAP_KEYS_ATTR_REMOTE_PEER_ID]);
+	peer_id = nla_get_u32(attrs[OVPN_SWAP_KEYS_ATTR_PEER_ID]);
 
 	peer = ovpn_peer_lookup_id(ovpn, peer_id);
 	if (!peer)
@@ -430,10 +438,10 @@ static int ovpn_netlink_set_peer(struct sk_buff *skb, struct genl_info *info)
 	if (ret)
 		return ret;
 
-	if (!attrs[OVPN_SET_PEER_ATTR_REMOTE_PEER_ID])
+	if (!attrs[OVPN_SET_PEER_ATTR_PEER_ID])
 		return -EINVAL;
 
-	peer_id = nla_get_u32(attrs[OVPN_SET_PEER_ATTR_REMOTE_PEER_ID]);
+	peer_id = nla_get_u32(attrs[OVPN_SET_PEER_ATTR_PEER_ID]);
 
 	peer = ovpn_peer_lookup_id(ovpn, peer_id);
 	if (!peer)
@@ -489,12 +497,12 @@ static int ovpn_netlink_packet(struct sk_buff *skb, struct genl_info *info)
 	if (ret)
 		return ret;
 
-	if (!attrs[OVPN_PACKET_ATTR_PACKET] || !attrs[OVPN_PACKET_ATTR_REMOTE_PEER_ID]) {
+	if (!attrs[OVPN_PACKET_ATTR_PACKET] || !attrs[OVPN_PACKET_ATTR_PEER_ID]) {
 		pr_debug("received netlink packet with no payload\n");
 		return -EINVAL;
 	}
 
-	peer_id = nla_get_u32(attrs[OVPN_PACKET_ATTR_REMOTE_PEER_ID]);
+	peer_id = nla_get_u32(attrs[OVPN_PACKET_ATTR_PEER_ID]);
 
 	len = nla_len(attrs[OVPN_PACKET_ATTR_PACKET]);
 	if (len > 1280) {

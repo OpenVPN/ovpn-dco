@@ -74,8 +74,6 @@ int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
 	if (IS_ERR(new))
 		return PTR_ERR(new);
 
-	new->remote_peer_id = pkr->remote_peer_id;
-
 	switch (pkr->slot) {
 	case OVPN_KEY_SLOT_PRIMARY:
 		old = rcu_replace_pointer(cs->primary, new,
@@ -88,9 +86,6 @@ int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
 	default:
 		goto free_key;
 	}
-
-	pr_debug("*** NEW KEY INSTALLED id=%u remote_pid=%u\n",
-		 new->key_id, new->remote_peer_id);
 
 	if (old)
 		ovpn_crypto_key_slot_put(old);

@@ -23,7 +23,7 @@ static int ovpn_none_encap_overhead(const struct ovpn_crypto_key_slot *ks)
 		sizeof(u32);				/* Packet ID */
 }
 
-static int ovpn_none_encrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb)
+static int ovpn_none_encrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb, u32 peer_id)
 {
 	const u32 head_size = ovpn_none_encap_overhead(ks);
 	u32 pktid, op;
@@ -53,7 +53,7 @@ static int ovpn_none_encrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *sk
 	*((__force __be32 *)skb->data) = htonl(pktid);
 
 	/* add packet op as head of additional data */
-	op = ovpn_opcode_compose(OVPN_DATA_V2, ks->key_id, ks->remote_peer_id);
+	op = ovpn_opcode_compose(OVPN_DATA_V2, ks->key_id, peer_id);
 	__skb_push(skb, OVPN_OP_SIZE_V2);
 	BUILD_BUG_ON(sizeof(op) != OVPN_OP_SIZE_V2);
 	*((__force __be32 *)skb->data) = htonl(op);

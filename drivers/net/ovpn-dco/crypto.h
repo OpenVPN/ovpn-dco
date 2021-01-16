@@ -43,14 +43,13 @@ struct ovpn_key_config {
 
 /* used to pass settings from netlink to the crypto engine */
 struct ovpn_peer_key_reset {
-	u32 remote_peer_id;
 	enum ovpn_key_slot slot;
 	enum ovpn_crypto_families crypto_family;
 	struct ovpn_key_config key;
 };
 
 struct ovpn_crypto_ops {
-	int (*encrypt)(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb);
+	int (*encrypt)(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb, u32 peer_id);
 	int (*decrypt)(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb);
 
 	struct ovpn_crypto_key_slot *(*new)(const struct ovpn_key_config *kc);
@@ -61,7 +60,6 @@ struct ovpn_crypto_ops {
 
 struct ovpn_crypto_key_slot {
 	const struct ovpn_crypto_ops *ops;
-	int remote_peer_id;
 	u8 key_id;
 
 	struct crypto_aead *encrypt;

@@ -28,7 +28,7 @@ static int ovpn_aead_encap_overhead(const struct ovpn_crypto_key_slot *ks)
 		crypto_aead_authsize(ks->encrypt);	/* Auth Tag */
 }
 
-static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb)
+static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb, u32 peer_id)
 {
 	const unsigned int tag_size = crypto_aead_authsize(ks->encrypt);
 	const unsigned int head_size = ovpn_aead_encap_overhead(ks);
@@ -101,7 +101,7 @@ static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *sk
 	memcpy(skb->data, iv, NONCE_WIRE_SIZE);
 
 	/* add packet op as head of additional data */
-	op = ovpn_opcode_compose(OVPN_DATA_V2, ks->key_id, ks->remote_peer_id);
+	op = ovpn_opcode_compose(OVPN_DATA_V2, ks->key_id, peer_id);
 	__skb_push(skb, OVPN_OP_SIZE_V2);
 	BUILD_BUG_ON(sizeof(op) != OVPN_OP_SIZE_V2);
 	*((__force __be32 *)skb->data) = htonl(op);
