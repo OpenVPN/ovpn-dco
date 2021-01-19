@@ -67,7 +67,6 @@ static const struct nla_policy ovpn_netlink_policy_swap_keys[OVPN_SWAP_KEYS_ATTR
 static const struct nla_policy ovpn_netlink_policy_new_peer[OVPN_NEW_PEER_ATTR_MAX + 1] = {
 	[OVPN_NEW_PEER_ATTR_PEER_ID] = { .type = NLA_U32 },
 	[OVPN_NEW_PEER_ATTR_SOCKADDR_REMOTE] = NLA_POLICY_MIN_LEN(sizeof(struct sockaddr)),
-	[OVPN_NEW_PEER_ATTR_PROTO] = { .type = NLA_U8 },
 	[OVPN_NEW_PEER_ATTR_SOCKET] = { .type = NLA_U32 },
 	[OVPN_NEW_PEER_ATTR_IPV4] = { .type = NLA_U32 },
 	[OVPN_NEW_PEER_ATTR_IPV6] = NLA_POLICY_EXACT_LEN(sizeof(struct in6_addr)),
