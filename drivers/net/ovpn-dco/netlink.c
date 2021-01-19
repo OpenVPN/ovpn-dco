@@ -261,7 +261,7 @@ static int ovpn_netlink_new_key(struct sk_buff *skb, struct genl_info *info)
 	}
 
 	ret = ovpn_crypto_state_reset(&peer->crypto, &pkr);
-	if (!ret) {
+	if (ret < 0) {
 		pr_debug("%s: cannot install new key for peer %u\n", __func__, peer_id);
 		goto unlock;
 	}
