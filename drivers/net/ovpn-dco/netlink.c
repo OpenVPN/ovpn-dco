@@ -411,7 +411,8 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 		goto peer_release;
 	}
 
-	pr_debug("%s: added peer endpoint=%pIScp id=%d\n", __func__, sa, peer->id);
+	pr_debug("%s: added peer endpoint=%pIScp id=%d VPN-IPv4=%pi4 VPN-IPv6=%pI6c\n", __func__,
+		 sa, peer->id, &peer->vpn_addrs.ipv4.s_addr, &peer->vpn_addrs.ipv6);
 
 	return 0;
 
