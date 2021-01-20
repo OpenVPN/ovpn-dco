@@ -355,9 +355,9 @@ struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_
 {
 	struct ovpn_peer *peer = NULL;
 	struct hlist_head *head;
+	struct rtable *rt = NULL;
 	sa_family_t sa_fam;
 	struct in6_addr *addr6;
-	struct rtable *rt;
 	__be32 addr4;
 	u32 index;
 
