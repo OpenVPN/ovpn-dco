@@ -390,12 +390,12 @@ void ovpn_encrypt_work(struct work_struct *work)
 }
 
 /* Put skb into TX queue and schedule a consumer */
-static void ovpn_queue_skb(struct ovpn_struct *ovpn, struct sk_buff *skb)
+static void ovpn_queue_skb(struct ovpn_struct *ovpn, struct sk_buff *skb, struct ovpn_peer *peer)
 {
-	struct ovpn_peer *peer = NULL;
 	int ret;
 
-	peer = ovpn_peer_lookup_vpn_addr(ovpn, skb);
+	if (likely(!peer))
+		peer = ovpn_peer_lookup_vpn_addr(ovpn, skb);
 	if (unlikely(!peer)) {
 		pr_info_ratelimited("%s: no peer to send data to\n", __func__);
 		goto drop;
@@ -467,7 +467,7 @@ netdev_tx_t ovpn_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	}
 	skb_list.prev->next = NULL;
 
-	ovpn_queue_skb(ovpn, skb_list.next);
+	ovpn_queue_skb(ovpn, skb_list.next, NULL);
 
 	return NETDEV_TX_OK;
 
@@ -502,7 +502,7 @@ static void ovpn_xmit_special(struct ovpn_peer *peer, const void *data,
 	skb->priority = TC_PRIO_BESTEFFORT;
 	memcpy(__skb_put(skb, len), data, len);
 
-	ovpn_queue_skb(ovpn, skb);
+	ovpn_queue_skb(ovpn, skb, peer);
 }
 
 void ovpn_keepalive_xmit(struct ovpn_peer *peer)
