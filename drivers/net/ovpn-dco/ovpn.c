@@ -502,6 +502,13 @@ static void ovpn_xmit_special(struct ovpn_peer *peer, const void *data,
 	skb->priority = TC_PRIO_BESTEFFORT;
 	memcpy(__skb_put(skb, len), data, len);
 
+	/* increase reference counter when passing peer to sending queue */
+	if (!ovpn_peer_hold(peer)) {
+		pr_debug("%s: cannot hold peer reference for sending special packet\n", __func__);
+		kfree_skb(skb);
+		return;
+	}
+
 	ovpn_queue_skb(ovpn, skb, peer);
 }
 
