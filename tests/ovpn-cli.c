@@ -616,7 +616,7 @@ static int ovpn_new_key(struct ovpn_ctx *ovpn)
 		return -ENOMEM;
 
 	attr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_NEW_KEY);
-	NLA_PUT_U32(ctx->nl_msg, OVPN_NEW_KEY_ATTR_REMOTE_PEER_ID, 0);
+	NLA_PUT_U32(ctx->nl_msg, OVPN_NEW_KEY_ATTR_PEER_ID, 0);
 	NLA_PUT_U8(ctx->nl_msg, OVPN_NEW_KEY_ATTR_KEY_SLOT, OVPN_KEY_SLOT_PRIMARY);
 	NLA_PUT_U16(ctx->nl_msg, OVPN_NEW_KEY_ATTR_KEY_ID, 0);
 
