@@ -144,6 +144,9 @@ void ovpn_peer_release(struct ovpn_peer *peer)
 	ovpn_bind_reset(peer, NULL);
 	ovpn_peer_timer_delete_all(peer);
 
+	if (peer->sock)
+		ovpn_socket_put(peer->sock);
+
 	WARN_ON(!__ptr_ring_empty(&peer->tx_ring));
 	ptr_ring_cleanup(&peer->tx_ring, NULL);
 	WARN_ON(!__ptr_ring_empty(&peer->rx_ring));
@@ -163,7 +166,6 @@ static void ovpn_peer_release_rcu(struct rcu_head *head)
 	struct ovpn_peer *peer = container_of(head, struct ovpn_peer, rcu);
 
 	ovpn_crypto_state_release(&peer->crypto);
-	ovpn_socket_put(peer->sock);
 	ovpn_peer_release(peer);
 }
 
@@ -203,15 +205,24 @@ ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn, const struct sockaddr *sa,
 	if (IS_ERR(peer))
 		return peer;
 
-	/* set peer sockaddr */
-	ret = ovpn_peer_reset_sockaddr(peer, sa);
-	if (ret < 0) {
-		ovpn_peer_release(peer);
-		return ERR_PTR(ret);
+	if (sock->sk->sk_protocol == IPPROTO_UDP) {
+		/* a UDP peer must have a remote endpoint */
+		if (!sa) {
+			ovpn_peer_release(peer);
+			return ERR_PTR(-EINVAL);
+		}
+
+		/* set peer sockaddr */
+		ret = ovpn_peer_reset_sockaddr(peer, sa);
+		if (ret < 0) {
+			ovpn_peer_release(peer);
+			return ERR_PTR(ret);
+		}
 	}
 
 	peer->sock = ovpn_socket_new(sock, peer);
 	if (IS_ERR(peer->sock)) {
+		peer->sock = NULL;
 		ovpn_peer_release(peer);
 		return ERR_PTR(-ENOTSOCK);
 	}

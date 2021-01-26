@@ -335,8 +335,8 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 {
 	struct nlattr *attrs[OVPN_NEW_PEER_ATTR_MAX + 1];
 	struct ovpn_struct *ovpn = info->user_ptr[0];
+	struct sockaddr *sa = NULL;
 	struct ovpn_peer *peer;
-	struct sockaddr *sa;
 	struct socket *sock;
 	u32 sockfd, id;
 	size_t sa_len;
@@ -347,29 +347,9 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 	if (ret)
 		return ret;
 
-	if (!attrs[OVPN_NEW_PEER_ATTR_PEER_ID] || !attrs[OVPN_NEW_PEER_ATTR_SOCKADDR_REMOTE] ||
-	    !attrs[OVPN_NEW_PEER_ATTR_SOCKET])
+	if (!attrs[OVPN_NEW_PEER_ATTR_PEER_ID] || !attrs[OVPN_NEW_PEER_ATTR_SOCKET] ||
+	    (!attrs[OVPN_NEW_PEER_ATTR_IPV4] && !attrs[OVPN_NEW_PEER_ATTR_IPV6]))
 		return -EINVAL;
-
-	if (!attrs[OVPN_NEW_PEER_ATTR_IPV4] && !attrs[OVPN_NEW_PEER_ATTR_IPV6]) {
-		pr_err("%s: can't add peer with no VPN IP\n", __func__);
-		return -EINVAL;
-	}
-
-	sa = nla_data(attrs[OVPN_NEW_PEER_ATTR_SOCKADDR_REMOTE]);
-	sa_len = nla_len(attrs[OVPN_NEW_PEER_ATTR_SOCKADDR_REMOTE]);
-	switch (sa_len) {
-	case sizeof(struct sockaddr_in):
-		if (sa->sa_family != AF_INET)
-			return -EINVAL;
-		break;
-	case sizeof(struct sockaddr_in6):
-		if (sa->sa_family != AF_INET6)
-			return -EINVAL;
-		break;
-	default:
-		return -EINVAL;
-	}
 
 	/* lookup the fd in the kernel table and extract the socket object */
 	sockfd = nla_get_u32(attrs[OVPN_NEW_PEER_ATTR_SOCKET]);
@@ -378,6 +358,46 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 	if (!sock) {
 		pr_debug("%s: cannot lookup peer socket: %d\n", __func__, ret);
 		return -ENOTSOCK;
+	}
+
+	/* Only when using UDP as transport protocol the remote endpoint must be configured
+	 * so that ovpn-dco knows where to send packets to.
+	 *
+	 * In case of TCP, the socket is connected to the peer and ovpn-dco will just send bytes
+	 * over it, without the need to specify a destination.
+	 */
+	if (sock->sk->sk_protocol == IPPROTO_UDP) {
+		ret = -EINVAL;
+
+		if (!attrs[OVPN_NEW_PEER_ATTR_SOCKADDR_REMOTE]) {
+			pr_err("%s: cannot add UDP peer with no remote endpoint\n", __func__);
+			goto sockfd_release;
+		}
+
+		sa = nla_data(attrs[OVPN_NEW_PEER_ATTR_SOCKADDR_REMOTE]);
+		sa_len = nla_len(attrs[OVPN_NEW_PEER_ATTR_SOCKADDR_REMOTE]);
+		switch (sa_len) {
+		case sizeof(struct sockaddr_in):
+			if (sa->sa_family == AF_INET)
+				/* valid sockaddr */
+				break;
+
+			pr_err("%s: remote sockaddr_in has invalid family\n", __func__);
+			goto sockfd_release;
+		case sizeof(struct sockaddr_in6):
+			if (sa->sa_family == AF_INET6)
+				/* valid sockaddr */
+				break;
+
+			pr_err("%s: remote sockaddr_in6 has invalid family\n", __func__);
+			goto sockfd_release;
+		default:
+			pr_err("%s: invalid size for sockaddr\n", __func__);
+			goto sockfd_release;
+		}
+
+		/* sanity check passed */
+		ret = 0;
 	}
 
 	id = nla_get_u32(attrs[OVPN_NEW_PEER_ATTR_PEER_ID]);
