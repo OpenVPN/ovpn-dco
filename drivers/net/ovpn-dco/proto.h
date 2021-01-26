@@ -85,7 +85,7 @@ static inline u8 ovpn_key_id_from_skb(const struct sk_buff *skb)
 
 static inline u32 ovpn_peer_id_from_skb(const struct sk_buff *skb, u16 offset)
 {
-	return ntohl(*(skb->data + offset)) & OVPN_PEER_ID_MASK;
+	return ntohl(*(__be32 *)(skb->data + offset)) & OVPN_PEER_ID_MASK;
 }
 
 static inline u32 ovpn_opcode_compose(u8 opcode, u8 key_id, u32 peer_id)
