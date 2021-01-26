@@ -61,6 +61,7 @@ struct ovpn_ctx {
 
 	sa_family_t sa_family;
 
+	__u32 peer_id;
 	__u16 lport;
 
 	union {
@@ -545,6 +546,7 @@ static int ovpn_new_peer(struct ovpn_ctx *ovpn)
 		return -ENOMEM;
 
 	attr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_NEW_PEER);
+	NLA_PUT_U32(ctx->nl_msg, OVPN_NEW_PEER_ATTR_PEER_ID, ovpn->peer_id);
 	NLA_PUT_U32(ctx->nl_msg, OVPN_NEW_PEER_ATTR_SOCKET, ovpn->socket);
 
 	switch (ovpn->remote.in4.sin_family) {
@@ -593,6 +595,7 @@ static int ovpn_set_peer(struct ovpn_ctx *ovpn)
 		return -ENOMEM;
 
 	attr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_SET_PEER);
+	NLA_PUT_U32(ctx->nl_msg, OVPN_SET_PEER_ATTR_PEER_ID, ovpn->peer_id);
 	NLA_PUT_U32(ctx->nl_msg, OVPN_SET_PEER_ATTR_KEEPALIVE_INTERVAL,
 		    ovpn->keepalive_interval);
 	NLA_PUT_U32(ctx->nl_msg, OVPN_SET_PEER_ATTR_KEEPALIVE_TIMEOUT,
@@ -616,9 +619,9 @@ static int ovpn_new_key(struct ovpn_ctx *ovpn)
 		return -ENOMEM;
 
 	attr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_NEW_KEY);
-	NLA_PUT_U32(ctx->nl_msg, OVPN_NEW_KEY_ATTR_PEER_ID, 0);
+	NLA_PUT_U32(ctx->nl_msg, OVPN_NEW_KEY_ATTR_PEER_ID, ovpn->peer_id);
 	NLA_PUT_U8(ctx->nl_msg, OVPN_NEW_KEY_ATTR_KEY_SLOT, OVPN_KEY_SLOT_PRIMARY);
-	NLA_PUT_U16(ctx->nl_msg, OVPN_NEW_KEY_ATTR_KEY_ID, 0);
+	NLA_PUT_U8(ctx->nl_msg, OVPN_NEW_KEY_ATTR_KEY_ID, 0);
 
 	NLA_PUT_U16(ctx->nl_msg, OVPN_NEW_KEY_ATTR_CIPHER_ALG, ovpn->cipher);
 
@@ -654,6 +657,7 @@ static int ovpn_del_key(struct ovpn_ctx *ovpn)
 		return -ENOMEM;
 
 	attr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_DEL_KEY);
+	NLA_PUT_U32(ctx->nl_msg, OVPN_DEL_KEY_ATTR_PEER_ID, ovpn->peer_id);
 	NLA_PUT_U8(ctx->nl_msg, OVPN_DEL_KEY_ATTR_KEY_SLOT, OVPN_KEY_SLOT_PRIMARY);
 	nla_nest_end(ctx->nl_msg, attr);
 
@@ -665,6 +669,7 @@ nla_put_failure:
 
 static int ovpn_swap_keys(struct ovpn_ctx *ovpn)
 {
+	struct nlattr *attr;
 	struct nl_ctx *ctx;
 	int ret = -1;
 
@@ -672,7 +677,12 @@ static int ovpn_swap_keys(struct ovpn_ctx *ovpn)
 	if (!ctx)
 		return -ENOMEM;
 
+	attr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_SWAP_KEYS);
+	NLA_PUT_U32(ctx->nl_msg, OVPN_SWAP_KEYS_ATTR_PEER_ID, ovpn->peer_id);
+	nla_nest_end(ctx->nl_msg, attr);
+
 	ret = ovpn_nl_msg_send(ctx, NULL);
+nla_put_failure:
 	nl_ctx_free(ctx);
 	return ret;
 }
@@ -978,30 +988,35 @@ static void usage(const char *cmd)
 	fprintf(stderr, "* listen <lport>: start listening peer of TCP-based VPN session\n");
 	fprintf(stderr, "\tlocal-port: src TCP port\n\n");
 
-	fprintf(stderr, "* new_peer <lport> <raddr> <rport> <vpnaddr>: add new peer\n");
+	fprintf(stderr, "* new_peer <peer-id> <lport> <raddr> <rport> <vpnaddr>: add new peer\n");
+	fprintf(stderr, "\tpeer-id: peer ID to be used in data packets to/from this peer\n");
 	fprintf(stderr, "\tlocal-port: local UDP port\n");
 	fprintf(stderr, "\tremote-addr: peer IP address\n");
 	fprintf(stderr, "\tremote-port: peer UDP port\n");
 	fprintf(stderr, "\tvpn-ip: peer VPN IP\n\n");
 
 	fprintf(stderr,
-		"* set_peer <keepalive_interval> <keepalive_timeout>: set peer attributes\n");
+		"* set_peer <peer-id> <keepalive_interval> <keepalive_timeout>: set peer attributes\n");
+	fprintf(stderr, "\tpeer-id: peer ID of the peer to modify\n");
 	fprintf(stderr,
 		"\tkeepalive_interval: interval for sending ping messages\n");
 	fprintf(stderr,
 		"\tkeepalive_timeout: time after which a peer is timed out\n\n");
 
 	fprintf(stderr,
-		"* new_key <cipher> <key_dir> <key_file>: set data channel key\n");
+		"* new_key <peer-id> <cipher> <key_dir> <key_file>: set data channel key\n");
+	fprintf(stderr, "\tpeer-id: peer ID of the peer to configure the key for\n");
 	fprintf(stderr,
 		"\tcipher: cipher to use, supported: aes (AES-GCM), chachapoly (CHACHA20POLY1305), none\n");
 	fprintf(stderr,
 		"\tkey_dir: key direction, must 0 on one host and 1 on the other\n");
 	fprintf(stderr, "\tkey_file: file containing the pre-shared key\n\n");
 
-	fprintf(stderr, "* del_key: erase existing data channel key\n\n");
+	fprintf(stderr, "* del_key <peer-id>: erase existing data channel key\n\n");
+	fprintf(stderr, "\tpeer-id: peer ID of the peer to modify\n");
 
-	fprintf(stderr, "* swap_keys: swap primary and seconday key slots\n\n");
+	fprintf(stderr, "* swap_keys <peer-id>: swap primary and seconday key slots\n\n");
+	fprintf(stderr, "\tpeer-id: peer ID of the peer to modify\n");
 
 	fprintf(stderr, "* recv: receive packet and exit\n\n");
 
@@ -1169,14 +1184,21 @@ int main(int argc, char *argv[])
 			return -1;
 		}
 
-		ovpn.lport = strtoul(argv[3], NULL, 10);
+		ovpn.peer_id = strtoul(argv[3], NULL, 10);
+		if (errno == ERANGE) {
+			fprintf(stderr, "peer ID value out of range\n");
+			return -1;
+		}
+
+
+		ovpn.lport = strtoul(argv[4], NULL, 10);
 		if (errno == ERANGE || ovpn.lport > 65535) {
 			fprintf(stderr, "lport value out of range\n");
 			return -1;
 		}
 
-		argv++;
-		argc--;
+		argv+= 2;
+		argc-= 2;
 
 		ret = ovpn_udp_socket(&ovpn, AF_INET);
 		if (ret < 0)
@@ -1192,6 +1214,15 @@ int main(int argc, char *argv[])
 			return ret;
 		}
 	} else if (!strcmp(argv[2], "set_peer")) {
+		ovpn.peer_id = strtoul(argv[3], NULL, 10);
+		if (errno == ERANGE) {
+			fprintf(stderr, "peer ID value out of range\n");
+			return -1;
+		}
+
+		argv++;
+		argc--;
+
 		ret = ovpn_parse_set_peer(&ovpn, argc, argv);
 		if (ret < 0)
 			return ret;
@@ -1202,20 +1233,26 @@ int main(int argc, char *argv[])
 			return ret;
 		}
 	} else if (!strcmp(argv[2], "new_key")) {
-		if (argc < 5) {
+		if (argc < 6) {
 			usage(argv[0]);
 			return -1;
 		}
 
-		ret = ovpn_read_cipher(argv[3], &ovpn);
+		ovpn.peer_id = strtoul(argv[3], NULL, 10);
+		if (errno == ERANGE) {
+			fprintf(stderr, "peer ID value out of range\n");
+			return -1;
+		}
+
+		ret = ovpn_read_cipher(argv[4], &ovpn);
 		if (ret < 0)
 			return ret;
 
-		ret = ovpn_read_key_direction(argv[4], &ovpn);
+		ret = ovpn_read_key_direction(argv[5], &ovpn);
 		if (ret < 0)
 			return ret;
 
-		ret = ovpn_read_key(argv[5], &ovpn);
+		ret = ovpn_read_key(argv[6], &ovpn);
 		if (ret)
 			return ret;
 
@@ -1225,12 +1262,40 @@ int main(int argc, char *argv[])
 			return ret;
 		}
 	} else if (!strcmp(argv[2], "del_key")) {
+		if (argc < 3) {
+			usage(argv[0]);
+			return -1;
+		}
+
+		ovpn.peer_id = strtoul(argv[3], NULL, 10);
+		if (errno == ERANGE) {
+			fprintf(stderr, "peer ID value out of range\n");
+			return -1;
+		}
+
+		argv++;
+		argc--;
+
 		ret = ovpn_del_key(&ovpn);
 		if (ret < 0) {
 			fprintf(stderr, "cannot delete key\n");
 			return ret;
 		}
 	} else if (!strcmp(argv[2], "swap_keys")) {
+		if (argc < 3) {
+			usage(argv[0]);
+			return -1;
+		}
+
+		ovpn.peer_id = strtoul(argv[3], NULL, 10);
+		if (errno == ERANGE) {
+			fprintf(stderr, "peer ID value out of range\n");
+			return -1;
+		}
+
+		argv++;
+		argc--;
+
 		ret = ovpn_swap_keys(&ovpn);
 		if (ret < 0) {
 			fprintf(stderr, "cannot swap keys\n");
