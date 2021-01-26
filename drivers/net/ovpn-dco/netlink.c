@@ -427,12 +427,14 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 		       sizeof(struct in6_addr));
 	}
 
-	pr_debug("%s: adding peer endpoint=%pIScp id=%d VPN-IPv4=%pI4 VPN-IPv6=%pI6c\n", __func__,
-		 sa, peer->id, &peer->vpn_addrs.ipv4.s_addr, &peer->vpn_addrs.ipv6);
+	pr_debug("%s: adding peer with endpoint=%pIScp/%s id=%u VPN-IPv4=%pI4 VPN-IPv6=%pI6c\n",
+		 __func__, sa, sock->sk->sk_prot_creator->name, peer->id,
+		 &peer->vpn_addrs.ipv4.s_addr, &peer->vpn_addrs.ipv6);
 
 	ret = ovpn_peer_add(ovpn, peer);
 	if (ret < 0) {
-		pr_err("%s: cannot add new peer to hashtable: %d\n", __func__, ret);
+		pr_err("%s: cannot add new peer (id=%u) to hashtable: %d\n", __func__, peer->id,
+		       ret);
 		goto peer_release;
 	}
 
