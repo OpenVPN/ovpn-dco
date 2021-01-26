@@ -338,8 +338,8 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 	struct ovpn_peer *peer;
 	struct sockaddr *sa;
 	struct socket *sock;
+	u32 sockfd, id;
 	size_t sa_len;
-	u32 sockfd;
 	int ret;
 
 	ret = nla_parse_nested(attrs, OVPN_NEW_PEER_ATTR_MAX, info->attrs[OVPN_ATTR_NEW_PEER], NULL,
@@ -347,7 +347,8 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 	if (ret)
 		return ret;
 
-	if (!attrs[OVPN_NEW_PEER_ATTR_SOCKADDR_REMOTE] || !attrs[OVPN_NEW_PEER_ATTR_SOCKET])
+	if (!attrs[OVPN_NEW_PEER_ATTR_PEER_ID] || !attrs[OVPN_NEW_PEER_ATTR_SOCKADDR_REMOTE] ||
+	    !attrs[OVPN_NEW_PEER_ATTR_SOCKET])
 		return -EINVAL;
 
 	if (!attrs[OVPN_NEW_PEER_ATTR_IPV4] && !attrs[OVPN_NEW_PEER_ATTR_IPV6]) {
@@ -379,7 +380,8 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 		return -ENOTSOCK;
 	}
 
-	peer = ovpn_peer_new_with_sockaddr(ovpn, sa, sock);
+	id = nla_get_u32(attrs[OVPN_NEW_PEER_ATTR_PEER_ID]);
+	peer = ovpn_peer_new_with_sockaddr(ovpn, sa, sock, id);
 	if (IS_ERR(peer)) {
 		pr_err("%s: cannot create new peer object for %pIScp\n", __func__, sa);
 		ret = PTR_ERR(peer);
@@ -405,14 +407,14 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 		       sizeof(struct in6_addr));
 	}
 
+	pr_debug("%s: adding peer endpoint=%pIScp id=%d VPN-IPv4=%pI4 VPN-IPv6=%pI6c\n", __func__,
+		 sa, peer->id, &peer->vpn_addrs.ipv4.s_addr, &peer->vpn_addrs.ipv6);
+
 	ret = ovpn_peer_add(ovpn, peer);
 	if (ret < 0) {
 		pr_err("%s: cannot add new peer to hashtable: %d\n", __func__, ret);
 		goto peer_release;
 	}
-
-	pr_debug("%s: added peer endpoint=%pIScp id=%d VPN-IPv4=%pI4 VPN-IPv6=%pI6c\n", __func__,
-		 sa, peer->id, &peer->vpn_addrs.ipv4.s_addr, &peer->vpn_addrs.ipv6);
 
 	return 0;
 

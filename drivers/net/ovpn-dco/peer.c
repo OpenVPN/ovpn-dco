@@ -43,7 +43,7 @@ static void ovpn_peer_expire(struct timer_list *t)
 }
 
 /* Construct a new peer */
-static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
+static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn, u32 id)
 {
 	struct ovpn_peer *peer;
 	int ret;
@@ -53,6 +53,7 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn)
 	if (!peer)
 		return ERR_PTR(-ENOMEM);
 
+	peer->id = id;
 	peer->halt = false;
 	peer->ovpn = ovpn;
 
@@ -192,13 +193,13 @@ void ovpn_peer_release_kref(struct kref *kref)
 
 struct ovpn_peer *
 ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn, const struct sockaddr *sa,
-			    struct socket *sock)
+			    struct socket *sock, u32 id)
 {
 	struct ovpn_peer *peer;
 	int ret;
 
 	/* create new peer */
-	peer = ovpn_peer_new(ovpn);
+	peer = ovpn_peer_new(ovpn, id);
 	if (IS_ERR(peer))
 		return peer;
 
