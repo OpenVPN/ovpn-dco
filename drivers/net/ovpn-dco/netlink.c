@@ -670,6 +670,11 @@ int ovpn_netlink_send_packet(struct ovpn_struct *ovpn, const uint8_t *buf,
 		goto err_free_msg;
 	}
 
+	if (nla_put_u32(msg, OVPN_ATTR_IFINDEX, ovpn->dev->ifindex)) {
+		ret = -EMSGSIZE;
+		goto err_free_msg;
+	}
+
 	if (nla_put(msg, OVPN_ATTR_PACKET, len, buf)) {
 		ret = -EMSGSIZE;
 		goto err_free_msg;
