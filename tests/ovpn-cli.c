@@ -977,7 +977,7 @@ static void usage(const char *cmd)
 {
 	fprintf(stderr, "Error: invalid arguments.\n\n");
 	fprintf(stderr,
-		"Usage %s <iface> <start_udp|connect|listen|new_peer|new_multi_peer|set_peer|new_key|del_key|recv|send> [arguments..]\n",
+		"Usage %s <iface> <start_udp|connect|listen|new_peer|new_multi_peer|set_peer|new_key|del_key|recv|send|listen_mcast> [arguments..]\n",
 		cmd);
 	fprintf(stderr, "\tiface: tun interface name\n\n");
 
@@ -1026,7 +1026,9 @@ static void usage(const char *cmd)
 	fprintf(stderr, "* recv: receive packet and exit\n\n");
 
 	fprintf(stderr, "* send <string>: send packet with string\n");
-	fprintf(stderr, "\tstring: message to send to the peer\n");
+	fprintf(stderr, "\tstring: message to send to the peer\n\n");
+
+	fprintf(stderr, "* listen_mcast: listen to ovpn-dco netlink multicast messages\n");
 }
 
 static int ovpn_parse_remote(struct ovpn_ctx *ovpn, const char *host, const char *service,
@@ -1362,7 +1364,7 @@ int main(int argc, char *argv[])
 		ret = ovpn_send_data(&ovpn, argv[3], strlen(argv[3]) + 1);
 		if (ret < 0)
 			fprintf(stderr, "cannot send data\n");
-	} else if (!strcmp(argv[2], "listen")) {
+	} else if (!strcmp(argv[2], "listen_mcast")) {
 		ovpn_listen_mcast();
 	} else {
 		usage(argv[0]);
