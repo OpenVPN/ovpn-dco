@@ -644,9 +644,10 @@ err_free_msg:
 	return ret;
 }
 
-int ovpn_netlink_send_packet(struct ovpn_struct *ovpn, const uint8_t *buf,
-			     size_t len)
+int ovpn_netlink_send_packet(struct ovpn_struct *ovpn, const struct ovpn_peer *peer,
+			     const uint8_t *buf, size_t len)
 {
+	struct nlattr *attr;
 	struct sk_buff *msg;
 	void *hdr;
 	int ret;
@@ -675,10 +676,23 @@ int ovpn_netlink_send_packet(struct ovpn_struct *ovpn, const uint8_t *buf,
 		goto err_free_msg;
 	}
 
-	if (nla_put(msg, OVPN_ATTR_PACKET, len, buf)) {
+	attr = nla_nest_start(msg, OVPN_ATTR_PACKET);
+	if (!attr) {
 		ret = -EMSGSIZE;
 		goto err_free_msg;
 	}
+
+	if (nla_put(msg, OVPN_PACKET_ATTR_PACKET, len, buf)) {
+		ret = -EMSGSIZE;
+		goto err_free_msg;
+	}
+
+	if (nla_put_u32(msg, OVPN_PACKET_ATTR_PEER_ID, peer->id)) {
+		ret = -EMSGSIZE;
+		goto err_free_msg;
+	}
+
+	nla_nest_end(msg, attr);
 
 	genlmsg_end(msg, hdr);
 
