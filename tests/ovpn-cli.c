@@ -1012,11 +1012,11 @@ static void usage(const char *cmd)
 		"\tkey_dir: key direction, must 0 on one host and 1 on the other\n");
 	fprintf(stderr, "\tkey_file: file containing the pre-shared key\n\n");
 
-	fprintf(stderr, "* del_key <peer-id>: erase existing data channel key\n\n");
-	fprintf(stderr, "\tpeer-id: peer ID of the peer to modify\n");
+	fprintf(stderr, "* del_key <peer-id>: erase existing data channel key\n");
+	fprintf(stderr, "\tpeer-id: peer ID of the peer to modify\n\n");
 
-	fprintf(stderr, "* swap_keys <peer-id>: swap primary and seconday key slots\n\n");
-	fprintf(stderr, "\tpeer-id: peer ID of the peer to modify\n");
+	fprintf(stderr, "* swap_keys <peer-id>: swap primary and seconday key slots\n");
+	fprintf(stderr, "\tpeer-id: peer ID of the peer to modify\n\n");
 
 	fprintf(stderr, "* recv: receive packet and exit\n\n");
 
