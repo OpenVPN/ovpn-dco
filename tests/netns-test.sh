@@ -7,9 +7,10 @@
 set -x
 set -e
 
+PEERS_FILE=${PEERS_FILE:-peers.txt}
 OVPN_CLI=${OVPN_CLI:-./ovpn-cli}
 ALG=${ALG:-aes}
-NUM_PEERS=${NUM_PEERS:-2}
+NUM_PEERS=${NUM_PEERS:-$(wc -l $PEERS_FILE | awk '{print $1}')}
 
 function create_ns() {
 	ip netns add peer$1
@@ -40,12 +41,14 @@ function setup_ns() {
 function add_peer() {
 	if [ $tcp -eq 0 ]; then
 		if [ $1 -eq 0 ]; then
+			ip netns exec peer0 $OVPN_CLI tun0 new_multi_peer 1 $PEERS_FILE
+
 			for p in $(seq 1 $NUM_PEERS); do
-				ip netns exec peer0 $OVPN_CLI tun0 new_peer ${p} ${p} 10.10.${p}.2 1 5.5.5.$((${p} + 1))
+			#	ip netns exec peer0 $OVPN_CLI tun0 new_peer ${p} ${p} 10.10.${p}.2 1 5.5.5.$((${p} + 1))
 				ip netns exec peer0 $OVPN_CLI tun0 new_key ${p} $ALG 0 data64.key
 			done
 		else
-			ip netns exec peer${1} $OVPN_CLI tun0 new_peer ${1} 1 10.10.${1}.1 ${1} 5.5.5.1
+			ip netns exec peer${1} $OVPN_CLI tun0 new_peer 1 ${1} 10.10.${1}.1 1 5.5.5.1
 			ip netns exec peer${1} $OVPN_CLI tun0 new_key ${1} $ALG 1 data64.key
 		fi
 	else
