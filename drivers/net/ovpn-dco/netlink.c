@@ -217,6 +217,9 @@ static int ovpn_netlink_new_key(struct sk_buff *skb, struct genl_info *info)
 	u32 peer_id;
 	int ret;
 
+	if (!info->attrs[OVPN_ATTR_NEW_KEY])
+		return -EINVAL;
+
 	ret = nla_parse_nested(attrs, OVPN_NEW_KEY_ATTR_MAX, info->attrs[OVPN_ATTR_NEW_KEY],
 			       NULL, info->extack);
 	if (ret)
@@ -282,6 +285,9 @@ static int ovpn_netlink_del_key(struct sk_buff *skb, struct genl_info *info)
 	u32 peer_id;
 	int ret;
 
+	if (!info->attrs[OVPN_ATTR_DEL_KEY])
+		return -EINVAL;
+
 	ret = nla_parse_nested(attrs, OVPN_DEL_KEY_ATTR_MAX, info->attrs[OVPN_ATTR_DEL_KEY], NULL,
 			       info->extack);
 	if (ret)
@@ -310,6 +316,9 @@ static int ovpn_netlink_swap_keys(struct sk_buff *skb, struct genl_info *info)
 	struct ovpn_peer *peer;
 	u32 peer_id;
 	int ret;
+
+	if (!info->attrs[OVPN_ATTR_SWAP_KEYS])
+		return -EINVAL;
 
 	ret = nla_parse_nested(attrs, OVPN_SWAP_KEYS_ATTR_MAX, info->attrs[OVPN_ATTR_SWAP_KEYS],
 			       NULL, info->extack);
@@ -341,6 +350,9 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 	u32 sockfd, id;
 	size_t sa_len;
 	int ret;
+
+	if (!info->attrs[OVPN_ATTR_NEW_PEER])
+		return -EINVAL;
 
 	ret = nla_parse_nested(attrs, OVPN_NEW_PEER_ATTR_MAX, info->attrs[OVPN_ATTR_NEW_PEER], NULL,
 			       info->extack);
@@ -456,6 +468,9 @@ static int ovpn_netlink_set_peer(struct sk_buff *skb, struct genl_info *info)
 	bool keepalive_set = false;
 	struct ovpn_peer *peer;
 	int ret;
+
+	if (!info->attrs[OVPN_ATTR_SET_PEER])
+		return -EINVAL;
 
 	ret = nla_parse_nested(attrs, OVPN_SET_PEER_ATTR_MAX, info->attrs[OVPN_ATTR_SET_PEER], NULL,
 			       info->extack);
