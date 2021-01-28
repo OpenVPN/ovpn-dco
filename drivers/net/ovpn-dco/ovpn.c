@@ -220,7 +220,8 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	key_id = ovpn_key_id_from_skb(skb);
 	ks = ovpn_crypto_key_id_to_slot(&peer->crypto, key_id);
 	if (unlikely(!ks)) {
-		pr_info_ratelimited("%s: no available key for this ID: %d\n", __func__, key_id);
+		pr_info_ratelimited("%s: no available key for peer %u, key-id: %u\n", __func__,
+				    peer->id, key_id);
 		goto drop;
 	}
 
@@ -230,7 +231,8 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	ovpn_crypto_key_slot_put(ks);
 
 	if (unlikely(ret < 0)) {
-		pr_err_ratelimited("%s: error during decryption: %d\n", __func__, ret);
+		pr_err_ratelimited("%s: error during decryption for peer %u, key-id %u: %d\n",
+				   __func__, peer->id, key_id, ret);
 		goto drop;
 	}
 
