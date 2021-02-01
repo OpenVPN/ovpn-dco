@@ -161,6 +161,7 @@ enum ovpn_netlink_set_peer_attrs {
 enum ovpn_netlink_del_peer_attrs {
 	OVPN_DEL_PEER_ATTR_UNSPEC = 0,
 	OVPN_DEL_PEER_ATTR_REASON,
+	OVPN_DEL_PEER_ATTR_PEER_ID,
 
 	__OVPN_DEL_PEER_ATTR_AFTER_LAST,
 	OVPN_DEL_PEER_ATTR_MAX = __OVPN_DEL_PEER_ATTR_AFTER_LAST - 1,

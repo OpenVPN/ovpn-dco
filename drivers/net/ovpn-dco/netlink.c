@@ -620,6 +620,7 @@ static struct genl_family ovpn_netlink_family __ro_after_init = {
 int ovpn_netlink_notify_del_peer(struct ovpn_peer *peer)
 {
 	struct sk_buff *msg;
+	struct nlattr *attr;
 	void *hdr;
 	int ret;
 
@@ -642,10 +643,23 @@ int ovpn_netlink_notify_del_peer(struct ovpn_peer *peer)
 		goto err_free_msg;
 	}
 
+	attr = nla_nest_start(msg, OVPN_ATTR_DEL_PEER);
+	if (!attr) {
+		ret = -EMSGSIZE;
+		goto err_free_msg;
+	}
+
 	if (nla_put_u8(msg, OVPN_DEL_PEER_ATTR_REASON, peer->delete_reason)) {
 		ret = -EMSGSIZE;
 		goto err_free_msg;
 	}
+
+	if (nla_put_u32(msg, OVPN_DEL_PEER_ATTR_PEER_ID, peer->id)) {
+		ret = -EMSGSIZE;
+		goto err_free_msg;
+	}
+
+	nla_nest_end(msg, attr);
 
 	genlmsg_end(msg, hdr);
 
