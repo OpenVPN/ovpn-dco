@@ -69,11 +69,6 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn, u32 id)
 	INIT_WORK(&peer->encrypt_work, ovpn_encrypt_work);
 	INIT_WORK(&peer->decrypt_work, ovpn_decrypt_work);
 
-	/* configure and start NAPI */
-	netif_tx_napi_add(ovpn->dev, &peer->napi, ovpn_napi_poll,
-			  NAPI_POLL_WEIGHT);
-	napi_enable(&peer->napi);
-
 	ret = dst_cache_init(&peer->dst_cache, GFP_KERNEL);
 	if (ret < 0) {
 		pr_err("cannot initialize dst cache\n");
@@ -98,6 +93,11 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn, u32 id)
 		goto err_rx_ring;
 	}
 
+	/* configure and start NAPI */
+	netif_tx_napi_add(ovpn->dev, &peer->napi, ovpn_napi_poll,
+			  NAPI_POLL_WEIGHT);
+	napi_enable(&peer->napi);
+
 	dev_hold(ovpn->dev);
 
 	timer_setup(&peer->keepalive_xmit, ovpn_peer_ping, 0);
@@ -111,8 +111,6 @@ err_tx_ring:
 err_dst_cache:
 	dst_cache_destroy(&peer->dst_cache);
 err:
-	napi_disable(&peer->napi);
-	netif_napi_del(&peer->napi);
 	kfree(peer);
 	return ERR_PTR(ret);
 }
@@ -139,7 +137,7 @@ static void ovpn_peer_timer_delete_all(struct ovpn_peer *peer)
 	del_timer_sync(&peer->keepalive_recv);
 }
 
-void ovpn_peer_release(struct ovpn_peer *peer)
+static void ovpn_peer_free(struct ovpn_peer *peer)
 {
 	ovpn_bind_reset(peer, NULL);
 	ovpn_peer_timer_delete_all(peer);
@@ -166,7 +164,15 @@ static void ovpn_peer_release_rcu(struct rcu_head *head)
 	struct ovpn_peer *peer = container_of(head, struct ovpn_peer, rcu);
 
 	ovpn_crypto_state_release(&peer->crypto);
-	ovpn_peer_release(peer);
+	ovpn_peer_free(peer);
+}
+
+void ovpn_peer_release(struct ovpn_peer *peer)
+{
+	napi_disable(&peer->napi);
+	netif_napi_del(&peer->napi);
+
+	call_rcu(&peer->rcu, ovpn_peer_release_rcu);
 }
 
 static void ovpn_peer_delete_work(struct work_struct *work)
@@ -174,11 +180,8 @@ static void ovpn_peer_delete_work(struct work_struct *work)
 	struct ovpn_peer *peer = container_of(work, struct ovpn_peer,
 					      delete_work);
 
-	napi_disable(&peer->napi);
-	netif_napi_del(&peer->napi);
 	ovpn_netlink_notify_del_peer(peer);
-
-	call_rcu(&peer->rcu, ovpn_peer_release_rcu);
+	ovpn_peer_release(peer);
 }
 
 /* Use with kref_put calls, when releasing refcount
