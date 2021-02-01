@@ -400,9 +400,6 @@ struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_
 		break;
 	}
 
-	if (peer)
-		pr_debug("%s: found peer: %u\n", __func__, peer->id);
-
 	if (rt)
 		ip_rt_put(rt);
 
