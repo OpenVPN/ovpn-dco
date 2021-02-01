@@ -455,6 +455,8 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 peer_release:
 	/* release right away because peer is not really used in any context */
 	ovpn_peer_release(peer);
+	return ret;
+
 sockfd_release:
 	sockfd_put(sock);
 	return ret;
