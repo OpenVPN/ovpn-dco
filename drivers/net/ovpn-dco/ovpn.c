@@ -400,7 +400,7 @@ static void ovpn_queue_skb(struct ovpn_struct *ovpn, struct sk_buff *skb, struct
 	if (likely(!peer))
 		peer = ovpn_peer_lookup_vpn_addr(ovpn, skb);
 	if (unlikely(!peer)) {
-		pr_info_ratelimited("%s: no peer to send data to\n", __func__);
+		net_dbg_ratelimited("%s: no peer to send data to\n", ovpn->dev->name);
 		goto drop;
 	}
 
