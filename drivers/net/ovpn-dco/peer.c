@@ -608,7 +608,7 @@ int ovpn_peer_del(struct ovpn_peer *peer, enum ovpn_del_peer_reason reason)
 	ovpn_peer_unhash(peer, reason);
 
 unlock:
-	spin_unlock(&peer->ovpn->lock);
+	spin_unlock(&peer->ovpn->peers.lock);
 
 	if (tmp)
 		ovpn_peer_put(tmp);
