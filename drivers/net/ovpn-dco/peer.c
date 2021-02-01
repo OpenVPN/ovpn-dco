@@ -522,7 +522,7 @@ int ovpn_peer_add(struct ovpn_struct *ovpn, struct ovpn_peer *peer)
 	int ret = 0;
 	u32 index;
 
-	spin_lock(&ovpn->peers.lock);
+	spin_lock_bh(&ovpn->peers.lock);
 	/* do not add duplicates */
 	tmp = ovpn_peer_lookup_id(ovpn, peer->id);
 	if (tmp) {
@@ -578,7 +578,7 @@ int ovpn_peer_add(struct ovpn_struct *ovpn, struct ovpn_peer *peer)
 	hlist_add_head_rcu(&peer->hash_entry_transp_addr, &ovpn->peers.by_transp_addr[index]);
 
 unlock:
-	spin_unlock(&ovpn->peers.lock);
+	spin_unlock_bh(&ovpn->peers.lock);
 
 	return ret;
 }
@@ -599,7 +599,7 @@ int ovpn_peer_del(struct ovpn_peer *peer, enum ovpn_del_peer_reason reason)
 	struct ovpn_peer *tmp;
 	int ret = 0;
 
-	spin_lock(&peer->ovpn->peers.lock);
+	spin_lock_bh(&peer->ovpn->peers.lock);
 	tmp = ovpn_peer_lookup_id(peer->ovpn, peer->id);
 	if (tmp != peer) {
 		ret = -ENOENT;
@@ -608,7 +608,7 @@ int ovpn_peer_del(struct ovpn_peer *peer, enum ovpn_del_peer_reason reason)
 	ovpn_peer_unhash(peer, reason);
 
 unlock:
-	spin_unlock(&peer->ovpn->peers.lock);
+	spin_unlock_bh(&peer->ovpn->peers.lock);
 
 	if (tmp)
 		ovpn_peer_put(tmp);
@@ -622,8 +622,8 @@ void ovpn_peers_free(struct ovpn_struct *ovpn)
 	struct ovpn_peer *peer;
 	int bkt;
 
-	spin_lock(&ovpn->peers.lock);
+	spin_lock_bh(&ovpn->peers.lock);
 	hash_for_each_safe(ovpn->peers.by_id, bkt, tmp, peer, hash_entry_id)
 		ovpn_peer_unhash(peer, OVPN_DEL_PEER_REASON_TEARDOWN);
-	spin_unlock(&ovpn->peers.lock);
+	spin_unlock_bh(&ovpn->peers.lock);
 }
