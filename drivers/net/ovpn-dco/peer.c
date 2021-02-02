@@ -142,9 +142,6 @@ static void ovpn_peer_free(struct ovpn_peer *peer)
 	ovpn_bind_reset(peer, NULL);
 	ovpn_peer_timer_delete_all(peer);
 
-	if (peer->sock)
-		ovpn_socket_put(peer->sock);
-
 	WARN_ON(!__ptr_ring_empty(&peer->tx_ring));
 	ptr_ring_cleanup(&peer->tx_ring, NULL);
 	WARN_ON(!__ptr_ring_empty(&peer->rx_ring));
@@ -171,6 +168,9 @@ void ovpn_peer_release(struct ovpn_peer *peer)
 {
 	napi_disable(&peer->napi);
 	netif_napi_del(&peer->napi);
+
+	if (peer->sock)
+		ovpn_socket_put(peer->sock);
 
 	call_rcu(&peer->rcu, ovpn_peer_release_rcu);
 }
