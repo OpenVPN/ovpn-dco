@@ -41,6 +41,16 @@
 #define OVPN_EXPLICIT_EXIT_NOTIFY_FIRST_BYTE 0x28
 
 /**
+ * Extract the OP code from the specified byte
+ *
+ * Return the OP code
+ */
+static inline u8 ovpn_opcode_from_byte(u8 byte)
+{
+	return byte >> OVPN_OPCODE_SHIFT;
+}
+
+/**
  * Extract the OP code from the skb head.
  *
  * Note: this function assumes that the skb head was pulled enough
@@ -50,7 +60,7 @@
  */
 static inline u8 ovpn_opcode_from_skb(const struct sk_buff *skb, u16 offset)
 {
-	return *(skb->data + offset) >> OVPN_OPCODE_SHIFT;
+	return ovpn_opcode_from_byte(*(skb->data + offset));
 }
 
 /**

@@ -599,6 +599,7 @@ static int ovpn_netlink_packet(struct sk_buff *skb, struct genl_info *info)
 	const u8 *packet;
 	u32 peer_id;
 	size_t len;
+	u8 opcode;
 	int ret;
 
 	if (!info->attrs[OVPN_ATTR_PACKET])
@@ -617,14 +618,24 @@ static int ovpn_netlink_packet(struct sk_buff *skb, struct genl_info *info)
 	peer_id = nla_get_u32(attrs[OVPN_PACKET_ATTR_PEER_ID]);
 
 	len = nla_len(attrs[OVPN_PACKET_ATTR_PACKET]);
-	if (len > ovpn->dev->mtu) {
-		pr_debug("%s: packet too large (max is MTU: %u)\n", __func__, ovpn->dev->mtu);
+
+	if (len < 4 || len > ovpn->dev->mtu) {
+		pr_debug("%s: invalid packet size %zu (min is 4, max is MTU: %u)\n", __func__, len,
+			 ovpn->dev->mtu);
 		return -EINVAL;
 	}
 
 	packet = nla_data(attrs[OVPN_PACKET_ATTR_PACKET]);
+	opcode = ovpn_opcode_from_byte(packet[0]);
 
-	pr_debug("%s: sending userspace packet to peer...\n", __func__);
+	/* reject data packets from userspace as they could lead to IV reuse */
+	if (opcode == OVPN_DATA_V1 || opcode == OVPN_DATA_V2) {
+		pr_debug("%s: rejecting data packet from userspace (opcode=%u)\n", __func__,
+			 opcode);
+		return -EINVAL;
+	}
+
+	pr_debug("%s: sending userspace packet to peer %u...\n", __func__, peer_id);
 
 	return ovpn_send_data(ovpn, peer_id, packet, len);
 }
