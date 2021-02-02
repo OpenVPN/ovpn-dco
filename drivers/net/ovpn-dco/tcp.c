@@ -76,6 +76,9 @@ void ovpn_tcp_socket_detach(struct socket *sock)
 	cancel_work_sync(&peer->tcp.rx_work);
 
 	rcu_assign_sk_user_data(sock->sk, NULL);
+
+	WARN_ON(!__ptr_ring_empty(&peer->tcp.tx_ring));
+	ptr_ring_cleanup(&peer->tcp.tx_ring, NULL);
 release:
 	sock_release(sock);
 }
