@@ -83,6 +83,7 @@ static const struct nla_policy ovpn_netlink_policy_set_peer[OVPN_SET_PEER_ATTR_M
 static const struct nla_policy ovpn_netlink_policy_del_peer[OVPN_DEL_PEER_ATTR_MAX + 1] = {
 	[OVPN_DEL_PEER_ATTR_REASON] = NLA_POLICY_RANGE(NLA_U8, __OVPN_DEL_PEER_REASON_FIRST,
 						       __OVPN_DEL_PEER_REASON_AFTER_LAST - 1),
+	[OVPN_DEL_PEER_ATTR_PEER_ID] = { .type = NLA_U32 },
 };
 
 /** CMD_PACKET polocy */

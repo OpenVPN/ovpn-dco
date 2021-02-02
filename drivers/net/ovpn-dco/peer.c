@@ -24,10 +24,7 @@ static void ovpn_peer_ping(struct timer_list *t)
 {
 	struct ovpn_peer *peer = from_timer(peer, t, keepalive_xmit);
 
-	rcu_read_lock();
-	pr_debug("sending ping to peer %pIScp\n", &rcu_dereference(peer->bind)->sa);
-	rcu_read_unlock();
-
+	pr_debug("sending ping to peer %u\n", peer->id);
 	ovpn_keepalive_xmit(peer);
 }
 
@@ -35,10 +32,7 @@ static void ovpn_peer_expire(struct timer_list *t)
 {
 	struct ovpn_peer *peer = from_timer(peer, t, keepalive_recv);
 
-	rcu_read_lock();
-	pr_debug("peer expired: %pIScp\n", &rcu_dereference(peer->bind)->sa);
-	rcu_read_unlock();
-
+	pr_debug("peer %u expired\n", peer->id);
 	ovpn_peer_del(peer, OVPN_DEL_PEER_REASON_EXPIRED);
 }
 
@@ -243,8 +237,8 @@ void ovpn_peer_keepalive_set(struct ovpn_peer *peer, u32 interval, u32 timeout)
 	u32 delta;
 
 	rcu_read_lock();
-	pr_debug("scheduling keepalive for %pIScp: interval=%u timeout=%u\n",
-		 &rcu_dereference(peer->bind)->sa, interval, timeout);
+	pr_debug("scheduling keepalive for peer %u: interval=%u timeout=%u\n", peer->id, interval,
+		 timeout);
 	rcu_read_unlock();
 
 	peer->keepalive_interval = interval;
@@ -531,12 +525,6 @@ int ovpn_peer_add(struct ovpn_struct *ovpn, struct ovpn_peer *peer)
 		goto unlock;
 	}
 
-	bind = rcu_dereference_protected(peer->bind, true);
-	if (WARN_ON(!bind)) {
-		ret = -EINVAL;
-		goto unlock;
-	}
-
 	index = ovpn_peer_index(ovpn->peers.by_id, &peer->id, sizeof(peer->id));
 	hlist_add_head_rcu(&peer->hash_entry_id, &ovpn->peers.by_id[index]);
 
@@ -555,27 +543,32 @@ int ovpn_peer_add(struct ovpn_struct *ovpn, struct ovpn_peer *peer)
 
 	hlist_del_init_rcu(&peer->hash_entry_transp_addr);
 
-	switch (bind->sa.in4.sin_family) {
-	case AF_INET:
-		sa4 = (struct sockaddr_in *)&sa;
+	bind = rcu_dereference_protected(peer->bind, true);
+	/* peers connected via UDP have bind == NULL */
+	if (bind) {
+		switch (bind->sa.in4.sin_family) {
+		case AF_INET:
+			sa4 = (struct sockaddr_in *)&sa;
 
-		sa4->sin_family = AF_INET;
-		sa4->sin_addr.s_addr = bind->sa.in4.sin_addr.s_addr;
-		sa4->sin_port = bind->sa.in4.sin_port;
-		salen = sizeof(*sa4);
-		break;
-	case AF_INET6:
-		sa6 = (struct sockaddr_in6 *)&sa;
+			sa4->sin_family = AF_INET;
+			sa4->sin_addr.s_addr = bind->sa.in4.sin_addr.s_addr;
+			sa4->sin_port = bind->sa.in4.sin_port;
+			salen = sizeof(*sa4);
+			break;
+		case AF_INET6:
+			sa6 = (struct sockaddr_in6 *)&sa;
 
-		sa6->sin6_family = AF_INET6;
-		sa6->sin6_addr = bind->sa.in6.sin6_addr;
-		sa6->sin6_port = bind->sa.in6.sin6_port;
-		salen = sizeof(*sa6);
-		break;
+			sa6->sin6_family = AF_INET6;
+			sa6->sin6_addr = bind->sa.in6.sin6_addr;
+			sa6->sin6_port = bind->sa.in6.sin6_port;
+			salen = sizeof(*sa6);
+			break;
+		}
+
+		index = ovpn_peer_index(ovpn->peers.by_transp_addr, &sa, salen);
+		hlist_add_head_rcu(&peer->hash_entry_transp_addr,
+				   &ovpn->peers.by_transp_addr[index]);
 	}
-
-	index = ovpn_peer_index(ovpn->peers.by_transp_addr, &sa, salen);
-	hlist_add_head_rcu(&peer->hash_entry_transp_addr, &ovpn->peers.by_transp_addr[index]);
 
 unlock:
 	spin_unlock_bh(&ovpn->peers.lock);
