@@ -7,6 +7,7 @@
  */
 
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
@@ -454,18 +455,26 @@ static int ovpn_udp_socket(struct ovpn_ctx *ctx, sa_family_t family)
 
 static int ovpn_listen(struct ovpn_ctx *ctx, sa_family_t family)
 {
-	socklen_t socklen;
 	int ret;
 
 	ret = ovpn_socket(ctx, family, IPPROTO_TCP);
 	if (ret < 0)
 		return ret;
 
-	ret = listen(ctx->socket, 5);
+	ret = listen(ctx->socket, 10);
 	if (ret < 0) {
 		perror("listen");
-		goto err;
+		close(ctx->socket);
+		return -1;
 	}
+
+	return 0;
+}
+
+static int ovpn_accept(struct ovpn_ctx *ctx)
+{
+	socklen_t socklen;
+	int ret;
 
 	socklen = sizeof(ctx->remote);
 	ret = accept(ctx->socket, (struct sockaddr *)&ctx->remote, &socklen);
@@ -487,10 +496,7 @@ static int ovpn_listen(struct ovpn_ctx *ctx, sa_family_t family)
 		goto err;
 	}
 
-	close(ctx->socket);
-	ctx->socket = ret;
-
-	return 0;
+	return ret;
 err:
 	close(ctx->socket);
 	return ret;
@@ -534,7 +540,7 @@ err:
 	return ret;
 }
 
-static int ovpn_new_peer(struct ovpn_ctx *ovpn)
+static int ovpn_new_peer(struct ovpn_ctx *ovpn, bool is_tcp)
 {
 	struct nlattr *attr;
 	struct nl_ctx *ctx;
@@ -549,18 +555,21 @@ static int ovpn_new_peer(struct ovpn_ctx *ovpn)
 	NLA_PUT_U32(ctx->nl_msg, OVPN_NEW_PEER_ATTR_PEER_ID, ovpn->peer_id);
 	NLA_PUT_U32(ctx->nl_msg, OVPN_NEW_PEER_ATTR_SOCKET, ovpn->socket);
 
-	switch (ovpn->remote.in4.sin_family) {
-	case AF_INET:
-		alen = sizeof(struct sockaddr_in);
-		break;
-	case AF_INET6:
-		alen = sizeof(struct sockaddr_in6);
-		break;
-	default:
-		fprintf(stderr, "Invalid family for remote socket address\n");
-		goto nla_put_failure;
+	if (!is_tcp) {
+		switch (ovpn->remote.in4.sin_family) {
+		case AF_INET:
+			alen = sizeof(struct sockaddr_in);
+			break;
+		case AF_INET6:
+			alen = sizeof(struct sockaddr_in6);
+			break;
+		default:
+			fprintf(stderr, "Invalid family for remote socket address\n");
+			goto nla_put_failure;
+		}
+		NLA_PUT(ctx->nl_msg, OVPN_NEW_PEER_ATTR_SOCKADDR_REMOTE, alen, &ovpn->remote);
 	}
-	NLA_PUT(ctx->nl_msg, OVPN_NEW_PEER_ATTR_SOCKADDR_REMOTE, alen, &ovpn->remote);
+
 
 	switch (ovpn->peer_ip.in4.sin_family) {
 	case AF_INET:
@@ -981,19 +990,23 @@ static void usage(const char *cmd)
 		cmd);
 	fprintf(stderr, "\tiface: tun interface name\n\n");
 
-	fprintf(stderr, "* connect <raddr> <rport>: start connecting peer of TCP-based VPN session\n");
+	fprintf(stderr, "* connect <peer_id> <raddr> <rport> <vpnaddr>: start connecting peer of TCP-based VPN session\n");
+	fprintf(stderr, "\tpeer-id: peer ID of the connecting peer\n");
 	fprintf(stderr, "\tremote-addr: peer IP address\n");
-	fprintf(stderr, "\tremote-port: peer TCP port\n\n");
+	fprintf(stderr, "\tremote-port: peer TCP port\n");
+	fprintf(stderr, "\tvpn-ip: peer VPN IP\n\n");
 
-	fprintf(stderr, "* listen <lport>: start listening peer of TCP-based VPN session\n");
-	fprintf(stderr, "\tlocal-port: src TCP port\n\n");
+	fprintf(stderr, "* listen <lport> <peers_file>: listen for incoming peer TCP connections\n");
+	fprintf(stderr, "\tlport: src TCP port\n");
+	fprintf(stderr, "\tpeers_file: file containing one peer per line: Line format:\n");
+	fprintf(stderr, "\t\t<peer_id> <vpnaddr>\n\n");
 
 	fprintf(stderr, "* new_peer <lport> <peer-id> <raddr> <rport> <vpnaddr>: add new peer\n");
 	fprintf(stderr, "\tpeer-id: peer ID to be used in data packets to/from this peer\n");
 	fprintf(stderr, "\tlocal-port: local UDP port\n");
 	fprintf(stderr, "\tremote-addr: peer IP address\n");
 	fprintf(stderr, "\tremote-port: peer UDP port\n");
-	fprintf(stderr, "\tvpn-ip: peer VPN IP\n\n");
+	fprintf(stderr, "\tvpnaddr: peer VPN IP\n\n");
 
 	fprintf(stderr, "* new_multi_peer <lport> <file>: add multiple peers as listed in the file\n");
 	fprintf(stderr, "\tlport: local UDP port to bind to\n");
@@ -1130,7 +1143,11 @@ int main(int argc, char *argv[])
 	}
 
 	if (!strcmp(argv[2], "listen")) {
-		if (argc < 5) {
+		char peer_id[10], vpnip[100];
+		int n;
+		FILE *fp;
+
+		if (argc < 4) {
 			usage(argv[0]);
 			return -1;
 		}
@@ -1141,13 +1158,7 @@ int main(int argc, char *argv[])
 			return -1;
 		}
 
-		ret = ovpn_parse_remote(&ovpn, NULL, NULL, argv[4]);
-		if (ret < 0) {
-			fprintf(stderr, "Cannot resolve remote\n");
-			return ret;
-		}
-
-		if (argc > 5 && !strcmp(argv[5], "ipv6"))
+		if (argc > 4 && !strcmp(argv[4], "ipv6"))
 			family = AF_INET6;
 
 		ret = ovpn_listen(&ovpn, family);
@@ -1156,10 +1167,35 @@ int main(int argc, char *argv[])
 			return ret;
 		}
 
-		ret = ovpn_new_peer(&ovpn);
-		if (ret < 0) {
-			fprintf(stderr, "cannot add peer to VPN\n");
-			return ret;
+		fp = fopen(argv[4], "r");
+		if (!fp) {
+			fprintf(stderr, "cannot open file: %s\n", argv[4]);
+			return -1;
+		}
+
+		while ((n = fscanf(fp, "%s %s\n", peer_id, vpnip)) == 2) {
+			struct ovpn_ctx peer_ctx = { 0 };
+
+			peer_ctx.ifindex = if_nametoindex(argv[1]);
+			peer_ctx.sa_family = family;
+
+			peer_ctx.socket = ovpn_accept(&ovpn);
+			if (peer_ctx.socket < 0) {
+				fprintf(stderr, "cannot accept connection!\n");
+				return -1;
+			}
+
+			ret = ovpn_parse_new_peer(&peer_ctx, peer_id, NULL, NULL, vpnip);
+			if (ret < 0) {
+				fprintf(stderr, "error while parsing line\n");
+				return -1;
+			}
+
+			ret = ovpn_new_peer(&peer_ctx, true);
+			if (ret < 0) {
+				fprintf(stderr, "cannot add peer to VPN: %s %s\n", peer_id, vpnip);
+				return ret;
+			}
 		}
 	} else if (!strcmp(argv[2], "connect")) {
 		if (argc < 6) {
@@ -1169,9 +1205,9 @@ int main(int argc, char *argv[])
 
 		ovpn.sa_family = AF_INET;
 
-		ret = ovpn_parse_remote(&ovpn, argv[3], argv[4], argv[5]);
+		ret = ovpn_parse_new_peer(&ovpn, argv[3], argv[4], argv[5], argv[6]);
 		if (ret < 0) {
-			fprintf(stderr, "Cannot resolve remote\n");
+			fprintf(stderr, "Cannot parse remote peer data\n");
 			return ret;
 		}
 
@@ -1181,7 +1217,7 @@ int main(int argc, char *argv[])
 			return ret;
 		}
 
-		ret = ovpn_new_peer(&ovpn);
+		ret = ovpn_new_peer(&ovpn, true);
 		if (ret < 0) {
 			fprintf(stderr, "cannot add peer to VPN\n");
 			close(ovpn.socket);
@@ -1207,7 +1243,7 @@ int main(int argc, char *argv[])
 		if (ret < 0)
 			return ret;
 
-		ret = ovpn_new_peer(&ovpn);
+		ret = ovpn_new_peer(&ovpn, false);
 		if (ret < 0) {
 			fprintf(stderr, "cannot add peer to VPN\n");
 			return ret;
@@ -1251,7 +1287,7 @@ int main(int argc, char *argv[])
 				return -1;
 			}
 
-			ret = ovpn_new_peer(&peer_ctx);
+			ret = ovpn_new_peer(&peer_ctx, false);
 			if (ret < 0) {
 				fprintf(stderr, "cannot add peer to VPN: %s %s %s %s\n", peer_id,
 					raddr, rport, vpnip);

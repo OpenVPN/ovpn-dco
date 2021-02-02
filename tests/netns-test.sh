@@ -7,10 +7,10 @@
 set -x
 set -e
 
-PEERS_FILE=${PEERS_FILE:-peers.txt}
+UDP_PEERS_FILE=${UDP_PEERS_FILE:-udp_peers.txt}
+TCP_PEERS_FILE=${TCP_PEERS_FILE:-tcp_peers.txt}
 OVPN_CLI=${OVPN_CLI:-./ovpn-cli}
 ALG=${ALG:-aes}
-NUM_PEERS=${NUM_PEERS:-$(wc -l $PEERS_FILE | awk '{print $1}')}
 
 function create_ns() {
 	ip netns add peer$1
@@ -41,7 +41,7 @@ function setup_ns() {
 function add_peer() {
 	if [ $tcp -eq 0 ]; then
 		if [ $1 -eq 0 ]; then
-			ip netns exec peer0 $OVPN_CLI tun0 new_multi_peer 1 $PEERS_FILE
+			ip netns exec peer0 $OVPN_CLI tun0 new_multi_peer 1 $UDP_PEERS_FILE
 
 			for p in $(seq 1 $NUM_PEERS); do
 			#	ip netns exec peer0 $OVPN_CLI tun0 new_peer ${p} ${p} 10.10.${p}.2 1 5.5.5.$((${p} + 1))
@@ -53,11 +53,15 @@ function add_peer() {
 		fi
 	else
 		if [ $1 -eq 0 ]; then
-			(ip netns exec peer$1 $OVPN_CLI tun0 listen $5 $8 $9 && \
-				ip netns exec peer$1 $OVPN_CLI tun0 new_key $ALG $1 data64.key) &
+			(ip netns exec peer$1 $OVPN_CLI tun0 listen 1 $TCP_PEERS_FILE && {
+				for p in $(seq 1 $NUM_PEERS); do
+					ip netns exec peer0 $OVPN_CLI tun0 new_key ${p} $ALG 0 data64.key
+				done
+			}) &
+			sleep 5
 		else
-			ip netns exec peer$1 $OVPN_CLI tun0 connect $6 $7 $8
-			ip netns exec peer$1 $OVPN_CLI tun0 new_key $ALG $1 data64.key
+			ip netns exec peer${1} $OVPN_CLI tun0 connect ${1} 10.10.${1}.1 1 5.5.5.1
+			ip netns exec peer${1} $OVPN_CLI tun0 new_key ${1} $ALG 1 data64.key
 		fi
 	fi
 }
@@ -72,10 +76,6 @@ for p in $(seq 0 10); do
 	ip netns del peer${p} 2>/dev/null || true
 done
 
-for p in $(seq 0 $NUM_PEERS); do
-	create_ns ${p}
-done
-
 ipv6=0
 if [ "$1" == "-6" ]; then
 	ipv6=1
@@ -84,10 +84,16 @@ fi
 
 tcp=0
 if [ "$1" == "-t" ]; then
-	tcp=1
 	shift
+	tcp=1
+	NUM_PEERS=${NUM_PEERS:-$(wc -l $TCP_PEERS_FILE | awk '{print $1}')}
+else
+	NUM_PEERS=${NUM_PEERS:-$(wc -l $UDP_PEERS_FILE | awk '{print $1}')}
 fi
 
+for p in $(seq 0 $NUM_PEERS); do
+	create_ns ${p}
+done
 
 if [ $ipv6 -eq 1 ]; then
 	setup_ns 0 fc00::1 64 5.5.5.1/24 1 fc00::2 2 5.5.5.2 ipv6
