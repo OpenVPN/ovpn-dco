@@ -617,6 +617,26 @@ nla_put_failure:
 	return ret;
 }
 
+static int ovpn_del_peer(struct ovpn_ctx *ovpn)
+{
+	struct nlattr *attr;
+	struct nl_ctx *ctx;
+	int ret = -1;
+
+	ctx = nl_ctx_alloc(ovpn, OVPN_CMD_DEL_PEER);
+	if (!ctx)
+		return -ENOMEM;
+
+	attr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_DEL_PEER);
+	NLA_PUT_U32(ctx->nl_msg, OVPN_DEL_PEER_ATTR_PEER_ID, ovpn->peer_id);
+	nla_nest_end(ctx->nl_msg, attr);
+
+	ret = ovpn_nl_msg_send(ctx, NULL);
+nla_put_failure:
+	nl_ctx_free(ctx);
+	return ret;
+}
+
 static int ovpn_new_key(struct ovpn_ctx *ovpn)
 {
 	struct nlattr *attr, *key_dir;
@@ -986,7 +1006,7 @@ static void usage(const char *cmd)
 {
 	fprintf(stderr, "Error: invalid arguments.\n\n");
 	fprintf(stderr,
-		"Usage %s <iface> <start_udp|connect|listen|new_peer|new_multi_peer|set_peer|new_key|del_key|recv|send|listen_mcast> [arguments..]\n",
+		"Usage %s <iface> <start_udp|connect|listen|new_peer|new_multi_peer|set_peer|del_peer|new_key|del_key|recv|send|listen_mcast> [arguments..]\n",
 		cmd);
 	fprintf(stderr, "\tiface: tun interface name\n\n");
 
@@ -1020,6 +1040,9 @@ static void usage(const char *cmd)
 		"\tkeepalive_interval: interval for sending ping messages\n");
 	fprintf(stderr,
 		"\tkeepalive_timeout: time after which a peer is timed out\n\n");
+
+	fprintf(stderr, "* del_peer <peer-id>: delete peer\n");
+	fprintf(stderr, "\tpeer-id: peer ID of the peer to delete\n\n");
 
 	fprintf(stderr,
 		"* new_key <peer-id> <cipher> <key_dir> <key_file>: set data channel key\n");
@@ -1311,6 +1334,23 @@ int main(int argc, char *argv[])
 		ret = ovpn_set_peer(&ovpn);
 		if (ret < 0) {
 			fprintf(stderr, "cannot set peer to VPN\n");
+			return ret;
+		}
+	} else if (!strcmp(argv[2], "del_peer")) {
+		if (argc < 4) {
+			usage(argv[0]);
+			return -1;
+		}
+
+		ovpn.peer_id = strtoul(argv[3], NULL, 10);
+		if (errno == ERANGE) {
+			fprintf(stderr, "peer ID value out of range\n");
+			return -1;
+		}
+
+		ret = ovpn_del_peer(&ovpn);
+		if (ret < 0) {
+			fprintf(stderr, "cannot delete peer to VPN\n");
 			return ret;
 		}
 	} else if (!strcmp(argv[2], "new_key")) {
