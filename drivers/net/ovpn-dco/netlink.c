@@ -504,6 +504,38 @@ static int ovpn_netlink_set_peer(struct sk_buff *skb, struct genl_info *info)
 	return 0;
 }
 
+static int ovpn_netlink_del_peer(struct sk_buff *skb, struct genl_info *info)
+{
+	struct nlattr *attrs[OVPN_SET_PEER_ATTR_MAX + 1];
+	struct ovpn_struct *ovpn = info->user_ptr[0];
+	struct ovpn_peer *peer;
+	u32 peer_id;
+	int ret;
+
+	if (!info->attrs[OVPN_ATTR_DEL_PEER])
+		return -EINVAL;
+
+	ret = nla_parse_nested(attrs, OVPN_DEL_PEER_ATTR_MAX, info->attrs[OVPN_ATTR_DEL_PEER], NULL,
+			       info->extack);
+	if (ret)
+		return ret;
+
+	if (!attrs[OVPN_DEL_PEER_ATTR_PEER_ID])
+		return -EINVAL;
+
+	peer_id = nla_get_u32(attrs[OVPN_DEL_PEER_ATTR_PEER_ID]);
+
+	peer = ovpn_peer_lookup_id(ovpn, peer_id);
+	if (!peer)
+		return -ENOENT;
+
+	pr_debug("%s: peer id=%u\n", __func__, peer->id);
+	ret = ovpn_peer_del(peer, OVPN_DEL_PEER_REASON_USERSPACE);
+	ovpn_peer_put(peer);
+
+	return ret;
+}
+
 static int ovpn_netlink_register_packet(struct sk_buff *skb,
 					struct genl_info *info)
 {
@@ -571,6 +603,12 @@ static const struct genl_ops ovpn_netlink_ops[] = {
 		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.flags = GENL_ADMIN_PERM,
 		.doit = ovpn_netlink_set_peer,
+	},
+	{
+		.cmd = OVPN_CMD_DEL_PEER,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
+		.flags = GENL_ADMIN_PERM,
+		.doit = ovpn_netlink_del_peer,
 	},
 	{
 		.cmd = OVPN_CMD_NEW_KEY,
