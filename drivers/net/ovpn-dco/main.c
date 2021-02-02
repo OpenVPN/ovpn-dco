@@ -15,6 +15,7 @@
 
 #include <linux/ethtool.h>
 #include <linux/genetlink.h>
+#include <linux/inetdevice.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/types.h>
@@ -60,6 +61,14 @@ static int ovpn_net_init(struct net_device *dev)
 /* Net device open */
 static int ovpn_net_open(struct net_device *dev)
 {
+	struct in_device *dev_v4 = __in_dev_get_rtnl(dev);
+
+	if (dev_v4) {
+		/* disable redirects as Linux gets confused by ovpn-dco handling same-LAN routing */
+		IN_DEV_CONF_SET(dev_v4, SEND_REDIRECTS, false);
+		IPV4_DEVCONF_ALL(dev_net(dev), SEND_REDIRECTS) = false;
+	}
+
 	netif_tx_start_all_queues(dev);
 	return 0;
 }
