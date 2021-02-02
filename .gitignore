@@ -10,6 +10,7 @@
 /drivers/net/ovpn-dco/ovpn-dco.mod
 /drivers/net/ovpn-dco/modules.order
 /drivers/net/ovpn-dco/*.o
-/drivers/net/ovpn-dco/.*.o.cmd
+/drivers/net/ovpn-dco/.*.cmd
 /.tmp_versions
 /tests/ovpn-cli
+/.*.cmd
