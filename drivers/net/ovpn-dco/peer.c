@@ -531,6 +531,12 @@ int ovpn_peer_add(struct ovpn_struct *ovpn, struct ovpn_peer *peer)
 		goto unlock;
 	}
 
+	bind = rcu_dereference_protected(peer->bind, true);
+	if (WARN_ON(!bind)) {
+		ret = -EINVAL;
+		goto unlock;
+	}
+
 	index = ovpn_peer_index(ovpn->peers.by_id, &peer->id, sizeof(peer->id));
 	hlist_add_head_rcu(&peer->hash_entry_id, &ovpn->peers.by_id[index]);
 
@@ -548,12 +554,6 @@ int ovpn_peer_add(struct ovpn_struct *ovpn, struct ovpn_peer *peer)
 	}
 
 	hlist_del_init_rcu(&peer->hash_entry_transp_addr);
-	bind = rcu_dereference_protected(peer->bind, true);
-	if (WARN_ON(!bind)) {
-		ovpn_peer_put(peer);
-		ret = -EINVAL;
-		goto unlock;
-	}
 
 	switch (bind->sa.in4.sin_family) {
 	case AF_INET:
