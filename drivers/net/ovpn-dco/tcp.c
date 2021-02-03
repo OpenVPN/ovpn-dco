@@ -48,6 +48,11 @@ static void ovpn_tcp_write_space(struct sock *sk)
 	queue_work(sock->peer->ovpn->events_wq, &sock->peer->tcp.tx_work);
 }
 
+static void ovpn_destroy_skb(void *skb)
+{
+	consume_skb(skb);
+}
+
 void ovpn_tcp_socket_detach(struct socket *sock)
 {
 	struct ovpn_socket *ovpn_sock;
@@ -77,8 +82,7 @@ void ovpn_tcp_socket_detach(struct socket *sock)
 
 	rcu_assign_sk_user_data(sock->sk, NULL);
 
-	WARN_ON(!__ptr_ring_empty(&peer->tcp.tx_ring));
-	ptr_ring_cleanup(&peer->tcp.tx_ring, NULL);
+	ptr_ring_cleanup(&peer->tcp.tx_ring, ovpn_destroy_skb);
 release:
 	sock_release(sock);
 }
