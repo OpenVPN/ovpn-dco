@@ -239,9 +239,6 @@ void ovpn_udp_send_skb(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 		goto out_unlock;
 	}
 
-	/* note event of authenticated packet xmit for keepalive */
-	ovpn_peer_keepalive_xmit_reset(peer);
-
 	/* crypto layer -> transport (UDP) */
 	ret = ovpn_udp_output(ovpn, bind, &peer->dst_cache, sock->sk, skb);
 

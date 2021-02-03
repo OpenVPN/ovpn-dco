@@ -383,6 +383,9 @@ void ovpn_encrypt_work(struct work_struct *work)
 					break;
 				}
 			}
+
+			/* note event of authenticated packet xmit for keepalive */
+			ovpn_peer_keepalive_xmit_reset(peer);
 		}
 
 		/* give a chance to be rescheduled if needed */
