@@ -566,6 +566,9 @@ static int ovpn_netlink_packet(struct sk_buff *skb, struct genl_info *info)
 	size_t len;
 	int ret;
 
+	if (!info->attrs[OVPN_ATTR_PACKET])
+		return -EINVAL;
+
 	ret = nla_parse_nested(attrs, OVPN_PACKET_ATTR_MAX, info->attrs[OVPN_ATTR_PACKET],
 			       NULL, info->extack);
 	if (ret)
