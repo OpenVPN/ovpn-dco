@@ -507,7 +507,7 @@ struct ovpn_peer *ovpn_peer_lookup_id(struct ovpn_struct *ovpn, u32 peer_id)
 /* assume refcounter was increased by caller */
 int ovpn_peer_add(struct ovpn_struct *ovpn, struct ovpn_peer *peer)
 {
-	struct sockaddr sa = { 0 };
+	struct sockaddr_storage sa = { 0 };
 	struct sockaddr_in6 *sa6;
 	struct sockaddr_in *sa4;
 	struct ovpn_bind *bind;
