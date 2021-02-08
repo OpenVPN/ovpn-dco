@@ -89,7 +89,7 @@ static const struct nla_policy ovpn_netlink_policy_del_peer[OVPN_DEL_PEER_ATTR_M
 /** CMD_PACKET polocy */
 static const struct nla_policy ovpn_netlink_policy_packet[OVPN_PACKET_ATTR_MAX + 1] = {
 	[OVPN_PACKET_ATTR_PEER_ID] = { .type = NLA_U32 },
-	[OVPN_PACKET_ATTR_PACKET] = NLA_POLICY_MAX_LEN(1280),
+	[OVPN_PACKET_ATTR_PACKET] = NLA_POLICY_MAX_LEN(U16_MAX),
 };
 
 /** Generic message container policy */
@@ -582,8 +582,8 @@ static int ovpn_netlink_packet(struct sk_buff *skb, struct genl_info *info)
 	peer_id = nla_get_u32(attrs[OVPN_PACKET_ATTR_PEER_ID]);
 
 	len = nla_len(attrs[OVPN_PACKET_ATTR_PACKET]);
-	if (len > 1280) {
-		pr_debug("netlink packet too large\n");
+	if (len > ovpn->dev->mtu) {
+		pr_debug("%s: packet too large (max is MTU: %u)\n", __func__, ovpn->dev->mtu);
 		return -EINVAL;
 	}
 
