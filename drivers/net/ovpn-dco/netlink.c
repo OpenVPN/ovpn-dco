@@ -253,8 +253,10 @@ static int ovpn_netlink_new_key(struct sk_buff *skb, struct genl_info *info)
 	pkr.crypto_family = ovpn_keys_familiy_get(&pkr.key);
 
 	peer = ovpn_peer_lookup_id(ovpn, peer_id);
-	if (!peer)
+	if (!peer) {
+		pr_debug("%s: no peer with id %u to set key for\n", __func__, peer_id);
 		return -ENOENT;
+	}
 
 	mutex_lock(&peer->crypto.mutex);
 	/* get crypto family and check for consistency */
@@ -361,8 +363,10 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 		return ret;
 
 	if (!attrs[OVPN_NEW_PEER_ATTR_PEER_ID] || !attrs[OVPN_NEW_PEER_ATTR_SOCKET] ||
-	    (!attrs[OVPN_NEW_PEER_ATTR_IPV4] && !attrs[OVPN_NEW_PEER_ATTR_IPV6]))
+	    (!attrs[OVPN_NEW_PEER_ATTR_IPV4] && !attrs[OVPN_NEW_PEER_ATTR_IPV6])) {
+		pr_debug("%s: basic attributes missing\n", __func__);
 		return -EINVAL;
+	}
 
 	/* lookup the fd in the kernel table and extract the socket object */
 	sockfd = nla_get_u32(attrs[OVPN_NEW_PEER_ATTR_SOCKET]);

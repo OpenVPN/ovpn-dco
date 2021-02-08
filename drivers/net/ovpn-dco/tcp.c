@@ -134,10 +134,9 @@ static void ovpn_tcp_tx_work(struct work_struct *work)
 	while ((skb = __ptr_ring_peek(&peer->tcp.tx_ring))) {
 		ret = ovpn_tcp_send_one(peer, skb);
 		if (ret < 0 && ret != -EAGAIN) {
-			pr_warn_ratelimited("%s: cannot send TCP packet: %d\n", __func__, ret);
-			/* in case of TCP error stop sending loop, and, if peer is
-			 * attached to ovpn_struct, delete it and notify userspace
-			 */
+			pr_warn_ratelimited("%s: cannot send TCP packet to peer %u: %d\n", __func__,
+					    peer->id, ret);
+			/* in case of TCP error stop sending loop and delete peer */
 			ovpn_peer_del(peer, OVPN_DEL_PEER_REASON_TRANSPORT_ERROR);
 			break;
 		} else if (!skb->len) {
