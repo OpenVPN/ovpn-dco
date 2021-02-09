@@ -122,7 +122,7 @@ struct ovpn_socket *ovpn_socket_new(struct socket *sock, struct ovpn_peer *peer)
 		return ovpn_sock;
 	}
 
-	ovpn_sock = kmalloc(sizeof(*ovpn_sock), GFP_KERNEL);
+	ovpn_sock = kzalloc(sizeof(*ovpn_sock), GFP_KERNEL);
 	if (!ovpn_sock)
 		return ERR_PTR(-ENOMEM);
 
