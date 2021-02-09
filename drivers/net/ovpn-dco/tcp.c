@@ -153,7 +153,7 @@ static void ovpn_tcp_tx_work(struct work_struct *work)
 static int ovpn_tcp_rx_one(struct ovpn_peer *peer)
 {
 	struct msghdr msg = { .msg_flags = MSG_DONTWAIT | MSG_NOSIGNAL };
-	int ret;
+	int status, ret;
 
 	/* no skb allocated means that we have to read (or finish reading) the 2 bytes prefix
 	 * containing the actual packet size.
@@ -202,9 +202,9 @@ static int ovpn_tcp_rx_one(struct ovpn_peer *peer)
 
 			/* hold reference to peer as requird by ovpn_recv() */
 			ovpn_peer_hold(peer);
-			ret = ovpn_recv(peer->ovpn, peer, peer->tcp.skb);
+			status = ovpn_recv(peer->ovpn, peer, peer->tcp.skb);
 			/* skb not consumed - free it now */
-			if (unlikely(ret < 0))
+			if (unlikely(status < 0))
 				kfree_skb(peer->tcp.skb);
 
 			peer->tcp.skb = NULL;
