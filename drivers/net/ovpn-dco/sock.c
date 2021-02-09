@@ -130,13 +130,8 @@ struct ovpn_socket *ovpn_socket_new(struct socket *sock, struct ovpn_peer *peer)
 	ovpn_sock->sock = sock;
 	kref_init(&ovpn_sock->refcount);
 
-	/* UDP sockets are shared session wide, therefore they are linked to the ovpn_struct
-	 * representing the session
-	 */
-	if (sock->sk->sk_protocol == IPPROTO_UDP)
-		ovpn_sock->ovpn = peer->ovpn;
 	/* TCP sockets are per-peer, therefore they are linked to their unique peer */
-	else if (sock->sk->sk_protocol == IPPROTO_TCP)
+	if (sock->sk->sk_protocol == IPPROTO_TCP)
 		ovpn_sock->peer = peer;
 
 	rcu_assign_sk_user_data(sock->sk, ovpn_sock);
