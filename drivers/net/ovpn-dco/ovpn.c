@@ -70,7 +70,7 @@ int ovpn_struct_init(struct net_device *dev)
 	if (!ovpn->crypto_wq)
 		return -ENOMEM;
 
-	ovpn->events_wq = alloc_workqueue("ovpn-event-wq-%s", 0, 0, dev->name);
+	ovpn->events_wq = alloc_workqueue("ovpn-event-wq-%s", WQ_MEM_RECLAIM, 0, dev->name);
 	if (!ovpn->events_wq)
 		return -ENOMEM;
 
