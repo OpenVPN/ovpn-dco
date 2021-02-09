@@ -63,7 +63,7 @@ void ovpn_tcp_socket_detach(struct socket *sock)
 	rcu_read_unlock();
 
 	if (!sock || !ovpn_sock->peer)
-		goto release;
+		return;
 
 	peer = ovpn_sock->peer;
 
@@ -82,8 +82,6 @@ void ovpn_tcp_socket_detach(struct socket *sock)
 	cancel_work_sync(&peer->tcp.rx_work);
 
 	ptr_ring_cleanup(&peer->tcp.tx_ring, ovpn_destroy_skb);
-release:
-	sock_release(sock);
 }
 
 /* Try to send one skb (or part of it) over the TCP stream.

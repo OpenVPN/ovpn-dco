@@ -28,6 +28,8 @@ static void ovpn_socket_detach(struct socket *sock)
 		ovpn_udp_socket_detach(sock);
 	else if (sock->sk->sk_protocol == IPPROTO_TCP)
 		ovpn_tcp_socket_detach(sock);
+
+	sockfd_put(sock);
 }
 
 void ovpn_socket_release_kref(struct kref *kref)

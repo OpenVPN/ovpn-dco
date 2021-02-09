@@ -300,5 +300,4 @@ void ovpn_udp_socket_detach(struct socket *sock)
 	struct udp_tunnel_sock_cfg cfg = { };
 
 	setup_udp_tunnel_sock(sock_net(sock->sk), sock, &cfg);
-	sockfd_put(sock);
 }
