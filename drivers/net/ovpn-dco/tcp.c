@@ -72,6 +72,7 @@ void ovpn_tcp_socket_detach(struct socket *sock)
 	sock->sk->sk_state_change = peer->tcp.sk_cb.sk_state_change;
 	sock->sk->sk_data_ready = peer->tcp.sk_cb.sk_data_ready;
 	sock->sk->sk_write_space = peer->tcp.sk_cb.sk_write_space;
+	rcu_assign_sk_user_data(sock->sk, NULL);
 	write_unlock_bh(&sock->sk->sk_callback_lock);
 
 	/* cancel any ongoing work. Done after removing the CBs so that these workers cannot be
@@ -79,8 +80,6 @@ void ovpn_tcp_socket_detach(struct socket *sock)
 	 */
 	cancel_work_sync(&peer->tcp.tx_work);
 	cancel_work_sync(&peer->tcp.rx_work);
-
-	rcu_assign_sk_user_data(sock->sk, NULL);
 
 	ptr_ring_cleanup(&peer->tcp.tx_ring, ovpn_destroy_skb);
 release:
