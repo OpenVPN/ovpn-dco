@@ -173,9 +173,8 @@ static void ovpn_peer_delete_work(struct work_struct *work)
 {
 	struct ovpn_peer *peer = container_of(work, struct ovpn_peer,
 					      delete_work);
-
-	ovpn_netlink_notify_del_peer(peer);
 	ovpn_peer_release(peer);
+	ovpn_netlink_notify_del_peer(peer);
 }
 
 /* Use with kref_put calls, when releasing refcount
