@@ -117,8 +117,6 @@ struct ovpn_socket *ovpn_socket_new(struct socket *sock, struct ovpn_peer *peer)
 	/* if this socket is already owned by this interface, just increase the refcounter */
 	if (ret == -EALREADY) {
 		ovpn_sock = ovpn_socket_get(sock);
-		/* release reference taken by caller because the socket is already owned */
-		sockfd_put(sock);
 		return ovpn_sock;
 	}
 
