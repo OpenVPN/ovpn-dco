@@ -323,22 +323,23 @@ static struct rtable *ovpn_gw4(struct ovpn_struct *ovpn, __be32 dst)
 	return rt;
 }
 
-static struct rtable *ovpn_gw6(struct ovpn_struct *ovpn, const struct in6_addr *dst)
+static struct rt6_info *ovpn_gw6(struct ovpn_struct *ovpn, const struct in6_addr *dst)
 {
-	struct rtable *rt;
+	struct rt6_info *rt;
 	struct flowi6 fl = {
 		.daddr = *dst,
 	};
 
-	rt = (struct rtable *)ipv6_stub->ipv6_dst_lookup_flow(dev_net(ovpn->dev), NULL, &fl, NULL);
+	rt = (struct rt6_info *)ipv6_stub->ipv6_dst_lookup_flow(dev_net(ovpn->dev), NULL, &fl,
+								NULL);
 	if (IS_ERR(rt)) {
 		net_dbg_ratelimited("%s: no route to host %pI6\n", __func__, dst);
 		/* if we end up here this packet is probably going to be thrown away later */
 		return false;
 	}
 
-	if (!rt->rt_uses_gateway) {
-		ip_rt_put(rt);
+	if (!(rt->rt6i_flags & RTF_GATEWAY)) {
+		dst_release((struct dst_entry *)rt);
 		rt = NULL;
 	}
 
@@ -363,6 +364,7 @@ struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_
 {
 	struct ovpn_peer *peer = NULL;
 	struct hlist_head *head;
+	struct rt6_info *rt6i = NULL;
 	struct rtable *rt = NULL;
 	sa_family_t sa_fam;
 	struct in6_addr *addr6;
@@ -385,9 +387,9 @@ struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_
 		break;
 	case AF_INET6:
 		addr6 = &ipv6_hdr(skb)->daddr;
-		rt = ovpn_gw6(ovpn, addr6);
-		if (rt)
-			addr6 = &rt->rt_gw6;
+		rt6i = ovpn_gw6(ovpn, addr6);
+		if (rt6i)
+			addr6 = &rt6i->rt6i_gateway;
 
 		index = ovpn_peer_index(ovpn->peers.by_vpn_addr, addr6, sizeof(*addr6));
 		head = &ovpn->peers.by_vpn_addr[index];
