@@ -400,6 +400,8 @@ struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_
 
 	if (rt)
 		ip_rt_put(rt);
+	if (rt6i)
+		dst_release((struct dst_entry *)rt6i);
 
 	return peer;
 }
