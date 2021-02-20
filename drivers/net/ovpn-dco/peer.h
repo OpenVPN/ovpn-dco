@@ -153,9 +153,6 @@ ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn, const struct sockaddr *sa,
 
 int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer, const struct sockaddr *sa);
 
-int ovpn_peer_xmit_explicit_exit_notify(struct ovpn_peer *peer)
-	__must_hold(ovpn_config_mutex);
-
 void ovpn_peer_keepalive_set(struct ovpn_peer *peer, u32 interval, u32 timeout);
 
 int ovpn_peer_add(struct ovpn_struct *ovpn, struct ovpn_peer *peer);

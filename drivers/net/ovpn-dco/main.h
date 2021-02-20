@@ -38,12 +38,8 @@
 #include <linux/mutex.h>
 #include <net/ip.h>
 
-static __cacheline_aligned_in_smp DEFINE_MUTEX(ovpn_config_mutex);
-
 struct net_device;
 bool ovpn_dev_is_valid(const struct net_device *dev);
-
-void ovpn_release_lock(struct kref *kref);
 
 #define SKB_HEADER_LEN                                       \
 	(max(sizeof(struct iphdr), sizeof(struct ipv6hdr)) + \
