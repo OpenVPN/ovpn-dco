@@ -476,9 +476,6 @@ struct ovpn_peer *ovpn_peer_lookup_transp_addr(struct ovpn_struct *ovpn, struct 
 	}
 	rcu_read_unlock();
 
-	if (peer)
-		pr_debug("%s: found peer: %u\n", __func__, peer->id);
-
 	return peer;
 }
 
