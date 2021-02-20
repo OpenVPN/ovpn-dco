@@ -373,7 +373,7 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 	/* sockfd_lookup() increases sock's refcounter */
 	sock = sockfd_lookup(sockfd, &ret);
 	if (!sock) {
-		pr_debug("%s: cannot lookup peer socket: %d\n", __func__, ret);
+		pr_debug("%s: cannot lookup peer socket (fd=%u): %d\n", __func__, sockfd, ret);
 		return -ENOTSOCK;
 	}
 
