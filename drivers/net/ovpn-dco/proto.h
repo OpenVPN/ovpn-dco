@@ -18,34 +18,26 @@
  * byte of the OpenVPN protocol.
  */
 
-enum {
-	/* packet opcode (high 5 bits) and key-id (low 3 bits) are combined in
-	 * one byte
-	 */
-	OVPN_KEY_ID_MASK = 0x07,
-	OVPN_OPCODE_SHIFT = 3,
-	OVPN_OPCODE_MASK = 0x1F,
-
-	/* upper bounds on opcode and key ID */
-	OVPN_KEY_ID_MAX = (OVPN_KEY_ID_MASK + 1),
-	OVPN_OPCODE_MAX = (OVPN_OPCODE_MASK + 1),
-
-	/* packet opcodes of interest to us */
-	OVPN_DATA_V1 = 6, /* data channel V1 packet */
-	OVPN_DATA_V2 = 9, /* data channel V2 packet */
-
-	/* size of initial packet opcode */
-	OVPN_OP_SIZE_V1 = 1,
-	OVPN_OP_SIZE_V2 = 4,
-
-	OVPN_PEER_ID_MASK = 0x00FFFFFF,
-
-	/* first byte of keepalive message */
-	OVPN_KEEPALIVE_FIRST_BYTE = 0x2a,
-
-	/* first byte of exit message */
-	OVPN_EXPLICIT_EXIT_NOTIFY_FIRST_BYTE = 0x28,
-};
+/* packet opcode (high 5 bits) and key-id (low 3 bits) are combined in
+ * one byte
+ */
+#define OVPN_KEY_ID_MASK 0x07
+#define OVPN_OPCODE_SHIFT 3
+#define OVPN_OPCODE_MASK 0x1F
+/* upper bounds on opcode and key ID */
+#define OVPN_KEY_ID_MAX (OVPN_KEY_ID_MASK + 1)
+#define OVPN_OPCODE_MAX (OVPN_OPCODE_MASK + 1)
+/* packet opcodes of interest to us */
+#define OVPN_DATA_V1 6 /* data channel V1 packet */
+#define OVPN_DATA_V2 9 /* data channel V2 packet */
+/* size of initial packet opcode */
+#define OVPN_OP_SIZE_V1 1
+#define OVPN_OP_SIZE_V2	4
+#define OVPN_PEER_ID_MASK 0x00FFFFFF
+/* first byte of keepalive message */
+#define OVPN_KEEPALIVE_FIRST_BYTE 0x2a
+/* first byte of exit message */
+#define OVPN_EXPLICIT_EXIT_NOTIFY_FIRST_BYTE 0x28
 
 /**
  * Extract the OP code from the skb head.
