@@ -24,7 +24,7 @@ static void ovpn_peer_ping(struct timer_list *t)
 {
 	struct ovpn_peer *peer = from_timer(peer, t, keepalive_xmit);
 
-	pr_debug("sending ping to peer %u\n", peer->id);
+	pr_debug("%s: sending ping to peer %u\n", __func__, peer->id);
 	ovpn_keepalive_xmit(peer);
 }
 
@@ -32,7 +32,7 @@ static void ovpn_peer_expire(struct timer_list *t)
 {
 	struct ovpn_peer *peer = from_timer(peer, t, keepalive_recv);
 
-	pr_debug("peer %u expired\n", peer->id);
+	pr_debug("%s: peer %u expired\n", __func__, peer->id);
 	ovpn_peer_del(peer, OVPN_DEL_PEER_REASON_EXPIRED);
 }
 
@@ -65,25 +65,25 @@ static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn, u32 id)
 
 	ret = dst_cache_init(&peer->dst_cache, GFP_KERNEL);
 	if (ret < 0) {
-		pr_err("cannot initialize dst cache\n");
+		pr_err("%s: cannot initialize dst cache\n", __func__);
 		goto err;
 	}
 
 	ret = ptr_ring_init(&peer->tx_ring, OVPN_QUEUE_LEN, GFP_KERNEL);
 	if (ret < 0) {
-		pr_err("cannot allocate TX ring\n");
+		pr_err("%s: cannot allocate TX ring\n", __func__);
 		goto err_dst_cache;
 	}
 
 	ret = ptr_ring_init(&peer->rx_ring, OVPN_QUEUE_LEN, GFP_KERNEL);
 	if (ret < 0) {
-		pr_err("cannot allocate RX ring\n");
+		pr_err("%s: cannot allocate RX ring\n", __func__);
 		goto err_tx_ring;
 	}
 
 	ret = ptr_ring_init(&peer->netif_rx_ring, OVPN_QUEUE_LEN, GFP_KERNEL);
 	if (ret < 0) {
-		pr_err("cannot allocate NETIF RX ring\n");
+		pr_err("%s: cannot allocate NETIF RX ring\n", __func__);
 		goto err_rx_ring;
 	}
 
@@ -235,10 +235,8 @@ void ovpn_peer_keepalive_set(struct ovpn_peer *peer, u32 interval, u32 timeout)
 {
 	u32 delta;
 
-	rcu_read_lock();
-	pr_debug("scheduling keepalive for peer %u: interval=%u timeout=%u\n", peer->id, interval,
-		 timeout);
-	rcu_read_unlock();
+	pr_debug("%s: scheduling keepalive for peer %u: interval=%u timeout=%u\n", __func__,
+		 peer->id, interval, timeout);
 
 	peer->keepalive_interval = interval;
 	delta = msecs_to_jiffies(interval * MSEC_PER_SEC);
