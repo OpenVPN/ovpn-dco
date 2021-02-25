@@ -1006,7 +1006,7 @@ static void usage(const char *cmd)
 {
 	fprintf(stderr, "Error: invalid arguments.\n\n");
 	fprintf(stderr,
-		"Usage %s <iface> <start_udp|connect|listen|new_peer|new_multi_peer|set_peer|del_peer|new_key|del_key|recv|send|listen_mcast> [arguments..]\n",
+		"Usage %s <iface> <connect|listen|new_peer|new_multi_peer|set_peer|del_peer|new_key|del_key|recv|send|listen_mcast> [arguments..]\n",
 		cmd);
 	fprintf(stderr, "\tiface: tun interface name\n\n");
 
