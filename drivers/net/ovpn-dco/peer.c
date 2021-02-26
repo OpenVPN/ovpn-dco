@@ -430,6 +430,8 @@ struct ovpn_peer *ovpn_peer_lookup_transp_addr(struct ovpn_struct *ovpn, struct 
 		sa6.sin6_port = udp_hdr(skb)->source;
 		index = ovpn_peer_index(ovpn->peers.by_transp_addr, &sa6, sizeof(sa6));
 		break;
+	default:
+		return NULL;
 	}
 
 	head = &ovpn->peers.by_transp_addr[index];
@@ -523,24 +525,6 @@ int ovpn_peer_add(struct ovpn_struct *ovpn, struct ovpn_peer *peer)
 		goto unlock;
 	}
 
-	index = ovpn_peer_index(ovpn->peers.by_id, &peer->id, sizeof(peer->id));
-	hlist_add_head_rcu(&peer->hash_entry_id, &ovpn->peers.by_id[index]);
-
-	if (peer->vpn_addrs.ipv4.s_addr != INADDR_ANY) {
-		index = ovpn_peer_index(ovpn->peers.by_vpn_addr, &peer->vpn_addrs.ipv4,
-					sizeof(peer->vpn_addrs.ipv4));
-		hlist_add_head_rcu(&peer->hash_entry_addr4, &ovpn->peers.by_vpn_addr[index]);
-	}
-
-	hlist_del_init_rcu(&peer->hash_entry_addr6);
-	if (memcmp(&peer->vpn_addrs.ipv6, &in6addr_any, sizeof(peer->vpn_addrs.ipv6))) {
-		index = ovpn_peer_index(ovpn->peers.by_vpn_addr, &peer->vpn_addrs.ipv6,
-					sizeof(peer->vpn_addrs.ipv6));
-		hlist_add_head_rcu(&peer->hash_entry_addr6, &ovpn->peers.by_vpn_addr[index]);
-	}
-
-	hlist_del_init_rcu(&peer->hash_entry_transp_addr);
-
 	bind = rcu_dereference_protected(peer->bind, true);
 	/* peers connected via UDP have bind == NULL */
 	if (bind) {
@@ -561,12 +545,33 @@ int ovpn_peer_add(struct ovpn_struct *ovpn, struct ovpn_peer *peer)
 			sa6->sin6_port = bind->sa.in6.sin6_port;
 			salen = sizeof(*sa6);
 			break;
+		default:
+			ret = -EPROTONOSUPPORT;
+			goto unlock;
 		}
 
 		index = ovpn_peer_index(ovpn->peers.by_transp_addr, &sa, salen);
 		hlist_add_head_rcu(&peer->hash_entry_transp_addr,
 				   &ovpn->peers.by_transp_addr[index]);
 	}
+
+	index = ovpn_peer_index(ovpn->peers.by_id, &peer->id, sizeof(peer->id));
+	hlist_add_head_rcu(&peer->hash_entry_id, &ovpn->peers.by_id[index]);
+
+	if (peer->vpn_addrs.ipv4.s_addr != INADDR_ANY) {
+		index = ovpn_peer_index(ovpn->peers.by_vpn_addr, &peer->vpn_addrs.ipv4,
+					sizeof(peer->vpn_addrs.ipv4));
+		hlist_add_head_rcu(&peer->hash_entry_addr4, &ovpn->peers.by_vpn_addr[index]);
+	}
+
+	hlist_del_init_rcu(&peer->hash_entry_addr6);
+	if (memcmp(&peer->vpn_addrs.ipv6, &in6addr_any, sizeof(peer->vpn_addrs.ipv6))) {
+		index = ovpn_peer_index(ovpn->peers.by_vpn_addr, &peer->vpn_addrs.ipv6,
+					sizeof(peer->vpn_addrs.ipv6));
+		hlist_add_head_rcu(&peer->hash_entry_addr6, &ovpn->peers.by_vpn_addr[index]);
+	}
+
+	hlist_del_init_rcu(&peer->hash_entry_transp_addr);
 
 unlock:
 	spin_unlock_bh(&ovpn->peers.lock);
