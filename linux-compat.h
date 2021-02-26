@@ -93,4 +93,11 @@ static inline void dev_sw_netstats_rx_add(struct net_device *dev, unsigned int l
 
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0) */
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+
+/* commit 1550c171935d introduced rt_gw4 and rt_gw6 for IPv6 gateways */
+#define rt_gw4 rt_gateway
+
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0) */
+
 #endif /* _NET_OVPN_DCO_LINUX_COMPAT_H_ */
