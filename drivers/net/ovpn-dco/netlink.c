@@ -418,7 +418,7 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 	}
 
 	id = nla_get_u32(attrs[OVPN_NEW_PEER_ATTR_PEER_ID]);
-	peer = ovpn_peer_new_with_sockaddr(ovpn, sa, sock, id);
+	peer = ovpn_peer_new(ovpn, sa, sock, id);
 	if (IS_ERR(peer)) {
 		pr_err("%s: cannot create new peer object for peer %u %pIScp\n", __func__, id, sa);
 		ret = PTR_ERR(peer);

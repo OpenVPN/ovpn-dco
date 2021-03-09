@@ -37,7 +37,7 @@ static void ovpn_peer_expire(struct timer_list *t)
 }
 
 /* Construct a new peer */
-static struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn, u32 id)
+static struct ovpn_peer *ovpn_peer_create(struct ovpn_struct *ovpn, u32 id)
 {
 	struct ovpn_peer *peer;
 	int ret;
@@ -189,15 +189,14 @@ void ovpn_peer_release_kref(struct kref *kref)
 	queue_work(peer->ovpn->events_wq, &peer->delete_work);
 }
 
-struct ovpn_peer *
-ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn, const struct sockaddr *sa,
-			    struct socket *sock, u32 id)
+struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn, const struct sockaddr *sa,
+				struct socket *sock, u32 id)
 {
 	struct ovpn_peer *peer;
 	int ret;
 
 	/* create new peer */
-	peer = ovpn_peer_new(ovpn, id);
+	peer = ovpn_peer_create(ovpn, id);
 	if (IS_ERR(peer))
 		return peer;
 

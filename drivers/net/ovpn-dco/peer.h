@@ -147,9 +147,8 @@ static inline void ovpn_peer_keepalive_xmit_reset(struct ovpn_peer *peer)
 	mod_timer(&peer->keepalive_xmit, jiffies + delta);
 }
 
-struct ovpn_peer *
-ovpn_peer_new_with_sockaddr(struct ovpn_struct *ovpn, const struct sockaddr *sa,
-			    struct socket *sock, u32 id);
+struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn, const struct sockaddr *sa,
+				struct socket *sock, u32 id);
 
 int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer, const struct sockaddr *sa);
 
