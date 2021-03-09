@@ -10,6 +10,7 @@
 #include "ovpnstruct.h"
 #include "ovpn.h"
 #include "peer.h"
+#include "skb.h"
 #include "tcp.h"
 
 #include <linux/ptr_ring.h>
@@ -151,6 +152,7 @@ static void ovpn_tcp_tx_work(struct work_struct *work)
 static int ovpn_tcp_rx_one(struct ovpn_peer *peer)
 {
 	struct msghdr msg = { .msg_flags = MSG_DONTWAIT | MSG_NOSIGNAL };
+	struct ovpn_skb_cb *cb;
 	int status, ret;
 
 	/* no skb allocated means that we have to read (or finish reading) the 2 bytes prefix
@@ -197,6 +199,10 @@ static int ovpn_tcp_rx_one(struct ovpn_peer *peer)
 			 * kernel_recvmsg()
 			 */
 			skb_put(peer->tcp.skb, peer->tcp.data_len);
+
+			/* do not perform IP caching for TCP connections */
+			cb = OVPN_SKB_CB(peer->tcp.skb);
+			cb->sa_fam = AF_UNSPEC;
 
 			/* hold reference to peer as requird by ovpn_recv() */
 			ovpn_peer_hold(peer);

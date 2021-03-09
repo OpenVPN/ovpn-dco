@@ -19,6 +19,12 @@ struct ovpn_peer;
 
 struct ovpn_bind {
 	struct ovpn_sockaddr sa;  /* remote sockaddr */
+
+	union {
+		struct in_addr ipv4;
+		struct in6_addr ipv6;
+	} local;
+
 	struct rcu_head rcu;
 };
 

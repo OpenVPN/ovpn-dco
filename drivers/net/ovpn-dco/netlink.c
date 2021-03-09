@@ -70,6 +70,7 @@ static const struct nla_policy ovpn_netlink_policy_new_peer[OVPN_NEW_PEER_ATTR_M
 	[OVPN_NEW_PEER_ATTR_SOCKET] = { .type = NLA_U32 },
 	[OVPN_NEW_PEER_ATTR_IPV4] = { .type = NLA_U32 },
 	[OVPN_NEW_PEER_ATTR_IPV6] = NLA_POLICY_EXACT_LEN(sizeof(struct in6_addr)),
+	[OVPN_NEW_PEER_ATTR_LOCAL_IP] = NLA_POLICY_MAX_LEN(sizeof(struct in6_addr)),
 };
 
 /** CMD_SET_PEER policy */
@@ -348,10 +349,11 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 	struct nlattr *attrs[OVPN_NEW_PEER_ATTR_MAX + 1];
 	struct ovpn_struct *ovpn = info->user_ptr[0];
 	struct sockaddr *sa = NULL;
+	uint8_t *local_ip = NULL;
 	struct ovpn_peer *peer;
+	size_t sa_len, ip_len;
 	struct socket *sock;
 	u32 sockfd, id;
-	size_t sa_len;
 	int ret;
 
 	if (!info->attrs[OVPN_ATTR_NEW_PEER])
@@ -413,12 +415,41 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 			goto sockfd_release;
 		}
 
-		/* sanity check passed */
+		/* When using UDP we may be talking over socket bound to 0.0.0.0/::.
+		 * In this case, if the host has multiple IPs, we need to make sure
+		 * that outgoing traffic has as source IP the same address that the
+		 * peer is using to reach us.
+		 *
+		 * Since early control packets were all forwarded to userspace, we
+		 * need the latter to tell us what IP has to be used.
+		 */
+		if (attrs[OVPN_NEW_PEER_ATTR_LOCAL_IP]) {
+			ip_len = nla_len(attrs[OVPN_NEW_PEER_ATTR_LOCAL_IP]);
+
+			if (ip_len == sizeof(struct in_addr)){
+				if (sa->sa_family != AF_INET) {
+					pr_debug("%s: the specified local IP is IPv4, but the peer endpoint is not\n", __func__);
+					goto sockfd_release;
+				}
+			} else if (ip_len == sizeof(struct in6_addr)) {
+				if(sa->sa_family != AF_INET6) {
+					pr_debug("%s: the specified local IP is IPv6, but the peer endpoint is not\n", __func__);
+					goto sockfd_release;
+				}
+			} else {
+				pr_debug("%s: invalid length %zu for local IP\n", __func__, ip_len);
+				goto sockfd_release;
+			}
+
+			local_ip = nla_data(attrs[OVPN_NEW_PEER_ATTR_LOCAL_IP]);
+		}
+
+		/* sanity checks passed */
 		ret = 0;
 	}
 
 	id = nla_get_u32(attrs[OVPN_NEW_PEER_ATTR_PEER_ID]);
-	peer = ovpn_peer_new(ovpn, sa, sock, id);
+	peer = ovpn_peer_new(ovpn, sa, sock, id, local_ip);
 	if (IS_ERR(peer)) {
 		pr_err("%s: cannot create new peer object for peer %u %pIScp\n", __func__, id, sa);
 		ret = PTR_ERR(peer);

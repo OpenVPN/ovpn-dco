@@ -110,14 +110,29 @@ err:
 }
 
 /* Reset the ovpn_sockaddr associated with a peer */
-int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer, const struct sockaddr *sa)
+int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer, const struct sockaddr *sa, uint8_t *local_ip)
 {
 	struct ovpn_bind *bind;
+	size_t ip_len;
 
 	/* create new ovpn_bind object */
 	bind = ovpn_bind_from_sockaddr(sa);
 	if (IS_ERR(bind))
 		return PTR_ERR(bind);
+
+	if (local_ip) {
+		if (sa->sa_family == AF_INET) {
+			ip_len = sizeof(struct in_addr);
+		} else if (sa->sa_family == AF_INET6) {
+			ip_len = sizeof(struct in6_addr);
+		} else {
+			pr_debug("%s: invalid family for remote endpoint\n", __func__);
+			kfree(bind);
+			return -EINVAL;
+		}
+
+		memcpy(&bind->local, local_ip, ip_len);
+	}
 
 	/* set binding */
 	ovpn_bind_reset(peer, bind);
@@ -190,7 +205,7 @@ void ovpn_peer_release_kref(struct kref *kref)
 }
 
 struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn, const struct sockaddr *sa,
-				struct socket *sock, u32 id)
+				struct socket *sock, u32 id, uint8_t *local_ip)
 {
 	struct ovpn_peer *peer;
 	int ret;
@@ -208,7 +223,7 @@ struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn, const struct sockaddr 
 		}
 
 		/* set peer sockaddr */
-		ret = ovpn_peer_reset_sockaddr(peer, sa);
+		ret = ovpn_peer_reset_sockaddr(peer, sa, local_ip);
 		if (ret < 0) {
 			ovpn_peer_release(peer);
 			return ERR_PTR(ret);
@@ -501,6 +516,38 @@ struct ovpn_peer *ovpn_peer_lookup_id(struct ovpn_struct *ovpn, u32 peer_id)
 	rcu_read_unlock();
 
 	return peer;
+}
+
+void ovpn_peer_update_endpoints(struct ovpn_peer *peer, struct sk_buff *skb)
+{
+	struct ovpn_bind *bind;
+
+	rcu_read_lock();
+	bind = rcu_dereference(peer->bind);
+	if (unlikely(!bind))
+		goto unlock;
+
+	switch (skb_protocol_to_family(skb)) {
+	case AF_INET:
+		if (unlikely(bind->local.ipv4.s_addr != ip_hdr(skb)->daddr)) {
+			pr_debug("%s: learning local IPv4 for peer %d (%pI4 -> %pI4)\n", __func__,
+				 peer->id, &bind->local.ipv4.s_addr, &ip_hdr(skb)->daddr);
+			bind->local.ipv4.s_addr = ip_hdr(skb)->daddr;
+		}
+		break;
+	case AF_INET6:
+		if (unlikely(memcmp(&bind->local.ipv6, &ipv6_hdr(skb)->daddr,
+				    sizeof(bind->local.ipv6)))) {
+			pr_debug("%s: learning local IPv6 for peer %d (%pI6c -> %pI6c\n", __func__,
+				 peer->id, &bind->local.ipv6, &ipv6_hdr(skb)->daddr);
+			bind->local.ipv6 = ipv6_hdr(skb)->daddr;
+		}
+		break;
+	default:
+		break;
+	}
+unlock:
+	rcu_read_unlock();
 }
 
 /* assume refcounter was increased by caller */

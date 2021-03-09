@@ -12,6 +12,7 @@
 #include "ovpnstruct.h"
 #include "peer.h"
 #include "proto.h"
+#include "skb.h"
 #include "udp.h"
 
 #include <linux/inetdevice.h>
@@ -118,31 +119,42 @@ static int ovpn_udp4_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 {
 	struct rtable *rt;
 	struct flowi4 fl = {
+		.saddr = bind->local.ipv4.s_addr,
 		.daddr = bind->sa.in4.sin_addr.s_addr,
 		.fl4_sport = inet_sk(sk)->inet_sport,
 		.fl4_dport = bind->sa.in4.sin_port,
 		.flowi4_proto = sk->sk_protocol,
 		.flowi4_mark = sk->sk_mark,
-		.flowi4_oif = sk->sk_bound_dev_if,
 	};
 	int ret;
 
 	local_bh_disable();
 	rt = dst_cache_get_ip4(cache, &fl.saddr);
-	if (rt && likely(inet_confirm_addr(sock_net(sk), NULL, 0, fl.saddr, RT_SCOPE_HOST)))
+	if (rt)
 		goto transmit;
 
-	/* we may end up here when the cached address is not usable anymore.
-	 * In this case we reset address/cache and perform a new look up
-	 */
-	fl.saddr = 0;
-	dst_cache_reset(cache);
+	if (unlikely(!inet_confirm_addr(sock_net(sk), NULL, 0, fl.saddr, RT_SCOPE_HOST))) {
+		/* we may end up here when the cached address is not usable anymore.
+		 * In this case we reset address/cache and perform a new look up
+		 */
+		fl.saddr = 0;
+		bind->local.ipv4.s_addr = 0;
+		dst_cache_reset(cache);
+	}
 
 	rt = ip_route_output_flow(sock_net(sk), &fl, sk);
+	if (IS_ERR(rt) && PTR_ERR(rt) == -EINVAL) {
+		fl.saddr = 0;
+		bind->local.ipv4.s_addr = 0;
+		dst_cache_reset(cache);
+
+		rt = ip_route_output_flow(sock_net(sk), &fl, sk);
+	}
+
 	if (IS_ERR(rt)) {
-		net_dbg_ratelimited("%s: no route to host %pISpc\n", ovpn->dev->name,
-				    &bind->sa.in4);
-		ret = -EHOSTUNREACH;
+		ret = PTR_ERR(rt);
+		net_dbg_ratelimited("%s: no route to host %pISpc: %d\n", ovpn->dev->name,
+				    &bind->sa.in4, ret);
 		goto err;
 	}
 	dst_cache_set_ip4(cache, &rt->dst, fl.saddr);
@@ -166,6 +178,7 @@ static int ovpn_udp6_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	int ret;
 
 	struct flowi6 fl = {
+		.saddr = bind->local.ipv6,
 		.daddr = bind->sa.in6.sin6_addr,
 		.fl6_sport = inet_sk(sk)->inet_sport,
 		.fl6_dport = bind->sa.in6.sin6_port,
@@ -174,20 +187,26 @@ static int ovpn_udp6_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 		.flowi6_oif = bind->sa.in6.sin6_scope_id,
 	};
 
+
 	local_bh_disable();
 	dst = dst_cache_get_ip6(cache, &fl.saddr);
-	if (dst && likely(ipv6_chk_addr(sock_net(sk), &fl.saddr, NULL, 0)))
+	if (dst)
 		goto transmit;
 
-	/* we may end up here when the cached address is not usable anymore.
-	 * In this case we reset address/cache and perform a new look up
-	 */
-	fl.saddr = in6addr_any;
-	dst_cache_reset(cache);
+	if (unlikely(!ipv6_chk_addr(sock_net(sk), &fl.saddr, NULL, 0))) {
+		/* we may end up here when the cached address is not usable anymore.
+		 * In this case we reset address/cache and perform a new look up
+		 */
+		fl.saddr = in6addr_any;
+		bind->local.ipv6 = in6addr_any;
+		dst_cache_reset(cache);
+	}
 
 	dst = ipv6_stub->ipv6_dst_lookup_flow(sock_net(sk), sk, &fl, NULL);
 	if (IS_ERR(dst)) {
 		ret = PTR_ERR(dst);
+		net_dbg_ratelimited("%s: no route to host %pISpc: %d\n", ovpn->dev->name,
+				    &bind->sa.in6, ret);
 		goto err;
 	}
 	dst_cache_set_ip6(cache, dst, &fl.saddr);

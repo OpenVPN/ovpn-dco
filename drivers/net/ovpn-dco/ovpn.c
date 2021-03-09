@@ -239,6 +239,10 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	/* note event of authenticated packet received for keepalive */
 	ovpn_peer_keepalive_recv_reset(peer);
 
+	/* update source and destination endpoint for this peer */
+	if (peer->sock->sock->sk->sk_protocol == IPPROTO_UDP)
+		ovpn_peer_update_endpoints(peer, skb);
+
 	/* increment RX stats */
 	rx_stats_size = OVPN_SKB_CB(skb)->rx_stats_size;
 	ovpn_peer_stats_increment_rx(peer, rx_stats_size);
