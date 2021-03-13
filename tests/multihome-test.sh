@@ -4,7 +4,7 @@
 #
 #  Author:	Antonio Quartulli <antonio@openvpn.net>
 
-set -x
+#set -x
 set -e
 
 UDP_PEERS_FILE=${UDP_PEERS_FILE:-udp_peers.txt}
@@ -97,5 +97,5 @@ for p in $(seq 0 $NUM_PEERS); do
 done
 
 for p in $(seq 1 $NUM_PEERS); do
-	ip netns exec peer${p} ping -c 1 5.5.5.1
+	ip netns exec peer${p} ping -qfc 2000 -w 5 5.5.5.1
 done
