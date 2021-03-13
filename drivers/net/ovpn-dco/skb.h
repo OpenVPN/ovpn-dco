@@ -19,8 +19,6 @@ struct ovpn_skb_cb {
 	/* original recv packet size for stats accounting */
 	unsigned int rx_stats_size;
 
-	/* OpenVPN packet ID */
-	u32 pktid;
 };
 
 /* READ_ONCE version of skb_queue_len()

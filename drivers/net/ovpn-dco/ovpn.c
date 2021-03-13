@@ -316,9 +316,6 @@ static bool ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 		return false;
 	}
 
-	/* init packet ID to undef in case we err before setting real value */
-	OVPN_SKB_CB(skb)->pktid = 0;
-
 	if (unlikely(skb->ip_summed == CHECKSUM_PARTIAL &&
 		     skb_checksum_help(skb))) {
 		pr_err_ratelimited("%s: cannot compute checksum for outgoing packet\n", __func__);
