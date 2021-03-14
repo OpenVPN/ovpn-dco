@@ -1258,7 +1258,7 @@ int main(int argc, char *argv[])
 			return -1;
 		}
 
-		ret = ovpn_udp_socket(&ovpn, AF_INET);
+		ret = ovpn_udp_socket(&ovpn, AF_INET6);
 		if (ret < 0)
 			return ret;
 
@@ -1293,7 +1293,7 @@ int main(int argc, char *argv[])
 			return -1;
 		}
 
-		ret = ovpn_udp_socket(&ovpn, AF_INET);
+		ret = ovpn_udp_socket(&ovpn, AF_INET6);
 		if (ret < 0)
 			return ret;
 
