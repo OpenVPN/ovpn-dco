@@ -426,11 +426,18 @@ static int ovpn_socket(struct ovpn_ctx *ctx, sa_family_t family, int proto)
 	}
 
 	int opt = 1;
-
 	ret = setsockopt(s, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt));
 	if (ret < 0) {
 		perror("setsockopt");
 		return ret;
+	}
+
+	if (family == AF_INET6) {
+		opt = 0;
+		if (setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt))) {
+			perror("failed to set IPV6_V6ONLY");
+			return -1;
+		}
 	}
 
 	ret = bind(s, &local_sock, sock_len);
