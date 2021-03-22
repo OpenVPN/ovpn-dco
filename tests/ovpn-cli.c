@@ -1080,7 +1080,7 @@ static int ovpn_parse_remote(struct ovpn_ctx *ovpn, const char *host, const char
 	int ret;
 	struct addrinfo *result;
 	struct addrinfo hints = {
-		.ai_family = AF_UNSPEC,
+		.ai_family = ovpn->sa_family,
 		.ai_socktype = SOCK_DGRAM,
 		.ai_protocol = IPPROTO_UDP
 	};
@@ -1110,6 +1110,7 @@ static int ovpn_parse_remote(struct ovpn_ctx *ovpn, const char *host, const char
 	}
 
 	memcpy(&ovpn->peer_ip, result->ai_addr, result->ai_addrlen);
+	ovpn->sa_family = result->ai_family;
 
 	ret = 0;
 out:
@@ -1153,7 +1154,6 @@ static int ovpn_parse_set_peer(struct ovpn_ctx *ovpn, int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-	sa_family_t family = AF_INET;
 	struct ovpn_ctx ovpn;
 //	struct nl_ctx *ctx;
 	int ret;
@@ -1164,6 +1164,7 @@ int main(int argc, char *argv[])
 	}
 
 	memset(&ovpn, 0, sizeof(ovpn));
+	ovpn.sa_family = AF_UNSPEC;
 
 	ovpn.ifindex = if_nametoindex(argv[1]);
 	if (!ovpn.ifindex) {
@@ -1189,9 +1190,9 @@ int main(int argc, char *argv[])
 		}
 
 		if (argc > 4 && !strcmp(argv[4], "ipv6"))
-			family = AF_INET6;
+			ovpn.sa_family = AF_INET6;
 
-		ret = ovpn_listen(&ovpn, family);
+		ret = ovpn_listen(&ovpn, ovpn.sa_family);
 		if (ret < 0) {
 			fprintf(stderr, "cannot listen on TCP socket\n");
 			return ret;
@@ -1207,7 +1208,7 @@ int main(int argc, char *argv[])
 			struct ovpn_ctx peer_ctx = { 0 };
 
 			peer_ctx.ifindex = if_nametoindex(argv[1]);
-			peer_ctx.sa_family = family;
+			peer_ctx.sa_family = ovpn.sa_family;
 
 			peer_ctx.socket = ovpn_accept(&ovpn);
 			if (peer_ctx.socket < 0) {
@@ -1265,11 +1266,11 @@ int main(int argc, char *argv[])
 			return -1;
 		}
 
-		ret = ovpn_udp_socket(&ovpn, AF_INET6);
+		ret = ovpn_parse_new_peer(&ovpn, argv[4], argv[5], argv[6], argv[7]);
 		if (ret < 0)
 			return ret;
 
-		ret = ovpn_parse_new_peer(&ovpn, argv[4], argv[5], argv[6], argv[7]);
+		ret = ovpn_udp_socket(&ovpn, ovpn.sa_family);
 		if (ret < 0)
 			return ret;
 
@@ -1309,7 +1310,7 @@ int main(int argc, char *argv[])
 
 			peer_ctx.ifindex = if_nametoindex(argv[1]);
 			peer_ctx.socket = ovpn.socket;
-			peer_ctx.sa_family = ovpn.sa_family;
+			peer_ctx.sa_family = AF_UNSPEC;
 
 			ret = ovpn_parse_new_peer(&peer_ctx, peer_id, raddr, rport, vpnip);
 			if (ret < 0) {
