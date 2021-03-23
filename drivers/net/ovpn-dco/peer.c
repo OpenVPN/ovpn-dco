@@ -359,7 +359,7 @@ static struct rt6_info *ovpn_gw6(struct ovpn_struct *ovpn, const struct in6_addr
 }
 
 /**
- * Lookup peer to send skb to.
+ * ovpn_peer_lookup_vpn_addr() - Lookup peer to send skb to
  *
  * This function takes a tunnel packet and looks up the peer to send it to
  * after encapsulation. The skb is expected to be the in-tunnel packet, without

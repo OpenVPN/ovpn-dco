@@ -25,7 +25,7 @@
 #include <net/udp_tunnel.h>
 
 /**
- * Start processing a received UDP packet.
+ * ovpn_udp_encap_recv() - Start processing a received UDP packet.
  * If the first byte of the payload is DATA_V2, the packet is further processed,
  * otherwise it is forwarded to the UDP stack for delivery to user space.
  *
