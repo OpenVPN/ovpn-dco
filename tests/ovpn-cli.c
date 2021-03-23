@@ -385,7 +385,7 @@ static int ovpn_read_key_direction(const char *dir, struct ovpn_ctx *ctx)
 
 static int ovpn_socket(struct ovpn_ctx *ctx, sa_family_t family, int proto)
 {
-	struct sockaddr local_sock;
+	struct sockaddr_storage local_sock;
 	struct sockaddr_in6 *in6;
 	struct sockaddr_in *in;
 	int ret, s, sock_type;
@@ -440,7 +440,7 @@ static int ovpn_socket(struct ovpn_ctx *ctx, sa_family_t family, int proto)
 		}
 	}
 
-	ret = bind(s, &local_sock, sock_len);
+	ret = bind(s, (struct sockaddr *)&local_sock, sock_len);
 	if (ret < 0) {
 		perror("cannot bind socket");
 		goto err_socket;
@@ -1270,7 +1270,7 @@ int main(int argc, char *argv[])
 		if (ret < 0)
 			return ret;
 
-		ret = ovpn_udp_socket(&ovpn, ovpn.sa_family);
+		ret = ovpn_udp_socket(&ovpn, AF_INET6);//ovpn.sa_family);
 		if (ret < 0)
 			return ret;
 
