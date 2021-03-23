@@ -349,6 +349,8 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 	struct nlattr *attrs[OVPN_NEW_PEER_ATTR_MAX + 1];
 	struct ovpn_struct *ovpn = info->user_ptr[0];
 	struct sockaddr *sa = NULL;
+	struct sockaddr_in mapped;
+	struct sockaddr_in6 *in6;
 	uint8_t *local_ip = NULL;
 	struct ovpn_peer *peer;
 	size_t sa_len, ip_len;
@@ -415,6 +417,17 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 			goto sockfd_release;
 		}
 
+		if (sa->sa_family == AF_INET6) {
+			in6 = (struct sockaddr_in6 *)sa;
+
+			if (ipv6_addr_type(&in6->sin6_addr) & IPV6_ADDR_MAPPED) {
+				mapped.sin_family = AF_INET;
+				mapped.sin_addr.s_addr = in6->sin6_addr.s6_addr32[3];
+				mapped.sin_port = in6->sin6_port;
+				sa = (struct sockaddr *)&mapped;
+			}
+		}
+
 		/* When using UDP we may be talking over socket bound to 0.0.0.0/::.
 		 * In this case, if the host has multiple IPs, we need to make sure
 		 * that outgoing traffic has as source IP the same address that the
@@ -425,6 +438,7 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 		 */
 		if (attrs[OVPN_NEW_PEER_ATTR_LOCAL_IP]) {
 			ip_len = nla_len(attrs[OVPN_NEW_PEER_ATTR_LOCAL_IP]);
+			local_ip = nla_data(attrs[OVPN_NEW_PEER_ATTR_LOCAL_IP]);
 
 			if (ip_len == sizeof(struct in_addr)){
 				if (sa->sa_family != AF_INET) {
@@ -432,16 +446,24 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 					goto sockfd_release;
 				}
 			} else if (ip_len == sizeof(struct in6_addr)) {
-				if(sa->sa_family != AF_INET6) {
+				bool is_mapped = ipv6_addr_type((struct in6_addr *)local_ip) &
+						 IPV6_ADDR_MAPPED;
+
+				if (sa->sa_family != AF_INET6 && !is_mapped) {
 					pr_debug("%s: the specified local IP is IPv6, but the peer endpoint is not\n", __func__);
 					goto sockfd_release;
 				}
+
+				if (is_mapped)
+					/* this is an IPv6-mapped IPv4 address, therefore extract
+					 * the actual v4 address from the last 4 bytes
+					 */
+					local_ip += 12;
 			} else {
 				pr_debug("%s: invalid length %zu for local IP\n", __func__, ip_len);
 				goto sockfd_release;
 			}
 
-			local_ip = nla_data(attrs[OVPN_NEW_PEER_ATTR_LOCAL_IP]);
 		}
 
 		/* sanity checks passed */
