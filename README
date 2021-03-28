@@ -110,6 +110,5 @@ can be found that shows how qemu can be launched for testing.
 == Limitations ==
 
 This is a list of current limitations which are planned to be removed as we move forward:
-* Only client mode supported
 * Only AEAD mode and 'none' (with no auth) supported
 * Only AES-GCM and CHACHA20POLY1305 ciphers supported
