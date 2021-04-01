@@ -426,9 +426,15 @@ static int ovpn_socket(struct ovpn_ctx *ctx, sa_family_t family, int proto)
 	}
 
 	int opt = 1;
-	ret = setsockopt(s, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt));
+	ret = setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 	if (ret < 0) {
-		perror("setsockopt");
+		perror("setsockopt for SO_REUSEADDR");
+		return ret;
+	}
+
+	ret = setsockopt(s, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
+	if (ret < 0) {
+		perror("setsockopt for SO_REUSEPORT");
 		return ret;
 	}
 
