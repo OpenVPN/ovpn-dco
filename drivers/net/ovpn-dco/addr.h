@@ -21,9 +21,6 @@ struct ovpn_sockaddr {
 		struct sockaddr_in in4;
 		struct sockaddr_in6 in6;
 	};
-
-	bool skb_hash_defined;
-	u32 skb_hash;
 };
 
 /* mask out the non-prefix bits in an IPv4 address */
