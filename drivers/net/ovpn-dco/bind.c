@@ -36,7 +36,7 @@ struct ovpn_bind *ovpn_bind_from_sockaddr(const struct sockaddr *sa)
 	if (err < 0)
 		return ERR_PTR(err);
 
-	bind = kzalloc(sizeof(*bind), GFP_KERNEL);
+	bind = kzalloc(sizeof(*bind), GFP_ATOMIC);
 	if (unlikely(!bind))
 		return ERR_PTR(-ENOMEM);
 

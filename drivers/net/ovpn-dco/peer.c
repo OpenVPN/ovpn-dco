@@ -110,7 +110,8 @@ err:
 }
 
 /* Reset the ovpn_sockaddr associated with a peer */
-int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer, const struct sockaddr *sa, uint8_t *local_ip)
+static int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer, const struct sockaddr *sa,
+				    const u8 *local_ip)
 {
 	struct ovpn_bind *bind;
 	size_t ip_len;
@@ -139,6 +140,53 @@ int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer, const struct sockaddr *sa, 
 
 	return 0;
 }
+
+void ovpn_peer_float(struct ovpn_peer *peer, struct sk_buff *skb)
+{
+	struct sockaddr_storage ss;
+	const u8 *local_ip = NULL;
+	struct sockaddr_in6 *sa6;
+	struct sockaddr_in *sa;
+	struct ovpn_bind *bind;
+	sa_family_t family;
+
+	rcu_read_lock();
+	bind = rcu_dereference(peer->bind);
+	if (unlikely(!bind))
+		goto unlock;
+
+	if (likely(ovpn_bind_skb_src_match(bind, skb)))
+		goto unlock;
+
+	family = skb_protocol_to_family(skb);
+
+	if (bind->sa.in4.sin_family == family)
+		local_ip = (u8 *)&bind->local;
+
+	switch (family) {
+	case AF_INET:
+		sa = (struct sockaddr_in *)&ss;
+		sa->sin_family = AF_INET;
+		sa->sin_addr.s_addr = ip_hdr(skb)->saddr;
+		sa->sin_port = udp_hdr(skb)->source;
+		break;
+	case AF_INET6:
+		sa6 = (struct sockaddr_in6 *)&ss;
+		sa6->sin6_family = AF_INET6;
+		sa6->sin6_addr = ipv6_hdr(skb)->saddr;
+		sa6->sin6_port = udp_hdr(skb)->source;
+		sa6->sin6_scope_id = ipv6_iface_scope_id(&ipv6_hdr(skb)->saddr, skb->skb_iif);
+		break;
+	default:
+		goto unlock;
+	}
+
+	pr_debug("%s: peer %d floated to %pIScp", __func__, peer->id, &ss);
+	ovpn_peer_reset_sockaddr(peer, (struct sockaddr *)&ss, local_ip);
+unlock:
+	rcu_read_unlock();
+}
+
 
 static void ovpn_peer_timer_delete_all(struct ovpn_peer *peer)
 {
@@ -518,7 +566,7 @@ struct ovpn_peer *ovpn_peer_lookup_id(struct ovpn_struct *ovpn, u32 peer_id)
 	return peer;
 }
 
-void ovpn_peer_update_endpoints(struct ovpn_peer *peer, struct sk_buff *skb)
+void ovpn_peer_update_local_endpoint(struct ovpn_peer *peer, struct sk_buff *skb)
 {
 	struct ovpn_bind *bind;
 

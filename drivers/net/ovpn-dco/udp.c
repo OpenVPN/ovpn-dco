@@ -73,6 +73,9 @@ int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 						   __func__, peer_id);
 				goto drop;
 			}
+
+			/* check if this peer changed it's IP address and update state */
+			ovpn_peer_float(peer, skb);
 		}
 	}
 

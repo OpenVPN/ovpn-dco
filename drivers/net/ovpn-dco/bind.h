@@ -28,16 +28,12 @@ struct ovpn_bind {
 	struct rcu_head rcu;
 };
 
-static inline bool ovpn_bind_skb_match(const struct ovpn_bind *bind, struct sk_buff *skb)
+static inline bool ovpn_bind_skb_src_match(const struct ovpn_bind *bind, struct sk_buff *skb)
 {
 	const unsigned short family = skb_protocol_to_family(skb);
 	const struct ovpn_sockaddr *sa = &bind->sa;
-	const u32 hash_key = skb_get_hash(skb);
 
 	if (unlikely(!bind))
-		return false;
-
-	if (unlikely(sa->skb_hash_defined && sa->skb_hash != hash_key))
 		return false;
 
 	if (unlikely(sa->in4.sin_family != family))
@@ -62,26 +58,6 @@ static inline bool ovpn_bind_skb_match(const struct ovpn_bind *bind, struct sk_b
 		return false;
 	}
 
-	return true;
-}
-
-/* Return true if sockaddr (src/dest addr/port) of incoming packet
- * is different from previously saved value.
- * rcu_read_lock must be held.
- * Called in softirq context.
- */
-static inline bool ovpn_bind_test_peer(const struct ovpn_bind *bind,
-				       struct sk_buff *skb)
-{
-	ovpn_rcu_lockdep_assert_held();
-
-	/* no-op if skb src/dest addr/port is equal to what
-	 * we previously saved
-	 */
-	if (likely(ovpn_bind_skb_match(bind, skb)))
-		return false;
-
-	/* peer src/dest addr/port has changed */
 	return true;
 }
 

@@ -241,7 +241,7 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 
 	/* update source and destination endpoint for this peer */
 	if (peer->sock->sock->sk->sk_protocol == IPPROTO_UDP)
-		ovpn_peer_update_endpoints(peer, skb);
+		ovpn_peer_update_local_endpoint(peer, skb);
 
 	/* increment RX stats */
 	rx_stats_size = OVPN_SKB_CB(skb)->rx_stats_size;
