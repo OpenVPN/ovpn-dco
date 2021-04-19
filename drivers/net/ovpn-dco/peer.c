@@ -395,7 +395,7 @@ static struct rt6_info *ovpn_gw6(struct ovpn_struct *ovpn, const struct in6_addr
 	if (IS_ERR(rt)) {
 		net_dbg_ratelimited("%s: no route to host %pI6\n", __func__, dst);
 		/* if we end up here this packet is probably going to be thrown away later */
-		return false;
+		return NULL;
 	}
 
 	if (!(rt->rt6i_flags & RTF_GATEWAY)) {
