@@ -51,7 +51,7 @@ static struct ovpn_peer *ovpn_peer_create(struct ovpn_struct *ovpn, u32 id)
 	peer->halt = false;
 	peer->ovpn = ovpn;
 
-	peer->vpn_addrs.ipv4.s_addr = INADDR_ANY;
+	peer->vpn_addrs.ipv4.s_addr = htonl(INADDR_ANY);
 	peer->vpn_addrs.ipv6 = in6addr_any;
 
 	RCU_INIT_POINTER(peer->bind, NULL);
@@ -652,7 +652,7 @@ int ovpn_peer_add(struct ovpn_struct *ovpn, struct ovpn_peer *peer)
 	index = ovpn_peer_index(ovpn->peers.by_id, &peer->id, sizeof(peer->id));
 	hlist_add_head_rcu(&peer->hash_entry_id, &ovpn->peers.by_id[index]);
 
-	if (peer->vpn_addrs.ipv4.s_addr != INADDR_ANY) {
+	if (peer->vpn_addrs.ipv4.s_addr != htonl(INADDR_ANY)) {
 		index = ovpn_peer_index(ovpn->peers.by_vpn_addr, &peer->vpn_addrs.ipv4,
 					sizeof(peer->vpn_addrs.ipv4));
 		hlist_add_head_rcu(&peer->hash_entry_addr4, &ovpn->peers.by_vpn_addr[index]);
