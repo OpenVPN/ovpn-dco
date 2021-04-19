@@ -59,11 +59,14 @@ void ovpn_tcp_socket_detach(struct socket *sock)
 	struct ovpn_socket *ovpn_sock;
 	struct ovpn_peer *peer;
 
+	if (!sock)
+		return;
+
 	rcu_read_lock();
 	ovpn_sock = rcu_dereference_sk_user_data(sock->sk);
 	rcu_read_unlock();
 
-	if (!sock || !ovpn_sock->peer)
+	if (!ovpn_sock->peer)
 		return;
 
 	peer = ovpn_sock->peer;
