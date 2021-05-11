@@ -326,6 +326,8 @@ static bool ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 		goto err;
 	}
 
+	ovpn_peer_stats_increment_tx(peer, skb->len);
+
 	/* encrypt */
 	ret = ks->ops->encrypt(ks, skb, peer->id);
 	if (unlikely(ret < 0)) {
