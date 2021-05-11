@@ -66,14 +66,4 @@ static inline void ovpn_peer_stats_increment_tx(struct ovpn_peer *peer,
 	ovpn_peer_stats_increment(&peer->stats, &peer->stats.tx, n);
 }
 
-static inline u64 ovpn_peer_stats_get_rx(struct ovpn_peer *peer)
-{
-	return atomic64_read(&peer->stats.rx.bytes);
-}
-
-static inline u64 ovpn_peer_stats_get_tx(struct ovpn_peer *peer)
-{
-	return atomic64_read(&peer->stats.tx.bytes);
-}
-
 #endif /* _NET_OVPN_DCO_OVPNSTATS_COUNTERS_H_ */
