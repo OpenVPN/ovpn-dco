@@ -20,6 +20,8 @@ static inline bool ovpn_peer_stats_increment(struct ovpn_peer_stats *stats,
 	const u64 newval = atomic64_add_return(n, &stat->bytes);
 	bool notify_trigger = false;
 
+	atomic_inc(&stat->packets);
+
 	/* for performance, first check for trigger conditions
 	 * before we grab spinlock
 	 */

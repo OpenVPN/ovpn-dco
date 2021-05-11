@@ -21,6 +21,7 @@ struct ovpn_struct;
 /* one stat */
 struct ovpn_peer_stat {
 	atomic64_t bytes;
+	atomic_t packets;
 	/* notify userspace when bytes exceeds this value */
 	u64 notify;
 };
