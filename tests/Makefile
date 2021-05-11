@@ -10,7 +10,7 @@ CFLAGS = -Wall
 ovpn-cli: ovpn-cli.c
 	$(CC) $(CFLAGS) $@.c -I../include/uapi \
 		`pkg-config --cflags --libs libnl-3.0 libnl-genl-3.0` \
-		-lmbedtls -lmbedcrypto -o $@
+		-lmbedtls -lmbedcrypto -Wall -o $@
 
 clean:
 	$(RM) ovpn-cli
