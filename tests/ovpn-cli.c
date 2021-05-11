@@ -7,6 +7,7 @@
  */
 
 #include <stdio.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <string.h>
 #include <errno.h>
@@ -44,6 +45,8 @@ enum ovpn_key_direction {
 
 #define KEY_LEN (256 / 8)
 #define NONCE_LEN 8
+
+#define PEER_ID_UNDEF 0x00FFFFFF
 
 struct nl_ctx {
 	struct nl_sock *nl_sock;
@@ -113,8 +116,8 @@ static int ovpn_nl_recvmsgs(struct nl_ctx *ctx)
 	return ret;
 }
 
-static struct nl_ctx *nl_ctx_alloc(struct ovpn_ctx *ovpn,
-				   enum ovpn_nl_commands cmd)
+static struct nl_ctx *nl_ctx_alloc_flags(struct ovpn_ctx *ovpn,
+					 enum ovpn_nl_commands cmd, int flags)
 {
 	struct nl_ctx *ctx;
 	int ret;
@@ -159,7 +162,7 @@ static struct nl_ctx *nl_ctx_alloc(struct ovpn_ctx *ovpn,
 
 	nl_socket_set_cb(ctx->nl_sock, ctx->nl_cb);
 
-	genlmsg_put(ctx->nl_msg, 0, 0, ctx->ovpn_dco_id, 0, 0, cmd, 0);
+	genlmsg_put(ctx->nl_msg, 0, 0, ctx->ovpn_dco_id, 0, flags, cmd, 0);
 	NLA_PUT_U32(ctx->nl_msg, OVPN_ATTR_IFINDEX, ovpn->ifindex);
 
 	return ctx;
@@ -171,6 +174,12 @@ err_sock:
 err_free:
 	free(ctx);
 	return NULL;
+}
+
+static struct nl_ctx *nl_ctx_alloc(struct ovpn_ctx *ovpn,
+				   enum ovpn_nl_commands cmd)
+{
+	return nl_ctx_alloc_flags(ovpn, cmd, 0);
 }
 
 static void nl_ctx_free(struct nl_ctx *ctx)
@@ -645,6 +654,133 @@ static int ovpn_del_peer(struct ovpn_ctx *ovpn)
 	nla_nest_end(ctx->nl_msg, attr);
 
 	ret = ovpn_nl_msg_send(ctx, NULL);
+nla_put_failure:
+	nl_ctx_free(ctx);
+	return ret;
+}
+
+static int ovpn_handle_peer(struct nl_msg *msg, void *arg)
+{
+	struct nlattr *attrs_peer[OVPN_GET_PEER_RESP_ATTR_MAX + 1];
+	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
+	struct nlattr *attrs[OVPN_ATTR_MAX + 1];
+	__u16 port = 0;
+
+	nla_parse(attrs, OVPN_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
+		  genlmsg_attrlen(gnlh, 0), NULL);
+
+	if (!attrs[OVPN_ATTR_GET_PEER]) {
+		fprintf(stderr, "no packet content in netlink message\n");
+		return NL_SKIP;
+	}
+
+	nla_parse(attrs_peer, OVPN_GET_PEER_RESP_ATTR_MAX, nla_data(attrs[OVPN_ATTR_GET_PEER]),
+		  nla_len(attrs[OVPN_ATTR_GET_PEER]), NULL);
+
+	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_PEER_ID])
+		fprintf(stderr, "* Peer %u\n",
+			nla_get_u32(attrs_peer[OVPN_GET_PEER_RESP_ATTR_PEER_ID]));
+
+	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_IPV4]) {
+		char buf[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, nla_data(attrs_peer[OVPN_GET_PEER_RESP_ATTR_IPV4]), buf,
+			  sizeof(buf));
+		fprintf(stderr, "\tVPN IPv4: %s\n", buf);
+	}
+
+	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_IPV6]) {
+		char buf[INET6_ADDRSTRLEN];
+		inet_ntop(AF_INET6, nla_data(attrs_peer[OVPN_GET_PEER_RESP_ATTR_IPV6]), buf,
+			  sizeof(buf));
+		fprintf(stderr, "\tVPN IPv6: %s\n", buf);
+	}
+
+	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_LOCAL_PORT])
+		port = ntohs(nla_get_u16(attrs_peer[OVPN_GET_PEER_RESP_ATTR_LOCAL_PORT]));
+
+	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_SOCKADDR_REMOTE]) {
+		struct sockaddr_storage ss;
+		struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)&ss;
+		struct sockaddr_in *in = (struct sockaddr_in *)&ss;
+
+		memcpy(&ss, nla_data(attrs_peer[OVPN_GET_PEER_RESP_ATTR_SOCKADDR_REMOTE]),
+		       nla_len(attrs_peer[OVPN_GET_PEER_RESP_ATTR_SOCKADDR_REMOTE]));
+
+		if (in->sin_family == AF_INET) {
+			char buf[INET_ADDRSTRLEN];
+
+			if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_LOCAL_IP]) {
+				inet_ntop(AF_INET,
+					  nla_data(attrs_peer[OVPN_GET_PEER_RESP_ATTR_LOCAL_IP]),
+					  buf, sizeof(buf));
+				fprintf(stderr, "\tLocal: %s:%hu\n", buf, port);
+			}
+
+			inet_ntop(AF_INET, &in->sin_addr, buf, sizeof(buf));
+			fprintf(stderr, "\tRemote: %s:%u\n", buf, ntohs(in->sin_port));
+		} else if (in->sin_family == AF_INET6) {
+			char buf[INET6_ADDRSTRLEN];
+
+			if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_LOCAL_IP]) {
+				inet_ntop(AF_INET6,
+					  nla_data(attrs_peer[OVPN_GET_PEER_RESP_ATTR_LOCAL_IP]),
+					  buf, sizeof(buf));
+				fprintf(stderr, "\tLocal: %s\n", buf);
+			}
+
+			inet_ntop(AF_INET6, &in6->sin6_addr, buf, sizeof(buf));
+			fprintf(stderr, "\tRemote: %s:%u (scope-id: %u)\n", buf,
+				ntohs(in6->sin6_port), ntohl(in6->sin6_scope_id));
+		}
+	}
+
+	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_KEEPALIVE_INTERVAL])
+		fprintf(stderr, "\tKeepalive interval: %u sec\n",
+			nla_get_u32(attrs_peer[OVPN_GET_PEER_RESP_ATTR_KEEPALIVE_INTERVAL]));
+
+	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_KEEPALIVE_TIMEOUT])
+		fprintf(stderr, "\tKeepalive timeout: %u sec\n",
+			nla_get_u32(attrs_peer[OVPN_GET_PEER_RESP_ATTR_KEEPALIVE_TIMEOUT]));
+
+	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_RX_BYTES])
+		fprintf(stderr, "\tRX bytes: %" PRIu64 "\n",
+			nla_get_u64(attrs_peer[OVPN_GET_PEER_RESP_ATTR_RX_BYTES]));
+
+	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_TX_BYTES])
+		fprintf(stderr, "\tTX bytes: %" PRIu64 "\n",
+			nla_get_u64(attrs_peer[OVPN_GET_PEER_RESP_ATTR_TX_BYTES]));
+
+	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_RX_PACKETS])
+		fprintf(stderr, "\tRX packets: %u\n",
+			nla_get_u32(attrs_peer[OVPN_GET_PEER_RESP_ATTR_RX_PACKETS]));
+
+	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_TX_PACKETS])
+		fprintf(stderr, "\tTX packets: %u\n",
+			nla_get_u32(attrs_peer[OVPN_GET_PEER_RESP_ATTR_TX_PACKETS]));
+
+	return NL_SKIP;
+}
+
+static int ovpn_get_peer(struct ovpn_ctx *ovpn)
+{
+	int flags = 0, ret = -1;
+	struct nlattr *attr;
+	struct nl_ctx *ctx;
+
+	if (ovpn->peer_id == PEER_ID_UNDEF)
+		flags = NLM_F_DUMP;
+
+	ctx = nl_ctx_alloc_flags(ovpn, OVPN_CMD_GET_PEER, flags);
+	if (!ctx)
+		return -ENOMEM;
+
+	if (ovpn->peer_id >= 0) {
+		attr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_GET_PEER);
+		NLA_PUT_U32(ctx->nl_msg, OVPN_GET_PEER_ATTR_PEER_ID, ovpn->peer_id);
+		nla_nest_end(ctx->nl_msg, attr);
+	}
+
+	ret = ovpn_nl_msg_send(ctx, ovpn_handle_peer);
 nla_put_failure:
 	nl_ctx_free(ctx);
 	return ret;
@@ -1365,6 +1501,18 @@ int main(int argc, char *argv[])
 		ret = ovpn_del_peer(&ovpn);
 		if (ret < 0) {
 			fprintf(stderr, "cannot delete peer to VPN\n");
+			return ret;
+		}
+	} else if (!strcmp(argv[2], "get_peer")) {
+		ovpn.peer_id = PEER_ID_UNDEF;
+		if (argc > 3)
+			ovpn.peer_id = strtoul(argv[3], NULL, 10);
+
+		fprintf(stderr, "List of peers connected to: %s\n", argv[1]);
+
+		ret = ovpn_get_peer(&ovpn);
+		if (ret < 0) {
+			fprintf(stderr, "cannot get peer(s): %d\n", ret);
 			return ret;
 		}
 	} else if (!strcmp(argv[2], "new_key")) {
