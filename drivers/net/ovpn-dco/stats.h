@@ -22,22 +22,12 @@ struct ovpn_struct;
 struct ovpn_peer_stat {
 	atomic64_t bytes;
 	atomic_t packets;
-	/* notify userspace when bytes exceeds this value */
-	u64 notify;
 };
 
 /* rx and tx stats, enabled by notify_per != 0 or period != 0 */
 struct ovpn_peer_stats {
 	struct ovpn_peer_stat rx;
 	struct ovpn_peer_stat tx;
-	/* configured bandwidth-triggered notification */
-	u64 notify_per;
-	/* configured time-triggered notification (relative jiffies) */
-	unsigned long period;
-	/* next timed notification (absolute jiffies) */
-	unsigned long revisit;
-	/* protects the ovpn_peer_stats object */
-	spinlock_t lock;
 };
 
 /* struct for OVPN_ERR_STATS */
