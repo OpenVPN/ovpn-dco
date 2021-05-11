@@ -570,6 +570,127 @@ static int ovpn_netlink_set_peer(struct sk_buff *skb, struct genl_info *info)
 	return 0;
 }
 
+static int ovpn_netlink_send_peer(struct sk_buff *skb, const struct ovpn_peer *peer, u32 portid,
+				  u32 seq, int flags)
+{
+	const struct ovpn_bind *bind;
+	struct nlattr *attr;
+	void *hdr;
+
+	hdr = genlmsg_put(skb, portid, seq, &ovpn_netlink_family, flags, OVPN_CMD_GET_PEER);
+	if (!hdr) {
+		pr_debug("%s: cannot create message header\n", __func__);
+		return -ENOBUFS;
+	}
+
+	attr = nla_nest_start(skb, OVPN_ATTR_GET_PEER);
+	if (!attr) {
+		pr_debug("%s: cannot create submessage\n", __func__);
+		goto error;
+	}
+
+	if (nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_PEER_ID, peer->id)) {
+		pr_debug("%s: cannot add attribute\n", __func__);
+		goto error;
+	}
+
+	if (peer->vpn_addrs.ipv4.s_addr != htonl(INADDR_ANY))
+		nla_put(skb, OVPN_GET_PEER_RESP_ATTR_IPV4, sizeof(&peer->vpn_addrs.ipv4),
+			&peer->vpn_addrs.ipv4);
+
+	if (memcmp(&peer->vpn_addrs.ipv6, &in6addr_any, sizeof(peer->vpn_addrs.ipv6)))
+		nla_put(skb, OVPN_GET_PEER_RESP_ATTR_IPV6, sizeof(&peer->vpn_addrs.ipv6),
+			&peer->vpn_addrs.ipv6);
+
+	nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_KEEPALIVE_INTERVAL,
+		    peer->keepalive_interval);
+	nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_KEEPALIVE_TIMEOUT,
+		    peer->keepalive_timeout);
+
+	rcu_read_lock();
+	bind = rcu_dereference(peer->bind);
+	if (bind) {
+		if (bind->sa.in4.sin_family == AF_INET) {
+			nla_put(skb, OVPN_GET_PEER_RESP_ATTR_SOCKADDR_REMOTE,
+				sizeof(bind->sa.in4), &bind->sa.in4);
+			nla_put(skb, OVPN_GET_PEER_RESP_ATTR_LOCAL_IP,
+				sizeof(bind->local.ipv4), &bind->local.ipv4);
+		} else if (bind->sa.in4.sin_family == AF_INET6) {
+			nla_put(skb, OVPN_GET_PEER_RESP_ATTR_SOCKADDR_REMOTE,
+				sizeof(bind->sa.in6), &bind->sa.in6);
+			nla_put(skb, OVPN_GET_PEER_RESP_ATTR_LOCAL_IP,
+				sizeof(bind->local.ipv6), &bind->local.ipv6);
+		}
+	}
+	rcu_read_unlock();
+
+	nla_put_net16(skb, OVPN_GET_PEER_RESP_ATTR_LOCAL_PORT,
+		      inet_sk(peer->sock->sock->sk)->inet_sport);
+
+	/* RX stats */
+	nla_put_u64_64bit(skb, OVPN_GET_PEER_RESP_ATTR_RX_BYTES,
+			  atomic64_read(&peer->stats.rx.bytes),
+			  OVPN_GET_PEER_RESP_ATTR_UNSPEC);
+	nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_RX_PACKETS,
+		    atomic_read(&peer->stats.rx.packets));
+
+	/* TX stats */
+	nla_put_u64_64bit(skb, OVPN_GET_PEER_RESP_ATTR_TX_BYTES,
+			  atomic64_read(&peer->stats.tx.bytes),
+			  OVPN_GET_PEER_RESP_ATTR_UNSPEC);
+	nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_TX_PACKETS,
+		    atomic_read(&peer->stats.tx.packets));
+
+	nla_nest_end(skb, attr);
+	genlmsg_end(skb, hdr);
+
+	return 0;
+error:
+	genlmsg_cancel(skb, hdr);
+	return -EMSGSIZE;
+}
+
+static int ovpn_netlink_get_peer(struct sk_buff *skb, struct genl_info *info)
+{
+	struct nlattr *attrs[OVPN_SET_PEER_ATTR_MAX + 1];
+	struct ovpn_struct *ovpn = info->user_ptr[0];
+	struct ovpn_peer *peer;
+	struct sk_buff *msg;
+	u32 peer_id;
+	int ret;
+
+	if (!info->attrs[OVPN_ATTR_GET_PEER])
+		return -EINVAL;
+
+	ret = nla_parse_nested(attrs, OVPN_GET_PEER_ATTR_MAX, info->attrs[OVPN_ATTR_GET_PEER], NULL,
+			       info->extack);
+	if (ret)
+		return ret;
+
+	if (!attrs[OVPN_GET_PEER_ATTR_PEER_ID])
+		return -EINVAL;
+
+	msg = nlmsg_new(NLMSG_DEFAULT_SIZE, GFP_KERNEL);
+	if (!msg)
+		return -ENOMEM;
+
+	peer_id = nla_get_u32(attrs[OVPN_GET_PEER_ATTR_PEER_ID]);
+	peer = ovpn_peer_lookup_id(ovpn, peer_id);
+	if (!peer)
+		return -ENOENT;
+
+	ret = ovpn_netlink_send_peer(msg, peer, info->snd_portid, info->snd_seq, 0);
+	if (ret < 0) {
+		nlmsg_free(msg);
+		goto err;
+	}
+
+	ret = genlmsg_reply(msg, info);
+err:
+	ovpn_peer_put(peer);
+	return ret;
+}
+
 static int ovpn_netlink_dump_done(struct netlink_callback *cb)
 {
 	struct ovpn_struct *ovpn = (struct ovpn_struct *)cb->args[0];
@@ -612,9 +733,6 @@ static int ovpn_netlink_dump_peers(struct sk_buff *skb, struct netlink_callback 
 	struct ovpn_struct *ovpn = (struct ovpn_struct *)cb->args[0];
 	int ret, bkt, last_idx = cb->args[1], dumped = 0;
 	struct ovpn_peer *peer;
-	struct ovpn_bind *bind;
-	struct nlattr *attr;
-	void *hdr;
 
 	if (!ovpn) {
 		ret = ovpn_netlink_dump_prepare(cb);
@@ -634,80 +752,12 @@ static int ovpn_netlink_dump_peers(struct sk_buff *skb, struct netlink_callback 
 			continue;
 		}
 
-		hdr = genlmsg_put(skb, NETLINK_CB(cb->skb).portid, cb->nlh->nlmsg_seq,
-				  &ovpn_netlink_family, NLM_F_MULTI, OVPN_CMD_GET_PEER);
-		if (!hdr) {
-			pr_debug("%s: cannot create message header\n", __func__);
-			goto error;
-		}
-
-		attr = nla_nest_start(skb, OVPN_ATTR_GET_PEER);
-		if (!attr) {
-			pr_debug("%s: cannot create submessage\n", __func__);
-			goto error;
-		}
-
-		if (nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_PEER_ID, peer->id)) {
-			pr_debug("%s: cannot add attribute\n", __func__);
-			goto error;
-		}
-
-		if (peer->vpn_addrs.ipv4.s_addr != htonl(INADDR_ANY))
-			nla_put(skb, OVPN_GET_PEER_RESP_ATTR_IPV4, sizeof(&peer->vpn_addrs.ipv4),
-				&peer->vpn_addrs.ipv4);
-
-		if (memcmp(&peer->vpn_addrs.ipv6, &in6addr_any, sizeof(peer->vpn_addrs.ipv6)))
-			nla_put(skb, OVPN_GET_PEER_RESP_ATTR_IPV6, sizeof(&peer->vpn_addrs.ipv6),
-				&peer->vpn_addrs.ipv6);
-
-		nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_KEEPALIVE_INTERVAL,
-			    peer->keepalive_interval);
-		nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_KEEPALIVE_TIMEOUT,
-			    peer->keepalive_timeout);
-
-		rcu_read_lock();
-		bind = rcu_dereference(peer->bind);
-		if (bind) {
-			if (bind->sa.in4.sin_family == AF_INET) {
-				nla_put(skb, OVPN_GET_PEER_RESP_ATTR_SOCKADDR_REMOTE,
-					sizeof(bind->sa.in4), &bind->sa.in4);
-				nla_put(skb, OVPN_GET_PEER_RESP_ATTR_LOCAL_IP,
-					sizeof(bind->local.ipv4), &bind->local.ipv4);
-			} else if (bind->sa.in4.sin_family == AF_INET6) {
-				nla_put(skb, OVPN_GET_PEER_RESP_ATTR_SOCKADDR_REMOTE,
-					sizeof(bind->sa.in6), &bind->sa.in6);
-				nla_put(skb, OVPN_GET_PEER_RESP_ATTR_LOCAL_IP,
-					sizeof(bind->local.ipv6), &bind->local.ipv6);
-			}
-		}
-		rcu_read_unlock();
-
-		nla_put_net16(skb, OVPN_GET_PEER_RESP_ATTR_LOCAL_PORT,
-			      inet_sk(peer->sock->sock->sk)->inet_sport);
-
-		/* RX stats */
-		nla_put_u64_64bit(skb, OVPN_GET_PEER_RESP_ATTR_RX_BYTES,
-				  atomic64_read(&peer->stats.rx.bytes),
-				  OVPN_GET_PEER_RESP_ATTR_UNSPEC);
-		nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_RX_PACKETS,
-			    atomic_read(&peer->stats.rx.packets));
-
-		/* TX stats */
-		nla_put_u64_64bit(skb, OVPN_GET_PEER_RESP_ATTR_TX_BYTES,
-				  atomic64_read(&peer->stats.tx.bytes),
-				  OVPN_GET_PEER_RESP_ATTR_UNSPEC);
-		nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_TX_PACKETS,
-			    atomic_read(&peer->stats.tx.packets));
-
-		nla_nest_end(skb, attr);
-		genlmsg_end(skb, hdr);
+		if (ovpn_netlink_send_peer(skb, peer, NETLINK_CB(cb->skb).portid,
+					   cb->nlh->nlmsg_seq, NLM_F_MULTI) < 0)
+			break;
 
 		/* count peers being dumped during this invocation */
 		dumped++;
-		continue;
-error:
-		genlmsg_cancel(skb, hdr);
-		break;
 	}
 	rcu_read_unlock();
 
@@ -844,6 +894,7 @@ static const struct genl_ops ovpn_netlink_ops[] = {
 		.cmd = OVPN_CMD_GET_PEER,
 		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.flags = GENL_ADMIN_PERM,
+		.doit = ovpn_netlink_get_peer,
 		.dumpit = ovpn_netlink_dump_peers,
 		.done = ovpn_netlink_dump_done,
 	},
