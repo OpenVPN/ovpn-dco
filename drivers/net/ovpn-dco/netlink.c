@@ -670,14 +670,14 @@ static int ovpn_netlink_get_peer(struct sk_buff *skb, struct genl_info *info)
 	if (!attrs[OVPN_GET_PEER_ATTR_PEER_ID])
 		return -EINVAL;
 
-	msg = nlmsg_new(NLMSG_DEFAULT_SIZE, GFP_KERNEL);
-	if (!msg)
-		return -ENOMEM;
-
 	peer_id = nla_get_u32(attrs[OVPN_GET_PEER_ATTR_PEER_ID]);
 	peer = ovpn_peer_lookup_id(ovpn, peer_id);
 	if (!peer)
 		return -ENOENT;
+
+	msg = nlmsg_new(NLMSG_DEFAULT_SIZE, GFP_KERNEL);
+	if (!msg)
+		return -ENOMEM;
 
 	ret = ovpn_netlink_send_peer(msg, peer, info->snd_portid, info->snd_seq, 0);
 	if (ret < 0) {
