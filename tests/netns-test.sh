@@ -113,6 +113,13 @@ for p in $(seq 1 $NUM_PEERS); do
 	ip netns exec peer0 ping -qfc 2000 -w 5 5.5.5.$((${p} + 1))
 done
 
+echo "Querying all peers:"
 ip netns exec peer0 $OVPN_CLI tun0 get_peer
+
+echo "Querying peer 1:"
+ip netns exec peer0 $OVPN_CLI tun0 get_peer 1
+
+echo "Querying non-existent peer 10:"
+ip netns exec peer0 $OVPN_CLI tun0 get_peer 10 || true
 
 #ip netns exec peer0 $OVPN_CLI tun0 del_peer 1
