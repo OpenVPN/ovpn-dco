@@ -99,13 +99,17 @@ void ovpn_tcp_socket_detach(struct socket *sock)
 static int ovpn_tcp_send_one(struct ovpn_peer *peer, struct sk_buff *skb)
 {
 	struct msghdr msg = { .msg_flags = MSG_DONTWAIT | MSG_NOSIGNAL };
-	struct kvec iv = { .iov_base = skb->data, .iov_len = skb->len };
+	struct kvec iv = { 0 };
 	int ret;
 
 	if (skb_linearize(skb) < 0) {
 		pr_err_ratelimited("%s: can't linearize packet\n", __func__);
 		return -ENOMEM;
 	}
+
+	/* initialize iv structure now as skb_linearize() may have changed skb->data */
+	iv.iov_base = skb->data;
+	iv.iov_len = skb->len;
 
 	ret = kernel_sendmsg(peer->sock->sock, &msg, &iv, 1, iv.iov_len);
 	if (ret > 0) {
