@@ -1306,7 +1306,7 @@ int main(int argc, char *argv[])
 	}
 
 	memset(&ovpn, 0, sizeof(ovpn));
-	ovpn.sa_family = AF_UNSPEC;
+	ovpn.sa_family = AF_INET;
 
 	ovpn.ifindex = if_nametoindex(argv[1]);
 	if (!ovpn.ifindex) {
