@@ -151,8 +151,7 @@ static void ovpn_tcp_tx_work(struct work_struct *work)
 		}
 
 		/* give a chance to be rescheduled if needed */
-		if (need_resched())
-			cond_resched();
+		cond_resched();
 	}
 }
 
@@ -234,8 +233,7 @@ static void ovpn_tcp_rx_work(struct work_struct *work)
 
 	while (true) {
 		/* give a chance to be rescheduled if needed */
-		if (need_resched())
-			cond_resched();
+		cond_resched();
 
 		ret = ovpn_tcp_rx_one(peer);
 		if (ret <= 0)

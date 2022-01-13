@@ -301,8 +301,7 @@ void ovpn_decrypt_work(struct work_struct *work)
 		}
 
 		/* give a chance to be rescheduled if needed */
-		if (need_resched())
-			cond_resched();
+		cond_resched();
 	}
 	ovpn_peer_put(peer);
 }
@@ -392,8 +391,7 @@ void ovpn_encrypt_work(struct work_struct *work)
 		}
 
 		/* give a chance to be rescheduled if needed */
-		if (need_resched())
-			cond_resched();
+		cond_resched();
 	}
 	ovpn_peer_put(peer);
 }
