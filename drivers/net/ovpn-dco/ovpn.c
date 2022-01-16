@@ -15,6 +15,7 @@
 #include "stats_counters.h"
 #include "proto.h"
 #include "crypto.h"
+#include "crypto_aead.h"
 #include "skb.h"
 #include "tcp.h"
 #include "udp.h"
@@ -226,7 +227,7 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	}
 
 	/* decrypt */
-	ret = ks->ops->decrypt(ks, skb);
+	ret = ovpn_aead_decrypt(ks, skb);
 
 	ovpn_crypto_key_slot_put(ks);
 
@@ -328,7 +329,7 @@ static bool ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	ovpn_peer_stats_increment_tx(peer, skb->len);
 
 	/* encrypt */
-	ret = ks->ops->encrypt(ks, skb, peer->id);
+	ret = ovpn_aead_encrypt(ks, skb, peer->id);
 	if (unlikely(ret < 0)) {
 		pr_err_ratelimited("%s: error during encryption: %d\n", __func__, ret);
 		goto err;

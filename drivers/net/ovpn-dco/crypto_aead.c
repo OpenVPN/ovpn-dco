@@ -19,8 +19,6 @@
 
 #define AUTH_TAG_SIZE	16
 
-const struct ovpn_crypto_ops ovpn_aead_ops;
-
 static int ovpn_aead_encap_overhead(const struct ovpn_crypto_key_slot *ks)
 {
 	return  OVPN_OP_SIZE_V2 +			/* OP header size */
@@ -28,7 +26,7 @@ static int ovpn_aead_encap_overhead(const struct ovpn_crypto_key_slot *ks)
 		crypto_aead_authsize(ks->encrypt);	/* Auth Tag */
 }
 
-static int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb, u32 peer_id)
+int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb, u32 peer_id)
 {
 	const unsigned int tag_size = crypto_aead_authsize(ks->encrypt);
 	const unsigned int head_size = ovpn_aead_encap_overhead(ks);
@@ -127,7 +125,7 @@ free_req:
 	return ret;
 }
 
-static int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb)
+int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb)
 {
 	const unsigned int tag_size = crypto_aead_authsize(ks->decrypt);
 	struct scatterlist sg[MAX_SKB_FRAGS + 2];
@@ -223,10 +221,8 @@ free_req:
 }
 
 /* Initialize a struct crypto_aead object */
-static struct crypto_aead *ovpn_aead_init(const char *title,
-					  const char *alg_name,
-					  const unsigned char *key,
-					  unsigned int keylen)
+struct crypto_aead *ovpn_aead_init(const char *title, const char *alg_name,
+				   const unsigned char *key, unsigned int keylen)
 {
 	struct crypto_aead *aead;
 	int ret;
@@ -274,7 +270,7 @@ error:
 	return ERR_PTR(ret);
 }
 
-static void ovpn_aead_crypto_key_slot_destroy(struct ovpn_crypto_key_slot *ks)
+void ovpn_aead_crypto_key_slot_destroy(struct ovpn_crypto_key_slot *ks)
 {
 	if (!ks)
 		return;
@@ -317,7 +313,6 @@ ovpn_aead_crypto_key_slot_init(enum ovpn_cipher_alg alg,
 	if (!ks)
 		return ERR_PTR(-ENOMEM);
 
-	ks->ops = &ovpn_aead_ops;
 	ks->encrypt = NULL;
 	ks->decrypt = NULL;
 	kref_init(&ks->refcount);
@@ -361,7 +356,7 @@ destroy_ks:
 	return ERR_PTR(ret);
 }
 
-static struct ovpn_crypto_key_slot *
+struct ovpn_crypto_key_slot *
 ovpn_aead_crypto_key_slot_new(const struct ovpn_key_config *kc)
 {
 	return ovpn_aead_crypto_key_slot_init(kc->cipher_alg,
@@ -375,11 +370,3 @@ ovpn_aead_crypto_key_slot_new(const struct ovpn_key_config *kc)
 					      kc->decrypt.nonce_tail_size,
 					      kc->key_id);
 }
-
-const struct ovpn_crypto_ops ovpn_aead_ops = {
-	.encrypt     = ovpn_aead_encrypt,
-	.decrypt     = ovpn_aead_decrypt,
-	.new         = ovpn_aead_crypto_key_slot_new,
-	.destroy     = ovpn_aead_crypto_key_slot_destroy,
-	.encap_overhead = ovpn_aead_encap_overhead,
-};

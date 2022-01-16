@@ -14,18 +14,12 @@
 
 #include <uapi/linux/ovpn_dco.h>
 
-static struct ovpn_crypto_key_slot *
-ovpn_ks_new(const struct ovpn_crypto_ops *ops, const struct ovpn_key_config *kc)
-{
-	return ops->new(kc);
-}
-
 static void ovpn_ks_destroy_rcu(struct rcu_head *head)
 {
 	struct ovpn_crypto_key_slot *ks;
 
 	ks = container_of(head, struct ovpn_crypto_key_slot, rcu);
-	ks->ops->destroy(ks);
+	ovpn_aead_crypto_key_slot_destroy(ks);
 }
 
 void ovpn_crypto_key_slot_release(struct kref *kref)
@@ -70,7 +64,7 @@ int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
 
 	lockdep_assert_held(&cs->mutex);
 
-	new = ovpn_ks_new(cs->ops, &pkr->key);
+	new = ovpn_aead_crypto_key_slot_new(&pkr->key);
 	if (IS_ERR(new))
 		return PTR_ERR(new);
 
@@ -124,55 +118,6 @@ void ovpn_crypto_key_slot_delete(struct ovpn_crypto_state *cs,
 	pr_debug("deleting key slot %u, key_id=%u\n", slot, ks->key_id);
 
 	ovpn_crypto_key_slot_put(ks);
-}
-
-static const struct ovpn_crypto_ops *
-ovpn_crypto_select_family(const struct ovpn_peer_key_reset *pkr)
-{
-	switch (pkr->crypto_family) {
-	case OVPN_CRYPTO_FAMILY_UNDEF:
-		return NULL;
-	case OVPN_CRYPTO_FAMILY_NONE:
-		return &ovpn_none_ops;
-	case OVPN_CRYPTO_FAMILY_AEAD:
-		return &ovpn_aead_ops;
-	default:
-		return NULL;
-	}
-}
-
-int ovpn_crypto_state_select_family(struct ovpn_crypto_state *cs,
-				    const struct ovpn_peer_key_reset *pkr)
-	__must_hold(cs->mutex)
-{
-	const struct ovpn_crypto_ops *new_ops;
-
-	lockdep_assert_held(&cs->mutex);
-
-	new_ops = ovpn_crypto_select_family(pkr);
-	if (!new_ops)
-		return -EOPNOTSUPP;
-
-	if (cs->ops && cs->ops != new_ops) /* family changed? */
-		return -EINVAL;
-
-	cs->ops = new_ops;
-
-	return 0;
-}
-
-enum ovpn_crypto_families
-ovpn_keys_familiy_get(const struct ovpn_key_config *kc)
-{
-	switch (kc->cipher_alg) {
-	case OVPN_CIPHER_ALG_NONE:
-		return OVPN_CRYPTO_FAMILY_NONE;
-	case OVPN_CIPHER_ALG_AES_GCM:
-	case OVPN_CIPHER_ALG_CHACHA20_POLY1305:
-		return OVPN_CRYPTO_FAMILY_AEAD;
-	default:
-		return OVPN_CRYPTO_FAMILY_UNDEF;
-	}
 }
 
 /* this swap is not atomic, but there will be a very short time frame where the

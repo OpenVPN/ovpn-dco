@@ -19,12 +19,6 @@
 struct ovpn_peer;
 struct ovpn_crypto_key_slot;
 
-enum ovpn_crypto_families {
-	OVPN_CRYPTO_FAMILY_UNDEF = 0,
-	OVPN_CRYPTO_FAMILY_NONE,
-	OVPN_CRYPTO_FAMILY_AEAD,
-};
-
 /* info needed for both encrypt and decrypt directions */
 struct ovpn_key_direction {
 	const u8 *cipher_key;
@@ -44,18 +38,7 @@ struct ovpn_key_config {
 /* used to pass settings from netlink to the crypto engine */
 struct ovpn_peer_key_reset {
 	enum ovpn_key_slot slot;
-	enum ovpn_crypto_families crypto_family;
 	struct ovpn_key_config key;
-};
-
-struct ovpn_crypto_ops {
-	int (*encrypt)(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb, u32 peer_id);
-	int (*decrypt)(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb);
-
-	struct ovpn_crypto_key_slot *(*new)(const struct ovpn_key_config *kc);
-	void (*destroy)(struct ovpn_crypto_key_slot *ks);
-
-	int (*encap_overhead)(const struct ovpn_crypto_key_slot *ks);
 };
 
 struct ovpn_crypto_key_slot {
@@ -159,9 +142,6 @@ void ovpn_crypto_key_slot_delete(struct ovpn_crypto_state *cs,
 				 enum ovpn_key_slot slot);
 
 void ovpn_crypto_state_release(struct ovpn_crypto_state *cs);
-
-enum ovpn_crypto_families
-ovpn_keys_familiy_get(const struct ovpn_key_config *kc);
 
 void ovpn_crypto_key_slots_swap(struct ovpn_crypto_state *cs);
 

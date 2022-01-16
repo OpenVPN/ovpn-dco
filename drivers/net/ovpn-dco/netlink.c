@@ -210,8 +210,6 @@ static int ovpn_netlink_get_key_dir(struct genl_info *info, struct nlattr *key,
 		dir->nonce_tail = nla_data(attr);
 		dir->nonce_tail_size = nla_len(attr);
 		break;
-	case OVPN_CIPHER_ALG_NONE:
-		break;
 	default:
 		return -EINVAL;
 	}
@@ -260,8 +258,6 @@ static int ovpn_netlink_new_key(struct sk_buff *skb, struct genl_info *info)
 	if (ret < 0)
 		return ret;
 
-	pkr.crypto_family = ovpn_keys_familiy_get(&pkr.key);
-
 	peer = ovpn_peer_lookup_id(ovpn, peer_id);
 	if (!peer) {
 		pr_debug("%s: no peer with id %u to set key for\n", __func__, peer_id);
@@ -269,13 +265,6 @@ static int ovpn_netlink_new_key(struct sk_buff *skb, struct genl_info *info)
 	}
 
 	mutex_lock(&peer->crypto.mutex);
-	/* get crypto family and check for consistency */
-	ret = ovpn_crypto_state_select_family(&peer->crypto, &pkr);
-	if (ret < 0) {
-		pr_debug("%s: cannot select crypto family for peer %u\n", __func__, peer_id);
-		goto unlock;
-	}
-
 	ret = ovpn_crypto_state_reset(&peer->crypto, &pkr);
 	if (ret < 0) {
 		pr_debug("%s: cannot install new key for peer %u\n", __func__, peer_id);
