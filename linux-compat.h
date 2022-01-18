@@ -18,7 +18,7 @@
 #define NLA_POLICY_MAX_LEN(_len)       { .type = NLA_BINARY, .len = _len }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0) && !defined(EL8)
 
 #define dev_get_tstats64 ip_tunnel_get_stats64
 
@@ -36,9 +36,9 @@ static inline void dev_sw_netstats_tx_add(struct net_device *dev,
 	u64_stats_update_end(&tstats->syncp);
 }
 
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0) */
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0) && !defined(EL8) */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) && !defined(EL8)
 
 #include <linux/netdevice.h>
 
@@ -52,7 +52,7 @@ static inline void dev_sw_netstats_rx_add(struct net_device *dev, unsigned int l
 	u64_stats_update_end(&tstats->syncp);
 }
 
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) */
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) && !defined(EL8) */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
 
