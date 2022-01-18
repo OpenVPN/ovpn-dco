@@ -18,9 +18,15 @@ DEPMOD := depmod -a
 REVISION= $(shell	if [ -d "$(PWD)/.git" ]; then \
 				echo $$(git --git-dir="$(PWD)/.git" describe --always --dirty --match "v*" |sed 's/^v//' 2> /dev/null || echo "[unknown]"); \
 			fi)
+
+EL8 := $(shell cat /etc/redhat-release 2>/dev/null | grep -c " 8." )
+ifeq (1, $(EL8))
+EL8FLAG := -DEL8
+endif
+
 NOSTDINC_FLAGS += \
 	-I$(PWD)/include/ \
-	$(CFLAGS) \
+	$(CFLAGS) $(EL8FLAG) \
 	-include $(PWD)/linux-compat.h
 #	-I$(PWD)/compat-include/
 
