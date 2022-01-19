@@ -142,12 +142,8 @@ int ovpn_napi_poll(struct napi_struct *napi, int budget)
 		work_done++;
 	}
 
-	if (work_done < budget) {
+	if (work_done < budget)
 		napi_complete_done(napi, work_done);
-
-		if (!__ptr_ring_empty(&peer->netif_rx_ring))
-			napi_schedule(&peer->napi);
-	}
 
 	return work_done;
 }
