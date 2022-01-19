@@ -137,7 +137,7 @@ int ovpn_napi_poll(struct napi_struct *napi, int budget)
 	 * budget, the next polling will take care of those
 	 */
 	while ((work_done < budget) &&
-	       (skb = __ptr_ring_consume(&peer->netif_rx_ring))) {
+	       (skb = ptr_ring_consume_bh(&peer->netif_rx_ring))) {
 		tun_netdev_write(peer, skb);
 		work_done++;
 	}
@@ -196,7 +196,7 @@ int ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer, struct sk_buff *
 		return 0;
 	}
 
-	ret = __ptr_ring_produce(&peer->rx_ring, skb);
+	ret = ptr_ring_produce_bh(&peer->rx_ring, skb);
 	if (unlikely(ret < 0))
 		return -ENOSPC;
 
@@ -276,7 +276,7 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	}
 	skb->protocol = proto;
 
-	ret = __ptr_ring_produce(&peer->netif_rx_ring, skb);
+	ret = ptr_ring_produce_bh(&peer->netif_rx_ring, skb);
 drop:
 	if (unlikely(ret < 0))
 		kfree_skb(skb);
@@ -291,7 +291,7 @@ void ovpn_decrypt_work(struct work_struct *work)
 	struct sk_buff *skb;
 
 	peer = container_of(work, struct ovpn_peer, decrypt_work);
-	while ((skb = __ptr_ring_consume(&peer->rx_ring))) {
+	while ((skb = ptr_ring_consume_bh(&peer->rx_ring))) {
 		if (likely(ovpn_decrypt_one(peer, skb) == 0)) {
 			/* if a packet has been enqueued for NAPI, signal
 			 * availability to the networking stack
@@ -352,7 +352,7 @@ void ovpn_encrypt_work(struct work_struct *work)
 	struct ovpn_peer *peer;
 
 	peer = container_of(work, struct ovpn_peer, encrypt_work);
-	while ((skb = __ptr_ring_consume(&peer->tx_ring))) {
+	while ((skb = ptr_ring_consume_bh(&peer->tx_ring))) {
 		/* this might be a GSO-segmented skb list: process each skb
 		 * independently
 		 */
@@ -409,7 +409,7 @@ static void ovpn_queue_skb(struct ovpn_struct *ovpn, struct sk_buff *skb, struct
 		goto drop;
 	}
 
-	ret = __ptr_ring_produce(&peer->tx_ring, skb);
+	ret = ptr_ring_produce_bh(&peer->tx_ring, skb);
 	if (unlikely(ret < 0)) {
 		pr_err_ratelimited("%s: cannot queue packet to TX ring\n", __func__);
 		goto drop;

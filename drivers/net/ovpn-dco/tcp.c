@@ -249,7 +249,7 @@ void ovpn_queue_tcp_skb(struct ovpn_peer *peer, struct sk_buff *skb)
 {
 	int ret;
 
-	ret = __ptr_ring_produce(&peer->tcp.tx_ring, skb);
+	ret = ptr_ring_produce_bh(&peer->tcp.tx_ring, skb);
 	if (ret < 0) {
 		kfree_skb_list(skb);
 		return;
