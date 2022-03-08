@@ -619,6 +619,7 @@ int ovpn_peer_add(struct ovpn_struct *ovpn, struct ovpn_peer *peer)
 		goto unlock;
 	}
 
+	hlist_del_init_rcu(&peer->hash_entry_transp_addr);
 	bind = rcu_dereference_protected(peer->bind, true);
 	/* peers connected via UDP have bind == NULL */
 	if (bind) {
@@ -664,8 +665,6 @@ int ovpn_peer_add(struct ovpn_struct *ovpn, struct ovpn_peer *peer)
 					sizeof(peer->vpn_addrs.ipv6));
 		hlist_add_head_rcu(&peer->hash_entry_addr6, &ovpn->peers.by_vpn_addr[index]);
 	}
-
-	hlist_del_init_rcu(&peer->hash_entry_transp_addr);
 
 unlock:
 	spin_unlock_bh(&ovpn->peers.lock);
