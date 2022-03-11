@@ -178,6 +178,25 @@ static void ovpn_setup(struct net_device *dev)
 	dev->needed_tailroom = OVPN_MAX_PADDING;
 }
 
+static const struct nla_policy ovpn_policy[IFLA_OVPN_MAX + 1] = {
+	[IFLA_OVPN_MODE] = NLA_POLICY_RANGE(NLA_U8, __OVPN_MODE_FIRST,
+					    __OVPN_MODE_AFTER_LAST - 1),
+};
+
+static int ovpn_newlink(struct net *src_net, struct net_device *dev, struct nlattr *tb[],
+			struct nlattr *data[], struct netlink_ext_ack *extack)
+{
+	struct ovpn_struct *ovpn = netdev_priv(dev);
+
+	ovpn->mode = OVPN_MODE_P2P;
+	if (data && data[IFLA_OVPN_MODE]) {
+		pr_debug("%s: setting device (%s) mode: %u\n", __func__, dev->name, ovpn->mode);
+		ovpn->mode = nla_get_u8(data[IFLA_OVPN_MODE]);
+	}
+
+	return register_netdevice(dev);
+}
+
 static void ovpn_dellink(struct net_device *dev, struct list_head *head)
 {
 	struct ovpn_struct *ovpn = netdev_priv(dev);
@@ -203,6 +222,9 @@ static struct rtnl_link_ops ovpn_link_ops __read_mostly = {
 	.kind			= DRV_NAME,
 	.priv_size		= sizeof(struct ovpn_struct),
 	.setup			= ovpn_setup,
+	.policy			= ovpn_policy,
+	.maxtype		= IFLA_OVPN_MAX,
+	.newlink		= ovpn_newlink,
 	.dellink		= ovpn_dellink,
 	.get_num_tx_queues	= ovpn_num_queues,
 	.get_num_rx_queues	= ovpn_num_queues,

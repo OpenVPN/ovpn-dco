@@ -21,6 +21,9 @@ struct ovpn_struct {
 	/* read-mostly objects in this section */
 	struct net_device *dev;
 
+	/* device operation mode (i.e. P2P, MP) */
+	enum ovpn_mode mode;
+
 	/* protect writing to the ovpn_struct object */
 	spinlock_t lock;
 
