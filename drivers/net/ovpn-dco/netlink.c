@@ -582,12 +582,12 @@ static int ovpn_netlink_send_peer(struct sk_buff *skb, const struct ovpn_peer *p
 		goto err;
 
 	if (peer->vpn_addrs.ipv4.s_addr != htonl(INADDR_ANY))
-		if (nla_put(skb, OVPN_GET_PEER_RESP_ATTR_IPV4, sizeof(&peer->vpn_addrs.ipv4),
+		if (nla_put(skb, OVPN_GET_PEER_RESP_ATTR_IPV4, sizeof(peer->vpn_addrs.ipv4),
 			    &peer->vpn_addrs.ipv4))
 			goto err;
 
 	if (memcmp(&peer->vpn_addrs.ipv6, &in6addr_any, sizeof(peer->vpn_addrs.ipv6)))
-		if (nla_put(skb, OVPN_GET_PEER_RESP_ATTR_IPV6, sizeof(&peer->vpn_addrs.ipv6),
+		if (nla_put(skb, OVPN_GET_PEER_RESP_ATTR_IPV6, sizeof(peer->vpn_addrs.ipv6),
 			    &peer->vpn_addrs.ipv6))
 			goto err;
 
