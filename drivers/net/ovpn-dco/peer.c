@@ -110,21 +110,21 @@ err:
 }
 
 /* Reset the ovpn_sockaddr associated with a peer */
-static int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer, const struct sockaddr *sa,
+static int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer, const struct sockaddr_storage *ss,
 				    const u8 *local_ip)
 {
 	struct ovpn_bind *bind;
 	size_t ip_len;
 
 	/* create new ovpn_bind object */
-	bind = ovpn_bind_from_sockaddr(sa);
+	bind = ovpn_bind_from_sockaddr(ss);
 	if (IS_ERR(bind))
 		return PTR_ERR(bind);
 
 	if (local_ip) {
-		if (sa->sa_family == AF_INET) {
+		if (ss->ss_family == AF_INET) {
 			ip_len = sizeof(struct in_addr);
-		} else if (sa->sa_family == AF_INET6) {
+		} else if (ss->ss_family == AF_INET6) {
 			ip_len = sizeof(struct in6_addr);
 		} else {
 			pr_debug("%s: invalid family for remote endpoint\n", __func__);
@@ -182,7 +182,7 @@ void ovpn_peer_float(struct ovpn_peer *peer, struct sk_buff *skb)
 	}
 
 	pr_debug("%s: peer %d floated to %pIScp", __func__, peer->id, &ss);
-	ovpn_peer_reset_sockaddr(peer, (struct sockaddr *)&ss, local_ip);
+	ovpn_peer_reset_sockaddr(peer, (struct sockaddr_storage *)&ss, local_ip);
 unlock:
 	rcu_read_unlock();
 }
@@ -252,7 +252,7 @@ void ovpn_peer_release_kref(struct kref *kref)
 	queue_work(peer->ovpn->events_wq, &peer->delete_work);
 }
 
-struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn, const struct sockaddr *sa,
+struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn, const struct sockaddr_storage *sa,
 				struct socket *sock, u32 id, uint8_t *local_ip)
 {
 	struct ovpn_peer *peer;

@@ -38,9 +38,9 @@ static inline __be32 ovpn_ipv4_network_addr(const __be32 addr,
  * 2. family must be consistent
  */
 static inline int
-ovpn_sockaddr_validate(const struct sockaddr *sa)
+ovpn_sockaddr_validate(const struct sockaddr_storage *ss)
 {
-	switch (sa->sa_family) {
+	switch (ss->ss_family) {
 	case AF_INET:
 	case AF_INET6:
 		return 0;

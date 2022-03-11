@@ -346,7 +346,7 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 {
 	struct nlattr *attrs[OVPN_NEW_PEER_ATTR_MAX + 1];
 	struct ovpn_struct *ovpn = info->user_ptr[0];
-	struct sockaddr *sa = NULL;
+	struct sockaddr_storage *ss = NULL;
 	struct sockaddr_in mapped;
 	struct sockaddr_in6 *in6;
 	uint8_t *local_ip = NULL;
@@ -393,18 +393,18 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 			goto sockfd_release;
 		}
 
-		sa = nla_data(attrs[OVPN_NEW_PEER_ATTR_SOCKADDR_REMOTE]);
+		ss = nla_data(attrs[OVPN_NEW_PEER_ATTR_SOCKADDR_REMOTE]);
 		sa_len = nla_len(attrs[OVPN_NEW_PEER_ATTR_SOCKADDR_REMOTE]);
 		switch (sa_len) {
 		case sizeof(struct sockaddr_in):
-			if (sa->sa_family == AF_INET)
+			if (ss->ss_family == AF_INET)
 				/* valid sockaddr */
 				break;
 
 			pr_err("%s: remote sockaddr_in has invalid family\n", __func__);
 			goto sockfd_release;
 		case sizeof(struct sockaddr_in6):
-			if (sa->sa_family == AF_INET6)
+			if (ss->ss_family == AF_INET6)
 				/* valid sockaddr */
 				break;
 
@@ -415,14 +415,14 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 			goto sockfd_release;
 		}
 
-		if (sa->sa_family == AF_INET6) {
-			in6 = (struct sockaddr_in6 *)sa;
+		if (ss->ss_family == AF_INET6) {
+			in6 = (struct sockaddr_in6 *)ss;
 
 			if (ipv6_addr_type(&in6->sin6_addr) & IPV6_ADDR_MAPPED) {
 				mapped.sin_family = AF_INET;
 				mapped.sin_addr.s_addr = in6->sin6_addr.s6_addr32[3];
 				mapped.sin_port = in6->sin6_port;
-				sa = (struct sockaddr *)&mapped;
+				ss = (struct sockaddr_storage *)&mapped;
 			}
 		}
 
@@ -439,7 +439,7 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 			local_ip = nla_data(attrs[OVPN_NEW_PEER_ATTR_LOCAL_IP]);
 
 			if (ip_len == sizeof(struct in_addr)){
-				if (sa->sa_family != AF_INET) {
+				if (ss->ss_family != AF_INET) {
 					pr_debug("%s: the specified local IP is IPv4, but the peer endpoint is not\n", __func__);
 					goto sockfd_release;
 				}
@@ -447,7 +447,7 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 				bool is_mapped = ipv6_addr_type((struct in6_addr *)local_ip) &
 						 IPV6_ADDR_MAPPED;
 
-				if (sa->sa_family != AF_INET6 && !is_mapped) {
+				if (ss->ss_family != AF_INET6 && !is_mapped) {
 					pr_debug("%s: the specified local IP is IPv6, but the peer endpoint is not\n", __func__);
 					goto sockfd_release;
 				}
@@ -469,9 +469,9 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 	}
 
 	id = nla_get_u32(attrs[OVPN_NEW_PEER_ATTR_PEER_ID]);
-	peer = ovpn_peer_new(ovpn, sa, sock, id, local_ip);
+	peer = ovpn_peer_new(ovpn, ss, sock, id, local_ip);
 	if (IS_ERR(peer)) {
-		pr_err("%s: cannot create new peer object for peer %u %pIScp\n", __func__, id, sa);
+		pr_err("%s: cannot create new peer object for peer %u %pIScp\n", __func__, id, ss);
 		ret = PTR_ERR(peer);
 		goto sockfd_release;
 	}
@@ -496,7 +496,7 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 	}
 
 	pr_debug("%s: adding peer with endpoint=%pIScp/%s id=%u VPN-IPv4=%pI4 VPN-IPv6=%pI6c\n",
-		 __func__, sa, sock->sk->sk_prot_creator->name, peer->id,
+		 __func__, ss, sock->sk->sk_prot_creator->name, peer->id,
 		 &peer->vpn_addrs.ipv4.s_addr, &peer->vpn_addrs.ipv6);
 
 	ret = ovpn_peer_add(ovpn, peer);

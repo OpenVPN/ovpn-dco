@@ -19,20 +19,20 @@
  * Called from process context or softirq (must be indicated with
  * process_context bool).
  */
-struct ovpn_bind *ovpn_bind_from_sockaddr(const struct sockaddr *sa)
+struct ovpn_bind *ovpn_bind_from_sockaddr(const struct sockaddr_storage *ss)
 {
 	struct ovpn_bind *bind;
 	size_t sa_len;
 	int err;
 
-	if (sa->sa_family == AF_INET)
+	if (ss->ss_family == AF_INET)
 		sa_len = sizeof(struct sockaddr_in);
-	else if (sa->sa_family == AF_INET6)
+	else if (ss->ss_family == AF_INET6)
 		sa_len = sizeof(struct sockaddr_in6);
 	else
 		return ERR_PTR(-EAFNOSUPPORT);
 
-	err = ovpn_sockaddr_validate(sa);
+	err = ovpn_sockaddr_validate(ss);
 	if (err < 0)
 		return ERR_PTR(err);
 
@@ -40,7 +40,7 @@ struct ovpn_bind *ovpn_bind_from_sockaddr(const struct sockaddr *sa)
 	if (unlikely(!bind))
 		return ERR_PTR(-ENOMEM);
 
-	memcpy(&bind->sa, sa, sa_len);
+	memcpy(&bind->sa, ss, sa_len);
 
 	return bind;
 }
