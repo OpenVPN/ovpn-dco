@@ -605,13 +605,13 @@ static int ovpn_netlink_send_peer(struct sk_buff *skb, const struct ovpn_peer *p
 				    sizeof(bind->sa.in4), &bind->sa.in4) ||
 			    nla_put(skb, OVPN_GET_PEER_RESP_ATTR_LOCAL_IP,
 				    sizeof(bind->local.ipv4), &bind->local.ipv4))
-				goto err;
+				goto err_unlock;
 		} else if (bind->sa.in4.sin_family == AF_INET6) {
 			if (nla_put(skb, OVPN_GET_PEER_RESP_ATTR_SOCKADDR_REMOTE,
 				    sizeof(bind->sa.in6), &bind->sa.in6) ||
 			    nla_put(skb, OVPN_GET_PEER_RESP_ATTR_LOCAL_IP,
 				    sizeof(bind->local.ipv6), &bind->local.ipv6))
-				goto err;
+				goto err_unlock;
 		}
 	}
 	rcu_read_unlock();
@@ -636,6 +636,8 @@ static int ovpn_netlink_send_peer(struct sk_buff *skb, const struct ovpn_peer *p
 	genlmsg_end(skb, hdr);
 
 	return 0;
+err_unlock:
+	rcu_read_unlock();
 err:
 	genlmsg_cancel(skb, hdr);
 	return -EMSGSIZE;
