@@ -569,72 +569,74 @@ static int ovpn_netlink_send_peer(struct sk_buff *skb, const struct ovpn_peer *p
 	hdr = genlmsg_put(skb, portid, seq, &ovpn_netlink_family, flags, OVPN_CMD_GET_PEER);
 	if (!hdr) {
 		pr_debug("%s: cannot create message header\n", __func__);
-		return -ENOBUFS;
+		return -EMSGSIZE;
 	}
 
 	attr = nla_nest_start(skb, OVPN_ATTR_GET_PEER);
 	if (!attr) {
 		pr_debug("%s: cannot create submessage\n", __func__);
-		goto error;
+		goto err;
 	}
 
-	if (nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_PEER_ID, peer->id)) {
-		pr_debug("%s: cannot add attribute\n", __func__);
-		goto error;
-	}
+	if (nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_PEER_ID, peer->id))
+		goto err;
 
 	if (peer->vpn_addrs.ipv4.s_addr != htonl(INADDR_ANY))
-		nla_put(skb, OVPN_GET_PEER_RESP_ATTR_IPV4, sizeof(&peer->vpn_addrs.ipv4),
-			&peer->vpn_addrs.ipv4);
+		if (nla_put(skb, OVPN_GET_PEER_RESP_ATTR_IPV4, sizeof(&peer->vpn_addrs.ipv4),
+			    &peer->vpn_addrs.ipv4))
+			goto err;
 
 	if (memcmp(&peer->vpn_addrs.ipv6, &in6addr_any, sizeof(peer->vpn_addrs.ipv6)))
-		nla_put(skb, OVPN_GET_PEER_RESP_ATTR_IPV6, sizeof(&peer->vpn_addrs.ipv6),
-			&peer->vpn_addrs.ipv6);
+		if (nla_put(skb, OVPN_GET_PEER_RESP_ATTR_IPV6, sizeof(&peer->vpn_addrs.ipv6),
+			    &peer->vpn_addrs.ipv6))
+			goto err;
 
-	nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_KEEPALIVE_INTERVAL,
-		    peer->keepalive_interval);
-	nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_KEEPALIVE_TIMEOUT,
-		    peer->keepalive_timeout);
+	if (nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_KEEPALIVE_INTERVAL,
+			peer->keepalive_interval) ||
+	    nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_KEEPALIVE_TIMEOUT,
+			peer->keepalive_timeout))
+		goto err;
 
 	rcu_read_lock();
 	bind = rcu_dereference(peer->bind);
 	if (bind) {
 		if (bind->sa.in4.sin_family == AF_INET) {
-			nla_put(skb, OVPN_GET_PEER_RESP_ATTR_SOCKADDR_REMOTE,
-				sizeof(bind->sa.in4), &bind->sa.in4);
-			nla_put(skb, OVPN_GET_PEER_RESP_ATTR_LOCAL_IP,
-				sizeof(bind->local.ipv4), &bind->local.ipv4);
+			if (nla_put(skb, OVPN_GET_PEER_RESP_ATTR_SOCKADDR_REMOTE,
+				    sizeof(bind->sa.in4), &bind->sa.in4) ||
+			    nla_put(skb, OVPN_GET_PEER_RESP_ATTR_LOCAL_IP,
+				    sizeof(bind->local.ipv4), &bind->local.ipv4))
+				goto err;
 		} else if (bind->sa.in4.sin_family == AF_INET6) {
-			nla_put(skb, OVPN_GET_PEER_RESP_ATTR_SOCKADDR_REMOTE,
-				sizeof(bind->sa.in6), &bind->sa.in6);
-			nla_put(skb, OVPN_GET_PEER_RESP_ATTR_LOCAL_IP,
-				sizeof(bind->local.ipv6), &bind->local.ipv6);
+			if (nla_put(skb, OVPN_GET_PEER_RESP_ATTR_SOCKADDR_REMOTE,
+				    sizeof(bind->sa.in6), &bind->sa.in6) ||
+			    nla_put(skb, OVPN_GET_PEER_RESP_ATTR_LOCAL_IP,
+				    sizeof(bind->local.ipv6), &bind->local.ipv6))
+				goto err;
 		}
 	}
 	rcu_read_unlock();
 
-	nla_put_net16(skb, OVPN_GET_PEER_RESP_ATTR_LOCAL_PORT,
-		      inet_sk(peer->sock->sock->sk)->inet_sport);
-
-	/* RX stats */
-	nla_put_u64_64bit(skb, OVPN_GET_PEER_RESP_ATTR_RX_BYTES,
-			  atomic64_read(&peer->stats.rx.bytes),
-			  OVPN_GET_PEER_RESP_ATTR_UNSPEC);
-	nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_RX_PACKETS,
-		    atomic_read(&peer->stats.rx.packets));
-
-	/* TX stats */
-	nla_put_u64_64bit(skb, OVPN_GET_PEER_RESP_ATTR_TX_BYTES,
-			  atomic64_read(&peer->stats.tx.bytes),
-			  OVPN_GET_PEER_RESP_ATTR_UNSPEC);
-	nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_TX_PACKETS,
-		    atomic_read(&peer->stats.tx.packets));
+	if (nla_put_net16(skb, OVPN_GET_PEER_RESP_ATTR_LOCAL_PORT,
+			  inet_sk(peer->sock->sock->sk)->inet_sport) ||
+	    /* RX stats */
+	    nla_put_u64_64bit(skb, OVPN_GET_PEER_RESP_ATTR_RX_BYTES,
+			      atomic64_read(&peer->stats.rx.bytes),
+			      OVPN_GET_PEER_RESP_ATTR_UNSPEC) ||
+	    nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_RX_PACKETS,
+			atomic_read(&peer->stats.rx.packets)) ||
+	    /* TX stats */
+	    nla_put_u64_64bit(skb, OVPN_GET_PEER_RESP_ATTR_TX_BYTES,
+			      atomic64_read(&peer->stats.tx.bytes),
+			      OVPN_GET_PEER_RESP_ATTR_UNSPEC) ||
+	    nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_TX_PACKETS,
+			atomic_read(&peer->stats.tx.packets)))
+		goto err;
 
 	nla_nest_end(skb, attr);
 	genlmsg_end(skb, hdr);
 
 	return 0;
-error:
+err:
 	genlmsg_cancel(skb, hdr);
 	return -EMSGSIZE;
 }
@@ -702,17 +704,17 @@ static int ovpn_netlink_dump_prepare(struct netlink_callback *cb)
 	ret = nlmsg_parse_deprecated(cb->nlh, GENL_HDRLEN, attrbuf, OVPN_ATTR_MAX,
 				     ovpn_netlink_policy, NULL);
 	if (ret < 0)
-		goto error;
+		goto err;
 
 	dev = ovpn_get_dev_from_attrs(netns, attrbuf);
 	if (IS_ERR(dev)) {
 		ret = PTR_ERR(dev);
-		goto error;
+		goto err;
 	}
 
 	cb->args[0] = (long int)netdev_priv(dev);
 	ret = 0;
-error:
+err:
 	kfree(attrbuf);
 	return ret;
 }
