@@ -43,6 +43,9 @@ struct ovpn_struct {
 		spinlock_t lock;
 	} peers;
 
+	/* for p2p mode */
+	struct ovpn_peer __rcu *peer;
+
 	unsigned int max_tun_queue_len;
 
 	netdev_features_t set_features;

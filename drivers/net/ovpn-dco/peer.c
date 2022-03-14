@@ -431,6 +431,17 @@ struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_
 	__be32 addr4;
 	u32 index;
 
+	/* in P2P mode, no matter the destination, packets are always sent to the single peer
+	 * listening on the other side
+	 */
+	if (ovpn->mode == OVPN_MODE_P2P) {
+		rcu_read_lock();
+		if (likely(ovpn->peer && ovpn_peer_hold(ovpn->peer)))
+			peer = ovpn->peer;
+		rcu_read_unlock();
+		return peer;
+	}
+
 	sa_fam = skb_protocol_to_family(skb);
 
 	switch (sa_fam) {
@@ -466,67 +477,112 @@ struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_
 	return peer;
 }
 
+static bool ovpn_peer_transp_match(struct ovpn_peer *peer, struct sockaddr_storage *ss)
+{
+	struct ovpn_bind *bind = rcu_dereference(peer->bind);
+	struct sockaddr_in6 *sa6;
+	struct sockaddr_in *sa4;
+
+	if (unlikely(!bind))
+		return false;
+
+	if (ss->ss_family != bind->sa.in4.sin_family)
+		return false;
+
+	switch (ss->ss_family) {
+	case AF_INET:
+		sa4 = (struct sockaddr_in *)ss;
+		if (sa4->sin_addr.s_addr != bind->sa.in4.sin_addr.s_addr)
+			return false;
+		if (sa4->sin_port != bind->sa.in4.sin_port)
+			return false;
+		break;
+	case AF_INET6:
+		sa6 = (struct sockaddr_in6 *)ss;
+		if (memcmp(&sa6->sin6_addr, &bind->sa.in6.sin6_addr, sizeof(struct in6_addr)))
+			return false;
+		if (sa6->sin6_port != bind->sa.in6.sin6_port)
+			return false;
+		break;
+	default:
+		return false;
+	}
+
+	return true;
+}
+
+static bool ovpn_peer_skb_to_sockaddr(struct sk_buff *skb, struct sockaddr_storage *ss)
+{
+	struct sockaddr_in6 *sa6;
+	struct sockaddr_in *sa4;
+
+	ss->ss_family = skb_protocol_to_family(skb);
+	switch (ss->ss_family) {
+	case AF_INET:
+		sa4 = (struct sockaddr_in *)ss;
+		sa4->sin_family = AF_INET;
+		sa4->sin_addr.s_addr = ip_hdr(skb)->saddr;
+		sa4->sin_port = udp_hdr(skb)->source;
+		break;
+	case AF_INET6:
+		sa6 = (struct sockaddr_in6 *)ss;
+		sa6->sin6_family = AF_INET6;
+		sa6->sin6_addr = ipv6_hdr(skb)->saddr;
+		sa6->sin6_port = udp_hdr(skb)->source;
+		break;
+	default:
+		return false;
+	}
+
+	return true;
+}
+
+static struct ovpn_peer *ovpn_peer_lookup_transp_addr_p2p(struct ovpn_struct *ovpn,
+							  struct sockaddr_storage *ss)
+{
+	struct ovpn_peer *peer = NULL;
+
+	rcu_read_lock();
+	if (likely(ovpn->peer && ovpn_peer_transp_match(ovpn->peer, ss) &&
+		   ovpn_peer_hold(ovpn->peer)))
+		peer = ovpn->peer;
+	rcu_read_unlock();
+
+	return peer;
+}
+
 struct ovpn_peer *ovpn_peer_lookup_transp_addr(struct ovpn_struct *ovpn, struct sk_buff *skb)
 {
 	struct ovpn_peer *peer = NULL, *tmp;
-	struct sockaddr_in6 sa6 = { 0 };
-	struct sockaddr_in sa4 = { 0 };
+	struct sockaddr_storage ss = { 0 };
 	struct hlist_head *head;
-	struct ovpn_bind *bind;
-	sa_family_t sa_fam;
+	size_t sa_len;
 	bool found;
 	u32 index;
 
-	sa_fam = skb_protocol_to_family(skb);
+	if (unlikely(!ovpn_peer_skb_to_sockaddr(skb, &ss)))
+		return NULL;
 
-	switch (sa_fam) {
+	if (ovpn->mode == OVPN_MODE_P2P)
+		return ovpn_peer_lookup_transp_addr_p2p(ovpn, &ss);
+
+	switch (ss.ss_family) {
 	case AF_INET:
-		sa4.sin_family = AF_INET;
-		sa4.sin_addr.s_addr = ip_hdr(skb)->saddr;
-		sa4.sin_port = udp_hdr(skb)->source;
-		index = ovpn_peer_index(ovpn->peers.by_transp_addr, &sa4, sizeof(sa4));
+		sa_len = sizeof(struct sockaddr_in);
 		break;
 	case AF_INET6:
-		sa6.sin6_family = AF_INET6;
-		sa6.sin6_addr = ipv6_hdr(skb)->saddr;
-		sa6.sin6_port = udp_hdr(skb)->source;
-		index = ovpn_peer_index(ovpn->peers.by_transp_addr, &sa6, sizeof(sa6));
+		sa_len = sizeof(struct sockaddr_in6);
 		break;
 	default:
 		return NULL;
 	}
 
+	index = ovpn_peer_index(ovpn->peers.by_transp_addr, &ss, sa_len);
 	head = &ovpn->peers.by_transp_addr[index];
 
 	rcu_read_lock();
 	hlist_for_each_entry_rcu(tmp, head, hash_entry_transp_addr) {
-		found = false;
-
-		bind = rcu_dereference(tmp->bind);
-		if (unlikely(!bind))
-			continue;
-
-		if (sa_fam != bind->sa.in4.sin_family)
-			continue;
-
-		switch (sa_fam) {
-		case AF_INET:
-			if (sa4.sin_addr.s_addr != bind->sa.in4.sin_addr.s_addr)
-				break;
-			if (sa4.sin_port != bind->sa.in4.sin_port)
-				break;
-			found = true;
-			break;
-		case AF_INET6:
-			if (memcmp(&sa6.sin6_addr, &bind->sa.in6.sin6_addr,
-				   sizeof(struct in6_addr)))
-				break;
-			if (sa6.sin6_port != bind->sa.in6.sin6_port)
-				break;
-			found = true;
-			break;
-		}
-
+		found = ovpn_peer_transp_match(tmp, &ss);
 		if (!found)
 			continue;
 
@@ -541,11 +597,26 @@ struct ovpn_peer *ovpn_peer_lookup_transp_addr(struct ovpn_struct *ovpn, struct 
 	return peer;
 }
 
+static struct ovpn_peer *ovpn_peer_lookup_id_p2p(struct ovpn_struct *ovpn, u32 peer_id)
+{
+	struct ovpn_peer *peer = NULL;
+
+	rcu_read_lock();
+	if (likely(ovpn->peer && ovpn->peer->id == peer_id && ovpn_peer_hold(ovpn->peer)))
+		peer = ovpn->peer;
+	rcu_read_unlock();
+
+	return peer;
+}
+
 struct ovpn_peer *ovpn_peer_lookup_id(struct ovpn_struct *ovpn, u32 peer_id)
 {
 	struct ovpn_peer *tmp,  *peer = NULL;
 	struct hlist_head *head;
 	u32 index;
+
+	if (ovpn->mode == OVPN_MODE_P2P)
+		return ovpn_peer_lookup_id_p2p(ovpn, peer_id);
 
 	index = ovpn_peer_index(ovpn->peers.by_id, &peer_id, sizeof(peer_id));
 	head = &ovpn->peers.by_id[index];
@@ -598,8 +669,7 @@ unlock:
 	rcu_read_unlock();
 }
 
-/* assume refcounter was increased by caller */
-int ovpn_peer_add(struct ovpn_struct *ovpn, struct ovpn_peer *peer)
+static int ovpn_peer_add_mp(struct ovpn_struct *ovpn, struct ovpn_peer *peer)
 {
 	struct sockaddr_storage sa = { 0 };
 	struct sockaddr_in6 *sa6;
@@ -672,6 +742,36 @@ unlock:
 	return ret;
 }
 
+static int ovpn_peer_add_p2p(struct ovpn_struct *ovpn, struct ovpn_peer *peer)
+{
+	spin_lock_bh(&ovpn->lock);
+	/* in p2p mode it is possible to have a single peer only, therefore the
+	 * old one is released and substituted by the new one
+	 */
+	if (ovpn->peer) {
+		ovpn->peer->delete_reason = OVPN_DEL_PEER_REASON_TEARDOWN;
+		ovpn_peer_put(ovpn->peer);
+	}
+
+	ovpn->peer = peer;
+	spin_unlock_bh(&ovpn->lock);
+
+	return 0;
+}
+
+/* assume refcounter was increased by caller */
+int ovpn_peer_add(struct ovpn_struct *ovpn, struct ovpn_peer *peer)
+{
+	switch (ovpn->mode) {
+	case OVPN_MODE_MP:
+		return ovpn_peer_add_mp(ovpn, peer);
+	case OVPN_MODE_P2P:
+		return ovpn_peer_add_p2p(ovpn, peer);
+	default:
+		return -EOPNOTSUPP;
+	}
+}
+
 static void ovpn_peer_unhash(struct ovpn_peer *peer, enum ovpn_del_peer_reason reason)
 {
 	hlist_del_rcu(&peer->hash_entry_id);
@@ -683,7 +783,7 @@ static void ovpn_peer_unhash(struct ovpn_peer *peer, enum ovpn_del_peer_reason r
 	peer->delete_reason = reason;
 }
 
-int ovpn_peer_del(struct ovpn_peer *peer, enum ovpn_del_peer_reason reason)
+static int ovpn_peer_del_mp(struct ovpn_peer *peer, enum ovpn_del_peer_reason reason)
 {
 	struct ovpn_peer *tmp;
 	int ret = 0;
@@ -703,6 +803,45 @@ unlock:
 		ovpn_peer_put(tmp);
 
 	return ret;
+}
+
+static int ovpn_peer_del_p2p(struct ovpn_peer *peer, enum ovpn_del_peer_reason reason)
+{
+	int ret = -ENOENT;
+
+	spin_lock_bh(&peer->ovpn->lock);
+	if (peer->ovpn->peer != peer)
+		goto unlock;
+
+	ovpn_peer_put(peer->ovpn->peer);
+	peer->ovpn->peer->delete_reason = reason;
+	peer->ovpn->peer = NULL;
+	ret = 0;
+
+unlock:
+	spin_unlock_bh(&peer->ovpn->lock);
+
+	return ret;
+}
+
+void ovpn_peer_release_p2p(struct ovpn_struct *ovpn)
+{
+	if (!ovpn->peer)
+		return;
+
+	ovpn_peer_del_p2p(ovpn->peer, OVPN_DEL_PEER_REASON_TEARDOWN);
+}
+
+int ovpn_peer_del(struct ovpn_peer *peer, enum ovpn_del_peer_reason reason)
+{
+	switch (peer->ovpn->mode) {
+	case OVPN_MODE_MP:
+		return ovpn_peer_del_mp(peer, reason);
+	case OVPN_MODE_P2P:
+		return ovpn_peer_del_p2p(peer, reason);
+	default:
+		return -EOPNOTSUPP;
+	}
 }
 
 void ovpn_peers_free(struct ovpn_struct *ovpn)

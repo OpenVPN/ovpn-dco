@@ -190,8 +190,8 @@ static int ovpn_newlink(struct net *src_net, struct net_device *dev, struct nlat
 
 	ovpn->mode = OVPN_MODE_P2P;
 	if (data && data[IFLA_OVPN_MODE]) {
-		pr_debug("%s: setting device (%s) mode: %u\n", __func__, dev->name, ovpn->mode);
 		ovpn->mode = nla_get_u8(data[IFLA_OVPN_MODE]);
+		pr_debug("%s: setting device (%s) mode: %u\n", __func__, dev->name, ovpn->mode);
 	}
 
 	return register_netdevice(dev);
@@ -201,7 +201,15 @@ static void ovpn_dellink(struct net_device *dev, struct list_head *head)
 {
 	struct ovpn_struct *ovpn = netdev_priv(dev);
 
-	ovpn_peers_free(ovpn);
+	switch(ovpn->mode) {
+	case OVPN_MODE_P2P:
+		ovpn_peer_release_p2p(ovpn);
+		break;
+	default:
+		ovpn_peers_free(ovpn);
+		break;
+	}
+
 	unregister_netdevice_queue(dev, head);
 }
 
