@@ -159,7 +159,8 @@ void ovpn_peer_release_p2p(struct ovpn_struct *ovpn);
 void ovpn_peers_free(struct ovpn_struct *ovpn);
 
 struct ovpn_peer *ovpn_peer_lookup_transp_addr(struct ovpn_struct *ovpn, struct sk_buff *skb);
-struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_buff *skb);
+struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_buff *skb,
+					    bool use_src);
 struct ovpn_peer *ovpn_peer_lookup_id(struct ovpn_struct *ovpn, u32 peer_id);
 
 void ovpn_peer_update_local_endpoint(struct ovpn_peer *peer, struct sk_buff *skb);

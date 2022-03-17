@@ -420,7 +420,8 @@ static struct rt6_info *ovpn_gw6(struct ovpn_struct *ovpn, const struct in6_addr
  *
  * Return the peer if found or NULL otherwise.
  */
-struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_buff *skb)
+struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_buff *skb,
+					    bool use_src)
 {
 	struct ovpn_peer *peer = NULL;
 	struct hlist_head *head;
@@ -446,7 +447,10 @@ struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_
 
 	switch (sa_fam) {
 	case AF_INET:
-		addr4 = ip_hdr(skb)->daddr;
+		if (use_src)
+			addr4 = ip_hdr(skb)->saddr;
+		else
+			addr4 = ip_hdr(skb)->daddr;
 		rt = ovpn_gw4(ovpn, addr4);
 		if (rt)
 			addr4 = rt->rt_gw4;
@@ -457,7 +461,10 @@ struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_
 		peer = ovpn_peer_lookup_vpn_addr4(head, &addr4);
 		break;
 	case AF_INET6:
-		addr6 = &ipv6_hdr(skb)->daddr;
+		if (use_src)
+			addr6 = &ipv6_hdr(skb)->saddr;
+		else
+			addr6 = &ipv6_hdr(skb)->daddr;
 		rt6i = ovpn_gw6(ovpn, addr6);
 		if (rt6i)
 			addr6 = &rt6i->rt6i_gateway;

@@ -205,6 +205,7 @@ int ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer, struct sk_buff *
 static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 {
 	struct ovpn_crypto_key_slot *ks;
+	struct ovpn_peer *allowed_peer;
 	unsigned int rx_stats_size;
 	__be16 proto;
 	int ret = -1;
@@ -272,8 +273,18 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	}
 	skb->protocol = proto;
 
+	/* perform Reverse Path Filtering (RPF) */
+	allowed_peer = ovpn_peer_lookup_vpn_addr(peer->ovpn, skb, true);
+	if (unlikely(allowed_peer != peer)) {
+		ret = -EPERM;
+		goto drop;
+	}
+
 	ret = ptr_ring_produce_bh(&peer->netif_rx_ring, skb);
 drop:
+	if (likely(allowed_peer))
+		ovpn_peer_put(allowed_peer);
+
 	if (unlikely(ret < 0))
 		kfree_skb(skb);
 
@@ -399,7 +410,7 @@ static void ovpn_queue_skb(struct ovpn_struct *ovpn, struct sk_buff *skb, struct
 	int ret;
 
 	if (likely(!peer))
-		peer = ovpn_peer_lookup_vpn_addr(ovpn, skb);
+		peer = ovpn_peer_lookup_vpn_addr(ovpn, skb, false);
 	if (unlikely(!peer)) {
 		net_dbg_ratelimited("%s: no peer to send data to\n", ovpn->dev->name);
 		goto drop;
