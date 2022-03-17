@@ -47,17 +47,6 @@ static void ovpn_struct_free(struct net_device *net)
 	rcu_barrier();
 }
 
-static int ovpn_net_init(struct net_device *dev)
-{
-	int ret;
-
-	ret = security_tun_dev_create();
-	if (ret < 0)
-		return ret;
-
-	return ovpn_struct_init(dev);
-}
-
 /* Net device open */
 static int ovpn_net_open(struct net_device *dev)
 {
@@ -128,7 +117,6 @@ bool ovpn_dev_is_valid(const struct net_device *dev)
  *******************************************/
 
 static const struct net_device_ops ovpn_netdev_ops = {
-	.ndo_init		= ovpn_net_init,
 	.ndo_change_mtu		= ovpn_net_change_mtu,
 	.ndo_open		= ovpn_net_open,
 	.ndo_stop		= ovpn_net_stop,
@@ -187,6 +175,15 @@ static int ovpn_newlink(struct net *src_net, struct net_device *dev, struct nlat
 			struct nlattr *data[], struct netlink_ext_ack *extack)
 {
 	struct ovpn_struct *ovpn = netdev_priv(dev);
+	int ret;
+
+	ret = security_tun_dev_create();
+	if (ret < 0)
+		return ret;
+
+	ret = ovpn_struct_init(dev);
+	if (ret < 0)
+		return ret;
 
 	ovpn->mode = OVPN_MODE_P2P;
 	if (data && data[IFLA_OVPN_MODE]) {
