@@ -137,7 +137,7 @@ static void ovpn_setup(struct net_device *dev)
 	const int overhead = sizeof(u32) + NONCE_WIRE_SIZE + 16 + sizeof(struct udphdr) +
 			     max(sizeof(struct ipv6hdr), sizeof(struct iphdr));
 
-	netdev_features_t feat = NETIF_F_SG | NETIF_F_FRAGLIST | NETIF_F_LLTX |
+	netdev_features_t feat = NETIF_F_SG | NETIF_F_LLTX |
 				 NETIF_F_HW_CSUM | NETIF_F_RXCSUM | NETIF_F_GSO |
 				 NETIF_F_GSO_SOFTWARE;
 
