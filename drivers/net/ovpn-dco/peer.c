@@ -423,7 +423,7 @@ static struct rt6_info *ovpn_gw6(struct ovpn_struct *ovpn, const struct in6_addr
 struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_buff *skb,
 					    bool use_src)
 {
-	struct ovpn_peer *peer = NULL;
+	struct ovpn_peer *tmp, *peer = NULL;
 	struct hlist_head *head;
 	struct rt6_info *rt6i = NULL;
 	struct rtable *rt = NULL;
@@ -437,8 +437,9 @@ struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_
 	 */
 	if (ovpn->mode == OVPN_MODE_P2P) {
 		rcu_read_lock();
-		if (likely(ovpn->peer && ovpn_peer_hold(ovpn->peer)))
-			peer = ovpn->peer;
+		tmp = rcu_dereference(ovpn->peer);
+		if (likely(tmp && ovpn_peer_hold(tmp)))
+			peer = tmp;
 		rcu_read_unlock();
 		return peer;
 	}
@@ -547,12 +548,12 @@ static bool ovpn_peer_skb_to_sockaddr(struct sk_buff *skb, struct sockaddr_stora
 static struct ovpn_peer *ovpn_peer_lookup_transp_addr_p2p(struct ovpn_struct *ovpn,
 							  struct sockaddr_storage *ss)
 {
-	struct ovpn_peer *peer = NULL;
+	struct ovpn_peer *tmp, *peer = NULL;
 
 	rcu_read_lock();
-	if (likely(ovpn->peer && ovpn_peer_transp_match(ovpn->peer, ss) &&
-		   ovpn_peer_hold(ovpn->peer)))
-		peer = ovpn->peer;
+	tmp = rcu_dereference(ovpn->peer);
+	if (likely(tmp && ovpn_peer_transp_match(tmp, ss) && ovpn_peer_hold(tmp)))
+		peer = tmp;
 	rcu_read_unlock();
 
 	return peer;
@@ -606,11 +607,12 @@ struct ovpn_peer *ovpn_peer_lookup_transp_addr(struct ovpn_struct *ovpn, struct 
 
 static struct ovpn_peer *ovpn_peer_lookup_id_p2p(struct ovpn_struct *ovpn, u32 peer_id)
 {
-	struct ovpn_peer *peer = NULL;
+	struct ovpn_peer *tmp, *peer = NULL;
 
 	rcu_read_lock();
-	if (likely(ovpn->peer && ovpn->peer->id == peer_id && ovpn_peer_hold(ovpn->peer)))
-		peer = ovpn->peer;
+	tmp = rcu_dereference(ovpn->peer);
+	if (likely(tmp && tmp->id == peer_id && ovpn_peer_hold(tmp)))
+		peer = tmp;
 	rcu_read_unlock();
 
 	return peer;
@@ -751,16 +753,19 @@ unlock:
 
 static int ovpn_peer_add_p2p(struct ovpn_struct *ovpn, struct ovpn_peer *peer)
 {
+	struct ovpn_peer *tmp;
+
 	spin_lock_bh(&ovpn->lock);
 	/* in p2p mode it is possible to have a single peer only, therefore the
 	 * old one is released and substituted by the new one
 	 */
-	if (ovpn->peer) {
-		ovpn->peer->delete_reason = OVPN_DEL_PEER_REASON_TEARDOWN;
-		ovpn_peer_put(ovpn->peer);
+	tmp = rcu_dereference(ovpn->peer);
+	if (tmp) {
+		tmp->delete_reason = OVPN_DEL_PEER_REASON_TEARDOWN;
+		ovpn_peer_put(tmp);
 	}
 
-	ovpn->peer = peer;
+	rcu_assign_pointer(ovpn->peer, peer);
 	spin_unlock_bh(&ovpn->lock);
 
 	return 0;
@@ -814,15 +819,17 @@ unlock:
 
 static int ovpn_peer_del_p2p(struct ovpn_peer *peer, enum ovpn_del_peer_reason reason)
 {
+	struct ovpn_peer *tmp;
 	int ret = -ENOENT;
 
 	spin_lock_bh(&peer->ovpn->lock);
-	if (peer->ovpn->peer != peer)
+	tmp = rcu_dereference(peer->ovpn->peer);
+	if (tmp != peer)
 		goto unlock;
 
-	ovpn_peer_put(peer->ovpn->peer);
-	peer->ovpn->peer->delete_reason = reason;
-	peer->ovpn->peer = NULL;
+	ovpn_peer_put(tmp);
+	tmp->delete_reason = reason;
+	RCU_INIT_POINTER(peer->ovpn->peer, NULL);
 	ret = 0;
 
 unlock:
@@ -833,10 +840,16 @@ unlock:
 
 void ovpn_peer_release_p2p(struct ovpn_struct *ovpn)
 {
-	if (!ovpn->peer)
-		return;
+	struct ovpn_peer *tmp;
 
-	ovpn_peer_del_p2p(ovpn->peer, OVPN_DEL_PEER_REASON_TEARDOWN);
+	rcu_read_lock();
+	tmp = rcu_dereference(ovpn->peer);
+	if (!tmp)
+		goto unlock;
+
+	ovpn_peer_del_p2p(tmp, OVPN_DEL_PEER_REASON_TEARDOWN);
+unlock:
+	rcu_read_unlock();
 }
 
 int ovpn_peer_del(struct ovpn_peer *peer, enum ovpn_del_peer_reason reason)
