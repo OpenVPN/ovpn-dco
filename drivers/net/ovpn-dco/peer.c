@@ -301,18 +301,20 @@ void ovpn_peer_keepalive_set(struct ovpn_peer *peer, u32 interval, u32 timeout)
 		 peer->id, interval, timeout);
 
 	peer->keepalive_interval = interval;
-	delta = msecs_to_jiffies(interval * MSEC_PER_SEC);
-	if (delta >= 1000)
+	if (interval > 0) {
+		delta = msecs_to_jiffies(interval * MSEC_PER_SEC);
 		mod_timer(&peer->keepalive_xmit, jiffies + delta);
-	else
-		pr_warn("%s: ignoring keepalive interval smaller than 1s: %dms\n", __func__, delta);
+	} else {
+		del_timer(&peer->keepalive_xmit);
+	}
 
 	peer->keepalive_timeout = timeout;
-	delta = msecs_to_jiffies(timeout * MSEC_PER_SEC);
-	if (delta >= 1000)
+	if (timeout) {
+		delta = msecs_to_jiffies(timeout * MSEC_PER_SEC);
 		mod_timer(&peer->keepalive_recv, jiffies + delta);
-	else
-		pr_warn("%s: ignoring keepalive timeout smaller than 1s: %dms\n", __func__, delta);
+	} else {
+		del_timer(&peer->keepalive_recv);
+	}
 }
 
 #define ovpn_peer_index(_tbl, _key, _key_len)		\
