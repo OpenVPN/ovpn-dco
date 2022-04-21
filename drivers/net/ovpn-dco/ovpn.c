@@ -345,7 +345,8 @@ static bool ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 			ovpn_crypto_kill_primary(&peer->crypto);
 			goto err;
 		}
-		pr_err_ratelimited("%s: error during encryption: %d\n", __func__, ret);
+		pr_err_ratelimited("%s: error during encryption for peer %u, key-id %u: %d\n",
+				   __func__, peer->id, ks->key_id, ret);
 		goto err;
 	}
 
