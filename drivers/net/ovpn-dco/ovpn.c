@@ -205,8 +205,8 @@ int ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer, struct sk_buff *
 
 static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 {
+	struct ovpn_peer *allowed_peer = NULL;
 	struct ovpn_crypto_key_slot *ks;
-	struct ovpn_peer *allowed_peer;
 	unsigned int rx_stats_size;
 	__be16 proto;
 	int ret = -1;
