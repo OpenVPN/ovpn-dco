@@ -85,11 +85,8 @@ int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb, u32 
 	 * 4 bytes of nonce and last 4 bytes of associated data.
 	 */
 	ret = ovpn_pktid_xmit_next(&ks->pid_xmit, &pktid);
-	if (unlikely(ret < 0)) {
-		if (ret != -1)
-			goto free_req;
-		//ovpn_notify_pktid_wrap_pc(ks->peer, ks->key_id);
-	}
+	if (unlikely(ret < 0))
+		goto free_req;
 
 	/* concat 4 bytes packet id and 8 bytes nonce tail into 12 bytes nonce */
 	ovpn_pktid_aead_write(pktid, &ks->nonce_tail_xmit, iv);

@@ -339,6 +339,12 @@ static bool ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	/* encrypt */
 	ret = ovpn_aead_encrypt(ks, skb, peer->id);
 	if (unlikely(ret < 0)) {
+		/* if we ran out of IVs we must kill the key as it can't be used anymore */
+		if (ret == -ERANGE) {
+			pr_warn("%s: killing primary key as we ran out of IVs\n", __func__);
+			ovpn_crypto_kill_primary(&peer->crypto);
+			goto err;
+		}
 		pr_err_ratelimited("%s: error during encryption: %d\n", __func__, ret);
 		goto err;
 	}

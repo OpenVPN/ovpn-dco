@@ -14,7 +14,7 @@
 
 void ovpn_pktid_xmit_init(struct ovpn_pktid_xmit *pid)
 {
-	atomic64_set(&pid->seq_num, 0);
+	atomic64_set(&pid->seq_num, 1);
 	pid->tcp_linear = NULL;
 }
 

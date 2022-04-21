@@ -40,13 +40,6 @@
  */
 #define PKTID_RECV_EXPIRE (30 * HZ)
 
-/* Warn userspace with OVPN_TH_NOTIFY_PKTID_WRAP_WARN
- * message when packet ID crosses this threshold.
- */
-#ifndef PKTID_WRAP_WARN
-#define PKTID_WRAP_WARN 0xf0000000ULL
-#endif
-
 /* Last 8 bytes of AEAD nonce
  * Provided by userspace and usually derived from
  * key material generated during TLS handshake
@@ -94,16 +87,16 @@ struct ovpn_pktid_recv {
 /* Get the next packet ID for xmit */
 static inline int ovpn_pktid_xmit_next(struct ovpn_pktid_xmit *pid, u32 *pktid)
 {
-	const u64 seq_num = atomic64_inc_return(&pid->seq_num);
+	const s64 seq_num = atomic64_fetch_add_unless(&pid->seq_num, 1,
+						      0x100000000LL);
+	/* when the 32bit space is over, we return an error because the packet ID is used to create
+	 * the cipher IV and we do not want to re-use the same value more than once
+	 */
+	if (unlikely(seq_num == 0x100000000LL))
+		return -ERANGE;
 
-	BUILD_BUG_ON(PKTID_WRAP_WARN >= 0x100000000ULL);
 	*pktid = (u32)seq_num;
-	if (unlikely(seq_num >= PKTID_WRAP_WARN)) {
-		if (seq_num >= 0x100000000ULL)
-			return -E2BIG;
-		if (seq_num == PKTID_WRAP_WARN)
-			return -1;
-	}
+
 	return 0;
 }
 

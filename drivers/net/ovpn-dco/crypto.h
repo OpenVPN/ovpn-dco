@@ -145,4 +145,6 @@ void ovpn_crypto_state_release(struct ovpn_crypto_state *cs);
 
 void ovpn_crypto_key_slots_swap(struct ovpn_crypto_state *cs);
 
+void ovpn_crypto_kill_primary(struct ovpn_crypto_state *cs);
+
 #endif /* _NET_OVPN_DCO_OVPNCRYPTO_H_ */
