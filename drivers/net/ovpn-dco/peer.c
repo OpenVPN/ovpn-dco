@@ -788,7 +788,7 @@ int ovpn_peer_add(struct ovpn_struct *ovpn, struct ovpn_peer *peer)
 
 static void ovpn_peer_unhash(struct ovpn_peer *peer, enum ovpn_del_peer_reason reason)
 {
-	hlist_del_rcu(&peer->hash_entry_id);
+	hlist_del_init_rcu(&peer->hash_entry_id);
 	hlist_del_init_rcu(&peer->hash_entry_addr4);
 	hlist_del_init_rcu(&peer->hash_entry_addr6);
 	hlist_del_init_rcu(&peer->hash_entry_transp_addr);
