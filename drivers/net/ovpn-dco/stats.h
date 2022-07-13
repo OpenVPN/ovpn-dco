@@ -48,4 +48,20 @@ struct ovpn_err_stats {
 
 void ovpn_peer_stats_init(struct ovpn_peer_stats *ps);
 
+static inline void ovpn_peer_stats_increment(struct ovpn_peer_stat *stat, const unsigned int n)
+{
+	atomic64_add(n, &stat->bytes);
+	atomic_inc(&stat->packets);
+}
+
+static inline void ovpn_peer_stats_increment_rx(struct ovpn_peer_stats *stats, const unsigned int n)
+{
+	ovpn_peer_stats_increment(&stats->rx, n);
+}
+
+static inline void ovpn_peer_stats_increment_tx(struct ovpn_peer_stats *stats, const unsigned int n)
+{
+	ovpn_peer_stats_increment(&stats->tx, n);
+}
+
 #endif /* _NET_OVPN_DCO_OVPNSTATS_H_ */

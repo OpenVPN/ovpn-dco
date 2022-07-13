@@ -12,7 +12,7 @@
 #include "netlink.h"
 #include "sock.h"
 #include "peer.h"
-#include "stats_counters.h"
+#include "stats.h"
 #include "proto.h"
 #include "crypto.h"
 #include "crypto_aead.h"
@@ -244,7 +244,7 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 
 	/* increment RX stats */
 	rx_stats_size = OVPN_SKB_CB(skb)->rx_stats_size;
-	ovpn_peer_stats_increment_rx(peer, rx_stats_size);
+	ovpn_peer_stats_increment_rx(&peer->stats, rx_stats_size);
 
 	/* check if this is a valid datapacket that has to be delivered to the
 	 * tun interface
@@ -334,7 +334,7 @@ static bool ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 		goto err;
 	}
 
-	ovpn_peer_stats_increment_tx(peer, skb->len);
+	ovpn_peer_stats_increment_tx(&peer->stats, skb->len);
 
 	/* encrypt */
 	ret = ovpn_aead_encrypt(ks, skb, peer->id);
