@@ -10,33 +10,19 @@
 #ifndef _NET_OVPN_DCO_MAIN_H_
 #define _NET_OVPN_DCO_MAIN_H_
 
+#include <linux/ip.h>
+#include <linux/ipv6.h>
+#include <linux/printk.h>
+#include <linux/udp.h>
+
 #ifndef OVPN_DCO_VERSION
 #define OVPN_DCO_VERSION "2.0.0"
 #endif
-
-#define DEBUG_FREE		0
-#define DEBUG_CRYPTO		0
-#define DEBUG_PEER_BY_ID	0
-#define DEBUG_CPU_SWITCH	0
-#define DEBUG_PING		0
-#define DEBUG_IN		0
-#define DEBUG_DTAB		0
-#define DEBUG_MTU		0
-#define DEBUG_ERR_VERBOSE	0
 
 /* Our UDP encapsulation types, must be unique
  * (other values in include/uapi/linux/udp.h)
  */
 #define UDP_ENCAP_OVPNINUDP 100  /* transport layer */
-
-/* If 1, filter replay packets */
-#define ENABLE_REPLAY_PROTECTION 1
-
-#include <linux/cache.h>
-#include <linux/kref.h>
-#include <linux/moduleparam.h>
-#include <linux/mutex.h>
-#include <net/ip.h>
 
 struct net_device;
 bool ovpn_dev_is_valid(const struct net_device *dev);
@@ -47,18 +33,10 @@ bool ovpn_dev_is_valid(const struct net_device *dev);
 
 #define OVPN_HEAD_ROOM ALIGN(16 + SKB_HEADER_LEN, 4)
 #define OVPN_MAX_PADDING 16
-
 #define OVPN_QUEUE_LEN 1024
+#define OVPN_MAX_TUN_QUEUE_LEN 0x10000
 
-/* max allowed parameter values */
-#define OVPN_MAX_PEERS                1000000
-#define OVPN_MAX_DEV_QUEUES           0x1000
-#define OVPN_MAX_DEV_TX_QUEUE_LEN     0x10000
-#define OVPN_MAX_TUN_QUEUE_LEN        0x10000
-#define OVPN_MAX_TCP_SEND_QUEUE_LEN   0x10000
-#define OVPN_MAX_THROTTLE_PERIOD_MS   10000
-
-#ifdef DEBUG
+#ifdef CONFIG_OVPN_DCO_DEBUG
 #define ovpn_print_hex_debug(_buf, _len)				\
 {									\
 	print_hex_dump(KERN_DEBUG, "data: ", DUMP_PREFIX_NONE, 32, 1,	\

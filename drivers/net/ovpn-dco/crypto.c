@@ -8,7 +8,6 @@
  */
 
 #include "main.h"
-#include "crypto_none.h"
 #include "crypto_aead.h"
 #include "crypto.h"
 

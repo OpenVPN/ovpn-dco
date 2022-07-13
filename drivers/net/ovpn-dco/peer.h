@@ -113,7 +113,6 @@ struct ovpn_peer {
 	struct work_struct delete_work;
 };
 
-int ovpn_update_peer_by_sockaddr_pc(struct ovpn_peer *peer);
 void ovpn_peer_release_kref(struct kref *kref);
 void ovpn_peer_release(struct ovpn_peer *peer);
 

@@ -11,8 +11,8 @@
 #ifndef _NET_OVPN_DCO_OVPNSTATS_H_
 #define _NET_OVPN_DCO_OVPNSTATS_H_
 
+#include <linux/atomic.h>
 #include <linux/jiffies.h>
-#include <linux/u64_stats_sync.h>
 
 struct ovpn_struct;
 

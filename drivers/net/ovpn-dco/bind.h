@@ -61,8 +61,6 @@ static inline bool ovpn_bind_skb_src_match(const struct ovpn_bind *bind, struct 
 	return true;
 }
 
-bool ovpn_bind_get_sockaddr(const struct ovpn_peer *peer, struct ovpn_sockaddr *sa);
-
 struct ovpn_bind *ovpn_bind_from_sockaddr(const struct sockaddr_storage *sa);
 void ovpn_bind_reset(struct ovpn_peer *peer, struct ovpn_bind *bind);
 

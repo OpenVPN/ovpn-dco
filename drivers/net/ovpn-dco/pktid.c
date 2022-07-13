@@ -24,23 +24,25 @@ void ovpn_pktid_recv_init(struct ovpn_pktid_recv *pr)
 	spin_lock_init(&pr->lock);
 }
 
-#if ENABLE_REPLAY_PROTECTION
-
 /* Packet replay detection.
  * Allows ID backtrack of up to REPLAY_WINDOW_SIZE - 1.
  */
-static int ovpn_pktid_recv_locked(struct ovpn_pktid_recv *pr, u32 pkt_id,
-				  u32 pkt_time)
+int ovpn_pktid_recv(struct ovpn_pktid_recv *pr, u32 pkt_id, u32 pkt_time)
 {
 	const unsigned long now = jiffies;
+	int ret;
+
+	spin_lock(&pr->lock);
 
 	/* expire backtracks at or below pr->id after PKTID_RECV_EXPIRE time */
 	if (unlikely(time_after_eq(now, pr->expire)))
 		pr->id_floor = pr->id;
 
 	/* ID must not be zero */
-	if (unlikely(pkt_id == 0))
-		return -EINVAL;
+	if (unlikely(pkt_id == 0)) {
+		ret = -EINVAL;
+		goto out;
+	}
 
 	/* time changed? */
 	if (unlikely(pkt_time != pr->time)) {
@@ -53,7 +55,8 @@ static int ovpn_pktid_recv_locked(struct ovpn_pktid_recv *pr, u32 pkt_id,
 			pr->id_floor = 0;
 		} else {
 			/* time moved backward, reject */
-			return -ETIME;
+			ret = -ETIME;
+			goto out;
 		}
 	}
 
@@ -101,32 +104,24 @@ static int ovpn_pktid_recv_locked(struct ovpn_pktid_recv *pr, u32 pkt_id,
 				u8 *p = &pr->history[ri / 8];
 				const u8 mask = (1 << (ri % 8));
 
-				if (*p & mask)
-					return -EINVAL;
+				if (*p & mask) {
+					ret = -EINVAL;
+					goto out;
+				}
 				*p |= mask;
 			} else {
-				return -EINVAL;
+				ret = -EINVAL;
+				goto out;
 			}
 		} else {
-			return -EINVAL;
+			ret = -EINVAL;
+			goto out;
 		}
 	}
 
 	pr->expire = now + PKTID_RECV_EXPIRE;
-	return 0;
-}
-#endif
-
-/* Packet replay detection with locking  */
-int ovpn_pktid_recv(struct ovpn_pktid_recv *pr, u32 pkt_id, u32 pkt_time)
-{
-	int ret = 0;
-
-#if ENABLE_REPLAY_PROTECTION
-	spin_lock(&pr->lock);
-	ret = ovpn_pktid_recv_locked(pr, pkt_id, pkt_time);
+	ret = 0;
+out:
 	spin_unlock(&pr->lock);
-#endif
-
 	return ret;
 }

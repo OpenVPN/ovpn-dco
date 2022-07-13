@@ -76,17 +76,6 @@ static int ovpn_socket_attach(struct socket *sock, struct ovpn_peer *peer)
 	return ret;
 }
 
-/* Return the encapsulation overhead of the socket */
-int ovpn_sock_holder_encap_overhead(struct socket *sock)
-{
-	int ret;
-
-	rcu_read_lock();
-	ret = ovpn_sock_encap_overhead(sock->sk);
-	rcu_read_unlock();
-	return ret;
-}
-
 struct ovpn_struct *ovpn_from_udp_sock(struct sock *sk)
 {
 	struct ovpn_socket *ovpn_sock;

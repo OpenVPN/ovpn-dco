@@ -9,6 +9,11 @@
 #ifndef _NET_OVPN_DCO_TCP_H_
 #define _NET_OVPN_DCO_TCP_H_
 
+#include "peer.h"
+
+#include <linux/net.h>
+#include <linux/skbuff.h>
+#include <linux/types.h>
 #include <linux/workqueue.h>
 
 void ovpn_queue_tcp_skb(struct ovpn_peer *peer, struct sk_buff *skb);

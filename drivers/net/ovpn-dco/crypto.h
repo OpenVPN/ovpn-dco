@@ -42,7 +42,6 @@ struct ovpn_peer_key_reset {
 };
 
 struct ovpn_crypto_key_slot {
-	const struct ovpn_crypto_ops *ops;
 	u8 key_id;
 
 	struct crypto_aead *encrypt;
@@ -59,9 +58,8 @@ struct ovpn_crypto_key_slot {
 struct ovpn_crypto_state {
 	struct ovpn_crypto_key_slot __rcu *primary;
 	struct ovpn_crypto_key_slot __rcu *secondary;
-	const struct ovpn_crypto_ops *ops;
 
-	/* protects primary, secondary slots and ops */
+	/* protects primary and secondary slots */
 	struct mutex mutex;
 };
 
@@ -74,7 +72,6 @@ static inline void ovpn_crypto_state_init(struct ovpn_crypto_state *cs)
 {
 	RCU_INIT_POINTER(cs->primary, NULL);
 	RCU_INIT_POINTER(cs->secondary, NULL);
-	cs->ops = NULL;
 	mutex_init(&cs->mutex);
 }
 
@@ -131,9 +128,6 @@ static inline void ovpn_crypto_key_slot_put(struct ovpn_crypto_key_slot *ks)
 {
 	kref_put(&ks->refcount, ovpn_crypto_key_slot_release);
 }
-
-int ovpn_crypto_state_select_family(struct ovpn_crypto_state *cs,
-				    const struct ovpn_peer_key_reset *pkr);
 
 int ovpn_crypto_state_reset(struct ovpn_crypto_state *cs,
 			    const struct ovpn_peer_key_reset *pkr);

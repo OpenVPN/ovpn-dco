@@ -37,7 +37,7 @@
  * >0 : skb should be passed up to userspace as UDP (packet not consumed)
  * <0 : skb should be resubmitted as proto -N (packet not consumed)
  */
-int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
+static int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 {
 	struct ovpn_peer *peer = NULL;
 	struct ovpn_struct *ovpn;
@@ -259,9 +259,6 @@ static int ovpn_udp_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	return ret;
 }
 
-/* Called after encrypt to write IP packet to UDP port.
- * This method is expected to manage/free skb.
- */
 void ovpn_udp_send_skb(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 		       struct sk_buff *skb)
 {

@@ -12,8 +12,6 @@
 
 #include "main.h"
 
-#include <linux/spinlock.h>
-
 /* When the OpenVPN protocol is run in AEAD mode, use
  * the OpenVPN packet ID as the AEAD nonce:
  *
@@ -108,12 +106,6 @@ static inline void ovpn_pktid_aead_write(const u32 pktid,
 	*(__force __be32 *)(dest) = htonl(pktid);
 	BUILD_BUG_ON(4 + sizeof(struct ovpn_nonce_tail) != NONCE_SIZE);
 	memcpy(dest + 4, nt->u8, sizeof(struct ovpn_nonce_tail));
-}
-
-/* Write a short-form CBC/HMAC packet ID to dest (4 bytes) */
-static inline void ovpn_pktid_chm_write(const u32 pktid, unsigned char *dest)
-{
-	*(u32 *)dest = htonl(pktid);
 }
 
 void ovpn_pktid_xmit_init(struct ovpn_pktid_xmit *pid);
