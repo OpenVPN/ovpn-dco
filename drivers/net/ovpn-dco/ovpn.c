@@ -10,6 +10,7 @@
 #include "main.h"
 #include "bind.h"
 #include "netlink.h"
+#include "ovpn.h"
 #include "sock.h"
 #include "peer.h"
 #include "stats.h"
