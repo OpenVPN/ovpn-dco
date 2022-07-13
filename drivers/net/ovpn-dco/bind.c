@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0
-/*  OVPN -- OpenVPN protocol accelerator for Linux
+/*  OpenVPN data channel accelerator
+ *
  *  Copyright (C) 2012-2022 OpenVPN, Inc.
- *  All rights reserved.
- *  Author: James Yonan <james@openvpn.net>
+ *
+ *  Author:	James Yonan <james@openvpn.net>
+ *		Antonio Quartulli <antonio@openvpn.net>
  */
 
 #include "ovpn.h"
