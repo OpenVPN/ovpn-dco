@@ -15,7 +15,11 @@
 
 /* not part of any kernel yet */
 #ifndef NLA_POLICY_MAX_LEN
-#define NLA_POLICY_MAX_LEN(_len)	NLA_POLICY_MAX(NLA_BINARY, _len)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
+#define NLA_POLICY_MAX_LEN(_len) { .type = NLA_BINARY, .len = _len }
+#else
+#define NLA_POLICY_MAX_LEN(_len) NLA_POLICY_MAX(NLA_BINARY, _len)
+#endif
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0) && !defined(EL8)
