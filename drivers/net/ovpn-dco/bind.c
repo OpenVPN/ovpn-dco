@@ -45,6 +45,7 @@ struct ovpn_bind *ovpn_bind_from_sockaddr(const struct sockaddr_storage *ss)
 static void ovpn_bind_release_rcu(struct rcu_head *head)
 {
 	struct ovpn_bind *bind = container_of(head, struct ovpn_bind, rcu);
+
 	kfree(bind);
 }
 

@@ -190,7 +190,6 @@ static int ovpn_udp6_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 		.flowi6_oif = bind->sa.in6.sin6_scope_id,
 	};
 
-
 	local_bh_disable();
 	dst = dst_cache_get_ip6(cache, &fl.saddr);
 	if (dst)

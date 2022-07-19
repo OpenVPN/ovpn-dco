@@ -198,7 +198,7 @@ static void ovpn_dellink(struct net_device *dev, struct list_head *head)
 {
 	struct ovpn_struct *ovpn = netdev_priv(dev);
 
-	switch(ovpn->mode) {
+	switch (ovpn->mode) {
 	case OVPN_MODE_P2P:
 		ovpn_peer_release_p2p(ovpn);
 		break;

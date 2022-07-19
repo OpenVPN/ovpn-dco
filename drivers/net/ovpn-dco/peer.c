@@ -187,7 +187,6 @@ unlock:
 	rcu_read_unlock();
 }
 
-
 static void ovpn_peer_timer_delete_all(struct ovpn_peer *peer)
 {
 	del_timer_sync(&peer->keepalive_xmit);

@@ -349,10 +349,10 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 	struct sockaddr_storage *ss = NULL;
 	struct sockaddr_in mapped;
 	struct sockaddr_in6 *in6;
-	uint8_t *local_ip = NULL;
 	struct ovpn_peer *peer;
 	size_t sa_len, ip_len;
 	struct socket *sock;
+	u8 *local_ip = NULL;
 	u32 sockfd, id;
 	int ret;
 
@@ -438,7 +438,7 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 			ip_len = nla_len(attrs[OVPN_NEW_PEER_ATTR_LOCAL_IP]);
 			local_ip = nla_data(attrs[OVPN_NEW_PEER_ATTR_LOCAL_IP]);
 
-			if (ip_len == sizeof(struct in_addr)){
+			if (ip_len == sizeof(struct in_addr)) {
 				if (ss->ss_family != AF_INET) {
 					pr_debug("%s: the specified local IP is IPv4, but the peer endpoint is not\n", __func__);
 					goto sockfd_release;
@@ -461,7 +461,6 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 				pr_debug("%s: invalid length %zu for local IP\n", __func__, ip_len);
 				goto sockfd_release;
 			}
-
 		}
 
 		/* sanity checks passed */
@@ -714,7 +713,7 @@ static int ovpn_netlink_dump_prepare(struct netlink_callback *cb)
 		goto err;
 	}
 
-	cb->args[0] = (long int)netdev_priv(dev);
+	cb->args[0] = (long)netdev_priv(dev);
 	ret = 0;
 err:
 	kfree(attrbuf);
@@ -761,7 +760,6 @@ static int ovpn_netlink_dump_peers(struct sk_buff *skb, struct netlink_callback 
 
 	return skb->len;
 }
-
 
 static int ovpn_netlink_del_peer(struct sk_buff *skb, struct genl_info *info)
 {
@@ -996,7 +994,7 @@ err_free_msg:
 }
 
 int ovpn_netlink_send_packet(struct ovpn_struct *ovpn, const struct ovpn_peer *peer,
-			     const uint8_t *buf, size_t len)
+			     const u8 *buf, size_t len)
 {
 	struct nlattr *attr;
 	struct sk_buff *msg;

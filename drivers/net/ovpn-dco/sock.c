@@ -63,7 +63,7 @@ static struct ovpn_socket *ovpn_socket_get(struct socket *sock)
 /* Finalize release of socket, called after RCU grace period */
 static int ovpn_socket_attach(struct socket *sock, struct ovpn_peer *peer)
 {
-	int ret = -ENOTSUPP;
+	int ret = -EOPNOTSUPP;
 
 	if (!sock || !peer)
 		return -EINVAL;

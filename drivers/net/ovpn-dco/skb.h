@@ -17,7 +17,6 @@
 #include <linux/socket.h>
 #include <linux/types.h>
 
-
 #define OVPN_SKB_CB(skb) ((struct ovpn_skb_cb *)&((skb)->cb))
 
 struct ovpn_skb_cb {

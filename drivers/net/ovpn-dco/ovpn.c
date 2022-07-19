@@ -456,7 +456,7 @@ netdev_tx_t ovpn_net_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	/* verify IP header size in network packet */
 	proto = ovpn_ip_check_protocol(skb);
-	if (unlikely(!proto || (skb->protocol != proto))) {
+	if (unlikely(!proto || skb->protocol != proto)) {
 		net_dbg_ratelimited("%s: dropping malformed payload packet\n",
 				    dev->name);
 		goto drop;
