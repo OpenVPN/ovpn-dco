@@ -1009,7 +1009,6 @@ int ovpn_netlink_send_packet(struct ovpn_struct *ovpn, const struct ovpn_peer *p
 	}
 
 	pr_debug("%s: sending packet to userspace, len: %zd\n", __func__, len);
-	ovpn_print_hex_debug(buf, len);
 
 	msg = nlmsg_new(100 + len, GFP_ATOMIC);
 	if (!msg)

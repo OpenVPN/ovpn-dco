@@ -36,20 +36,4 @@ bool ovpn_dev_is_valid(const struct net_device *dev);
 #define OVPN_QUEUE_LEN 1024
 #define OVPN_MAX_TUN_QUEUE_LEN 0x10000
 
-#ifdef CONFIG_OVPN_DCO_DEBUG
-#define ovpn_print_hex_debug(_buf, _len)				\
-{									\
-	print_hex_dump(KERN_DEBUG, "data: ", DUMP_PREFIX_NONE, 32, 1,	\
-		       _buf, _len, true);				\
-}
-#else
-#define ovpn_print_hex_debug(_buf, _len)				\
-{									\
-	if (0)								\
-		print_hex_dump(KERN_DEBUG, "data: ", DUMP_PREFIX_NONE,	\
-			       32, 1, _buf, _len, true);		\
-									\
-}
-#endif
-
 #endif /* _NET_OVPN_DCO_OVPN_DCO_H_ */

@@ -52,10 +52,6 @@ struct ovpn_struct {
 
 	void *security;
 
-#ifdef CONFIG_OVPN_DCO_DEBUG
-	int debug;
-#endif
-
 	u32 registered_nl_portid;
 	bool registered_nl_portid_set;
 };
