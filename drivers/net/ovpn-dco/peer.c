@@ -24,7 +24,7 @@ static void ovpn_peer_ping(struct timer_list *t)
 {
 	struct ovpn_peer *peer = from_timer(peer, t, keepalive_xmit);
 
-	pr_debug("%s: sending ping to peer %u\n", __func__, peer->id);
+	netdev_dbg(peer->ovpn->dev, "%s: sending ping to peer %u\n", __func__, peer->id);
 	ovpn_keepalive_xmit(peer);
 }
 
@@ -32,7 +32,7 @@ static void ovpn_peer_expire(struct timer_list *t)
 {
 	struct ovpn_peer *peer = from_timer(peer, t, keepalive_recv);
 
-	pr_debug("%s: peer %u expired\n", __func__, peer->id);
+	netdev_dbg(peer->ovpn->dev, "%s: peer %u expired\n", __func__, peer->id);
 	ovpn_peer_del(peer, OVPN_DEL_PEER_REASON_EXPIRED);
 }
 
@@ -65,25 +65,25 @@ static struct ovpn_peer *ovpn_peer_create(struct ovpn_struct *ovpn, u32 id)
 
 	ret = dst_cache_init(&peer->dst_cache, GFP_KERNEL);
 	if (ret < 0) {
-		pr_err("%s: cannot initialize dst cache\n", __func__);
+		netdev_err(ovpn->dev, "%s: cannot initialize dst cache\n", __func__);
 		goto err;
 	}
 
 	ret = ptr_ring_init(&peer->tx_ring, OVPN_QUEUE_LEN, GFP_KERNEL);
 	if (ret < 0) {
-		pr_err("%s: cannot allocate TX ring\n", __func__);
+		netdev_err(ovpn->dev, "%s: cannot allocate TX ring\n", __func__);
 		goto err_dst_cache;
 	}
 
 	ret = ptr_ring_init(&peer->rx_ring, OVPN_QUEUE_LEN, GFP_KERNEL);
 	if (ret < 0) {
-		pr_err("%s: cannot allocate RX ring\n", __func__);
+		netdev_err(ovpn->dev, "%s: cannot allocate RX ring\n", __func__);
 		goto err_tx_ring;
 	}
 
 	ret = ptr_ring_init(&peer->netif_rx_ring, OVPN_QUEUE_LEN, GFP_KERNEL);
 	if (ret < 0) {
-		pr_err("%s: cannot allocate NETIF RX ring\n", __func__);
+		netdev_err(ovpn->dev, "%s: cannot allocate NETIF RX ring\n", __func__);
 		goto err_rx_ring;
 	}
 
@@ -127,7 +127,8 @@ static int ovpn_peer_reset_sockaddr(struct ovpn_peer *peer, const struct sockadd
 		} else if (ss->ss_family == AF_INET6) {
 			ip_len = sizeof(struct in6_addr);
 		} else {
-			pr_debug("%s: invalid family for remote endpoint\n", __func__);
+			netdev_dbg(peer->ovpn->dev, "%s: invalid family for remote endpoint\n",
+				   __func__);
 			kfree(bind);
 			return -EINVAL;
 		}
@@ -181,7 +182,7 @@ void ovpn_peer_float(struct ovpn_peer *peer, struct sk_buff *skb)
 		goto unlock;
 	}
 
-	pr_debug("%s: peer %d floated to %pIScp", __func__, peer->id, &ss);
+	netdev_dbg(peer->ovpn->dev, "%s: peer %d floated to %pIScp", __func__, peer->id, &ss);
 	ovpn_peer_reset_sockaddr(peer, (struct sockaddr_storage *)&ss, local_ip);
 unlock:
 	rcu_read_unlock();
@@ -296,8 +297,9 @@ void ovpn_peer_keepalive_set(struct ovpn_peer *peer, u32 interval, u32 timeout)
 {
 	u32 delta;
 
-	pr_debug("%s: scheduling keepalive for peer %u: interval=%u timeout=%u\n", __func__,
-		 peer->id, interval, timeout);
+	netdev_dbg(peer->ovpn->dev,
+		   "%s: scheduling keepalive for peer %u: interval=%u timeout=%u\n", __func__,
+		   peer->id, interval, timeout);
 
 	peer->keepalive_interval = interval;
 	if (interval > 0) {
@@ -659,16 +661,18 @@ void ovpn_peer_update_local_endpoint(struct ovpn_peer *peer, struct sk_buff *skb
 	switch (skb_protocol_to_family(skb)) {
 	case AF_INET:
 		if (unlikely(bind->local.ipv4.s_addr != ip_hdr(skb)->daddr)) {
-			pr_debug("%s: learning local IPv4 for peer %d (%pI4 -> %pI4)\n", __func__,
-				 peer->id, &bind->local.ipv4.s_addr, &ip_hdr(skb)->daddr);
+			netdev_dbg(peer->ovpn->dev,
+				   "%s: learning local IPv4 for peer %d (%pI4 -> %pI4)\n", __func__,
+				   peer->id, &bind->local.ipv4.s_addr, &ip_hdr(skb)->daddr);
 			bind->local.ipv4.s_addr = ip_hdr(skb)->daddr;
 		}
 		break;
 	case AF_INET6:
 		if (unlikely(memcmp(&bind->local.ipv6, &ipv6_hdr(skb)->daddr,
 				    sizeof(bind->local.ipv6)))) {
-			pr_debug("%s: learning local IPv6 for peer %d (%pI6c -> %pI6c\n", __func__,
-				 peer->id, &bind->local.ipv6, &ipv6_hdr(skb)->daddr);
+			netdev_dbg(peer->ovpn->dev,
+				   "%s: learning local IPv6 for peer %d (%pI6c -> %pI6c\n",
+				   __func__, peer->id, &bind->local.ipv6, &ipv6_hdr(skb)->daddr);
 			bind->local.ipv6 = ipv6_hdr(skb)->daddr;
 		}
 		break;

@@ -260,18 +260,20 @@ static int ovpn_netlink_new_key(struct sk_buff *skb, struct genl_info *info)
 
 	peer = ovpn_peer_lookup_id(ovpn, peer_id);
 	if (!peer) {
-		pr_debug("%s: no peer with id %u to set key for\n", __func__, peer_id);
+		netdev_dbg(ovpn->dev, "%s: no peer with id %u to set key for\n", __func__, peer_id);
 		return -ENOENT;
 	}
 
 	mutex_lock(&peer->crypto.mutex);
 	ret = ovpn_crypto_state_reset(&peer->crypto, &pkr);
 	if (ret < 0) {
-		pr_debug("%s: cannot install new key for peer %u\n", __func__, peer_id);
+		netdev_dbg(ovpn->dev, "%s: cannot install new key for peer %u\n", __func__,
+			   peer_id);
 		goto unlock;
 	}
 
-	pr_debug("%s: new key installed (id=%u) for peer %u\n", __func__, pkr.key.key_id, peer_id);
+	netdev_dbg(ovpn->dev, "%s: new key installed (id=%u) for peer %u\n", __func__,
+		   pkr.key.key_id, peer_id);
 unlock:
 	mutex_unlock(&peer->crypto.mutex);
 	ovpn_peer_put(peer);
@@ -366,7 +368,7 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 
 	if (!attrs[OVPN_NEW_PEER_ATTR_PEER_ID] || !attrs[OVPN_NEW_PEER_ATTR_SOCKET] ||
 	    (!attrs[OVPN_NEW_PEER_ATTR_IPV4] && !attrs[OVPN_NEW_PEER_ATTR_IPV6])) {
-		pr_debug("%s: basic attributes missing\n", __func__);
+		netdev_dbg(ovpn->dev, "%s: basic attributes missing\n", __func__);
 		return -EINVAL;
 	}
 
@@ -375,7 +377,8 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 	/* sockfd_lookup() increases sock's refcounter */
 	sock = sockfd_lookup(sockfd, &ret);
 	if (!sock) {
-		pr_debug("%s: cannot lookup peer socket (fd=%u): %d\n", __func__, sockfd, ret);
+		netdev_dbg(ovpn->dev, "%s: cannot lookup peer socket (fd=%u): %d\n", __func__,
+			   sockfd, ret);
 		return -ENOTSOCK;
 	}
 
@@ -389,7 +392,8 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 		ret = -EINVAL;
 
 		if (!attrs[OVPN_NEW_PEER_ATTR_SOCKADDR_REMOTE]) {
-			pr_err("%s: cannot add UDP peer with no remote endpoint\n", __func__);
+			netdev_err(ovpn->dev, "%s: cannot add UDP peer with no remote endpoint\n",
+				   __func__);
 			goto sockfd_release;
 		}
 
@@ -401,17 +405,19 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 				/* valid sockaddr */
 				break;
 
-			pr_err("%s: remote sockaddr_in has invalid family\n", __func__);
+			netdev_err(ovpn->dev, "%s: remote sockaddr_in has invalid family\n",
+				   __func__);
 			goto sockfd_release;
 		case sizeof(struct sockaddr_in6):
 			if (ss->ss_family == AF_INET6)
 				/* valid sockaddr */
 				break;
 
-			pr_err("%s: remote sockaddr_in6 has invalid family\n", __func__);
+			netdev_err(ovpn->dev, "%s: remote sockaddr_in6 has invalid family\n",
+				   __func__);
 			goto sockfd_release;
 		default:
-			pr_err("%s: invalid size for sockaddr\n", __func__);
+			netdev_err(ovpn->dev, "%s: invalid size for sockaddr\n", __func__);
 			goto sockfd_release;
 		}
 
@@ -440,7 +446,9 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 
 			if (ip_len == sizeof(struct in_addr)) {
 				if (ss->ss_family != AF_INET) {
-					pr_debug("%s: the specified local IP is IPv4, but the peer endpoint is not\n", __func__);
+					netdev_dbg(ovpn->dev,
+						   "%s: the specified local IP is IPv4, but the peer endpoint is not\n",
+						   __func__);
 					goto sockfd_release;
 				}
 			} else if (ip_len == sizeof(struct in6_addr)) {
@@ -448,7 +456,9 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 						 IPV6_ADDR_MAPPED;
 
 				if (ss->ss_family != AF_INET6 && !is_mapped) {
-					pr_debug("%s: the specified local IP is IPv6, but the peer endpoint is not\n", __func__);
+					netdev_dbg(ovpn->dev,
+						   "%s: the specified local IP is IPv6, but the peer endpoint is not\n",
+						   __func__);
 					goto sockfd_release;
 				}
 
@@ -458,7 +468,9 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 					 */
 					local_ip += 12;
 			} else {
-				pr_debug("%s: invalid length %zu for local IP\n", __func__, ip_len);
+				netdev_dbg(ovpn->dev,
+					   "%s: invalid length %zu for local IP\n", __func__,
+					   ip_len);
 				goto sockfd_release;
 			}
 		}
@@ -470,7 +482,8 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 	id = nla_get_u32(attrs[OVPN_NEW_PEER_ATTR_PEER_ID]);
 	peer = ovpn_peer_new(ovpn, ss, sock, id, local_ip);
 	if (IS_ERR(peer)) {
-		pr_err("%s: cannot create new peer object for peer %u %pIScp\n", __func__, id, ss);
+		netdev_err(ovpn->dev, "%s: cannot create new peer object for peer %u %pIScp\n",
+			   __func__, id, ss);
 		ret = PTR_ERR(peer);
 		goto sockfd_release;
 	}
@@ -494,14 +507,15 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 		       sizeof(struct in6_addr));
 	}
 
-	pr_debug("%s: adding peer with endpoint=%pIScp/%s id=%u VPN-IPv4=%pI4 VPN-IPv6=%pI6c\n",
-		 __func__, ss, sock->sk->sk_prot_creator->name, peer->id,
-		 &peer->vpn_addrs.ipv4.s_addr, &peer->vpn_addrs.ipv6);
+	netdev_dbg(ovpn->dev,
+		   "%s: adding peer with endpoint=%pIScp/%s id=%u VPN-IPv4=%pI4 VPN-IPv6=%pI6c\n",
+		   __func__, ss, sock->sk->sk_prot_creator->name, peer->id,
+		   &peer->vpn_addrs.ipv4.s_addr, &peer->vpn_addrs.ipv6);
 
 	ret = ovpn_peer_add(ovpn, peer);
 	if (ret < 0) {
-		pr_err("%s: cannot add new peer (id=%u) to hashtable: %d\n", __func__, peer->id,
-		       ret);
+		netdev_err(ovpn->dev, "%s: cannot add new peer (id=%u) to hashtable: %d\n",
+			   __func__, peer->id, ret);
 		goto peer_release;
 	}
 
@@ -567,13 +581,13 @@ static int ovpn_netlink_send_peer(struct sk_buff *skb, const struct ovpn_peer *p
 
 	hdr = genlmsg_put(skb, portid, seq, &ovpn_netlink_family, flags, OVPN_CMD_GET_PEER);
 	if (!hdr) {
-		pr_debug("%s: cannot create message header\n", __func__);
+		netdev_dbg(peer->ovpn->dev, "%s: cannot create message header\n", __func__);
 		return -EMSGSIZE;
 	}
 
 	attr = nla_nest_start(skb, OVPN_ATTR_GET_PEER);
 	if (!attr) {
-		pr_debug("%s: cannot create submessage\n", __func__);
+		netdev_dbg(peer->ovpn->dev, "%s: cannot create submessage\n", __func__);
 		goto err;
 	}
 
@@ -729,7 +743,7 @@ static int ovpn_netlink_dump_peers(struct sk_buff *skb, struct netlink_callback 
 	if (!ovpn) {
 		ret = ovpn_netlink_dump_prepare(cb);
 		if (ret < 0) {
-			pr_debug("%s: cannot prepare for dump: %d\n", __func__, ret);
+			netdev_dbg(ovpn->dev, "%s: cannot prepare for dump: %d\n", __func__, ret);
 			return ret;
 		}
 
@@ -786,7 +800,7 @@ static int ovpn_netlink_del_peer(struct sk_buff *skb, struct genl_info *info)
 	if (!peer)
 		return -ENOENT;
 
-	pr_debug("%s: peer id=%u\n", __func__, peer->id);
+	netdev_dbg(ovpn->dev, "%s: peer id=%u\n", __func__, peer->id);
 	ret = ovpn_peer_del(peer, OVPN_DEL_PEER_REASON_USERSPACE);
 	ovpn_peer_put(peer);
 
@@ -800,13 +814,11 @@ static int ovpn_netlink_register_packet(struct sk_buff *skb,
 
 	/* only one registered process per interface is allowed for now */
 	if (ovpn->registered_nl_portid_set) {
-		pr_debug("%s: userspace listener already registered\n",
-			 __func__);
+		netdev_dbg(ovpn->dev, "%s: userspace listener already registered\n", __func__);
 		return -EBUSY;
 	}
 
-	pr_debug("%s: registering userspace at %u\n", __func__,
-		 info->snd_portid);
+	netdev_dbg(ovpn->dev, "%s: registering userspace at %u\n", __func__, info->snd_portid);
 
 	ovpn->registered_nl_portid = info->snd_portid;
 	ovpn->registered_nl_portid_set = true;
@@ -833,7 +845,7 @@ static int ovpn_netlink_packet(struct sk_buff *skb, struct genl_info *info)
 		return ret;
 
 	if (!attrs[OVPN_PACKET_ATTR_PACKET] || !attrs[OVPN_PACKET_ATTR_PEER_ID]) {
-		pr_debug("received netlink packet with no payload\n");
+		netdev_dbg(ovpn->dev, "received netlink packet with no payload\n");
 		return -EINVAL;
 	}
 
@@ -842,8 +854,8 @@ static int ovpn_netlink_packet(struct sk_buff *skb, struct genl_info *info)
 	len = nla_len(attrs[OVPN_PACKET_ATTR_PACKET]);
 
 	if (len < 4 || len > ovpn->dev->mtu) {
-		pr_debug("%s: invalid packet size %zu (min is 4, max is MTU: %u)\n", __func__, len,
-			 ovpn->dev->mtu);
+		netdev_dbg(ovpn->dev, "%s: invalid packet size %zu (min is 4, max is MTU: %u)\n",
+			   __func__, len, ovpn->dev->mtu);
 		return -EINVAL;
 	}
 
@@ -852,12 +864,12 @@ static int ovpn_netlink_packet(struct sk_buff *skb, struct genl_info *info)
 
 	/* reject data packets from userspace as they could lead to IV reuse */
 	if (opcode == OVPN_DATA_V1 || opcode == OVPN_DATA_V2) {
-		pr_debug("%s: rejecting data packet from userspace (opcode=%u)\n", __func__,
-			 opcode);
+		netdev_dbg(ovpn->dev, "%s: rejecting data packet from userspace (opcode=%u)\n",
+			   __func__, opcode);
 		return -EINVAL;
 	}
 
-	pr_debug("%s: sending userspace packet to peer %u...\n", __func__, peer_id);
+	netdev_dbg(ovpn->dev, "%s: sending userspace packet to peer %u...\n", __func__, peer_id);
 
 	return ovpn_send_data(ovpn, peer_id, packet, len);
 }
@@ -944,8 +956,8 @@ int ovpn_netlink_notify_del_peer(struct ovpn_peer *peer)
 	void *hdr;
 	int ret;
 
-	pr_info("%s: deleting peer with id %u, reason %d\n", peer->ovpn->dev->name,
-		peer->id, peer->delete_reason);
+	netdev_info(peer->ovpn->dev, "%s: deleting peer with id %u, reason %d\n",
+		    peer->ovpn->dev->name, peer->id, peer->delete_reason);
 
 	msg = nlmsg_new(100, GFP_KERNEL);
 	if (!msg)
@@ -1002,11 +1014,11 @@ int ovpn_netlink_send_packet(struct ovpn_struct *ovpn, const struct ovpn_peer *p
 	int ret;
 
 	if (!ovpn->registered_nl_portid_set) {
-		pr_warn_ratelimited("%s: no userspace listener\n", __func__);
+		net_warn_ratelimited("%s: no userspace listener\n", __func__);
 		return 0;
 	}
 
-	pr_debug("%s: sending packet to userspace, len: %zd\n", __func__, len);
+	netdev_dbg(ovpn->dev, "%s: sending packet to userspace, len: %zd\n", __func__, len);
 
 	msg = nlmsg_new(100 + len, GFP_ATOMIC);
 	if (!msg)
@@ -1075,8 +1087,7 @@ static int ovpn_netlink_notify(struct notifier_block *nb, unsigned long state,
 				continue;
 
 			found = true;
-			pr_debug("%s: deregistering userspace listener\n",
-				 __func__);
+			netdev_dbg(ovpn->dev, "%s: deregistering userspace listener\n", __func__);
 			ovpn->registered_nl_portid_set = false;
 			break;
 		}

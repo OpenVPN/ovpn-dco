@@ -188,7 +188,8 @@ static int ovpn_newlink(struct net *src_net, struct net_device *dev, struct nlat
 	ovpn->mode = OVPN_MODE_P2P;
 	if (data && data[IFLA_OVPN_MODE]) {
 		ovpn->mode = nla_get_u8(data[IFLA_OVPN_MODE]);
-		pr_debug("%s: setting device (%s) mode: %u\n", __func__, dev->name, ovpn->mode);
+		netdev_dbg(dev, "%s: setting device (%s) mode: %u\n", __func__, dev->name,
+			   ovpn->mode);
 	}
 
 	return register_netdevice(dev);

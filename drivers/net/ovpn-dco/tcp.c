@@ -103,7 +103,7 @@ static int ovpn_tcp_send_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	int ret;
 
 	if (skb_linearize(skb) < 0) {
-		pr_err_ratelimited("%s: can't linearize packet\n", __func__);
+		net_err_ratelimited("%s: can't linearize packet\n", __func__);
 		return -ENOMEM;
 	}
 
@@ -139,7 +139,7 @@ static void ovpn_tcp_tx_work(struct work_struct *work)
 	while ((skb = __ptr_ring_peek(&peer->tcp.tx_ring))) {
 		ret = ovpn_tcp_send_one(peer, skb);
 		if (ret < 0 && ret != -EAGAIN) {
-			pr_warn_ratelimited("%s: cannot send TCP packet to peer %u: %d\n", __func__,
+			net_warn_ratelimited("%s: cannot send TCP packet to peer %u: %d\n", __func__,
 					    peer->id, ret);
 			/* in case of TCP error stop sending loop and delete peer */
 			ovpn_peer_del(peer, OVPN_DEL_PEER_REASON_TRANSPORT_ERROR);
@@ -180,7 +180,8 @@ static int ovpn_tcp_rx_one(struct ovpn_peer *peer)
 			u16 len = ntohs(*(__be16 *)peer->tcp.raw_len);
 			/* invalid packet length: this is a fatal TCP error */
 			if (!len) {
-				pr_err("%s: received invalid packet length\n", __func__);
+				netdev_err(peer->ovpn->dev, "%s: received invalid packet length\n",
+					   __func__);
 				return -EINVAL;
 			}
 
@@ -241,7 +242,7 @@ static void ovpn_tcp_rx_work(struct work_struct *work)
 	}
 
 	if (ret < 0 && ret != -EAGAIN)
-		pr_err("%s: TCP socket error: %d\n", __func__, ret);
+		netdev_err(peer->ovpn->dev, "%s: TCP socket error: %d\n", __func__, ret);
 }
 
 /* Put packet into TCP TX queue and schedule a consumer */
@@ -269,7 +270,7 @@ int ovpn_tcp_socket_attach(struct socket *sock, struct ovpn_peer *peer)
 
 	ret = ptr_ring_init(&peer->tcp.tx_ring, OVPN_QUEUE_LEN, GFP_KERNEL);
 	if (ret < 0) {
-		pr_err("cannot allocate TCP TX ring\n");
+		netdev_err(peer->ovpn->dev, "cannot allocate TCP TX ring\n");
 		return ret;
 	}
 
@@ -284,21 +285,22 @@ int ovpn_tcp_socket_attach(struct socket *sock, struct ovpn_peer *peer)
 	old_data = rcu_dereference_sk_user_data(sock->sk);
 	rcu_read_unlock();
 	if (old_data) {
-		pr_err("provided socket already taken by other user\n");
+		netdev_err(peer->ovpn->dev, "provided socket already taken by other user\n");
 		ret = -EBUSY;
 		goto err;
 	}
 
 	/* sanity check */
 	if (sock->sk->sk_protocol != IPPROTO_TCP) {
-		pr_err("expected TCP socket\n");
+		netdev_err(peer->ovpn->dev, "expected TCP socket\n");
 		ret = -EINVAL;
 		goto err;
 	}
 
 	/* only a fully connected socket are expected. Connection should be handled in userspace */
 	if (sock->sk->sk_state != TCP_ESTABLISHED) {
-		pr_err("unexpected state for TCP socket: %d\n", sock->sk->sk_state);
+		netdev_err(peer->ovpn->dev, "unexpected state for TCP socket: %d\n",
+			   sock->sk->sk_state);
 		ret = -EINVAL;
 		goto err;
 	}

@@ -220,7 +220,7 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	key_id = ovpn_key_id_from_skb(skb);
 	ks = ovpn_crypto_key_id_to_slot(&peer->crypto, key_id);
 	if (unlikely(!ks)) {
-		pr_info_ratelimited("%s: no available key for peer %u, key-id: %u\n", __func__,
+		net_info_ratelimited("%s: no available key for peer %u, key-id: %u\n", __func__,
 				    peer->id, key_id);
 		goto drop;
 	}
@@ -231,7 +231,7 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	ovpn_crypto_key_slot_put(ks);
 
 	if (unlikely(ret < 0)) {
-		pr_err_ratelimited("%s: error during decryption for peer %u, key-id %u: %d\n",
+		net_err_ratelimited("%s: error during decryption for peer %u, key-id %u: %d\n",
 				   __func__, peer->id, key_id, ret);
 		goto drop;
 	}
@@ -261,7 +261,8 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 
 		/* check if special OpenVPN message */
 		if (ovpn_is_keepalive(skb)) {
-			pr_debug("%s: ping received from peer with id %u\n", __func__, peer->id);
+			netdev_dbg(peer->ovpn->dev, "%s: ping received from peer with id %u\n",
+				   __func__, peer->id);
 			/* not an error */
 			consume_skb(skb);
 			/* inform the caller that NAPI should not be scheduled
@@ -325,13 +326,13 @@ static bool ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	/* get primary key to be used for encrypting data */
 	ks = ovpn_crypto_key_slot_primary(&peer->crypto);
 	if (unlikely(!ks)) {
-		pr_info_ratelimited("%s: error while retrieving primary key slot\n", __func__);
+		net_info_ratelimited("%s: error while retrieving primary key slot\n", __func__);
 		return false;
 	}
 
 	if (unlikely(skb->ip_summed == CHECKSUM_PARTIAL &&
 		     skb_checksum_help(skb))) {
-		pr_err_ratelimited("%s: cannot compute checksum for outgoing packet\n", __func__);
+		net_err_ratelimited("%s: cannot compute checksum for outgoing packet\n", __func__);
 		goto err;
 	}
 
@@ -342,11 +343,12 @@ static bool ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	if (unlikely(ret < 0)) {
 		/* if we ran out of IVs we must kill the key as it can't be used anymore */
 		if (ret == -ERANGE) {
-			pr_warn("%s: killing primary key as we ran out of IVs\n", __func__);
+			netdev_warn(peer->ovpn->dev,
+				    "%s: killing primary key as we ran out of IVs\n", __func__);
 			ovpn_crypto_kill_primary(&peer->crypto);
 			goto err;
 		}
-		pr_err_ratelimited("%s: error during encryption for peer %u, key-id %u: %d\n",
+		net_err_ratelimited("%s: error during encryption for peer %u, key-id %u: %d\n",
 				   __func__, peer->id, ks->key_id, ret);
 		goto err;
 	}
@@ -427,7 +429,7 @@ static void ovpn_queue_skb(struct ovpn_struct *ovpn, struct sk_buff *skb, struct
 
 	ret = ptr_ring_produce_bh(&peer->tx_ring, skb);
 	if (unlikely(ret < 0)) {
-		pr_err_ratelimited("%s: cannot queue packet to TX ring\n", __func__);
+		net_err_ratelimited("%s: cannot queue packet to TX ring\n", __func__);
 		goto drop;
 	}
 
@@ -528,7 +530,8 @@ static void ovpn_xmit_special(struct ovpn_peer *peer, const void *data,
 
 	/* increase reference counter when passing peer to sending queue */
 	if (!ovpn_peer_hold(peer)) {
-		pr_debug("%s: cannot hold peer reference for sending special packet\n", __func__);
+		netdev_dbg(ovpn->dev, "%s: cannot hold peer reference for sending special packet\n",
+			   __func__);
 		kfree_skb(skb);
 		return;
 	}
@@ -566,7 +569,7 @@ int ovpn_send_data(struct ovpn_struct *ovpn, u32 peer_id, const u8 *data, size_t
 
 	peer = ovpn_peer_lookup_id(ovpn, peer_id);
 	if (unlikely(!peer)) {
-		pr_debug("no peer to send data to\n");
+		netdev_dbg(ovpn->dev, "no peer to send data to\n");
 		return -EHOSTUNREACH;
 	}
 

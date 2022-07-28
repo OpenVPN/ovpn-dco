@@ -115,7 +115,7 @@ int ovpn_aead_encrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb, u32 
 	/* encrypt it */
 	ret = crypto_wait_req(crypto_aead_encrypt(req), &wait);
 	if (ret < 0)
-		pr_err_ratelimited("%s: encrypt failed: %d\n", __func__, ret);
+		net_err_ratelimited("%s: encrypt failed: %d\n", __func__, ret);
 
 free_req:
 	aead_request_free(req);
@@ -199,7 +199,7 @@ int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb)
 	/* decrypt it */
 	ret = crypto_wait_req(crypto_aead_decrypt(req), &wait);
 	if (ret < 0) {
-		pr_err_ratelimited("%s: decrypt failed: %d\n", __func__, ret);
+		net_err_ratelimited("%s: decrypt failed: %d\n", __func__, ret);
 		goto free_req;
 	}
 
@@ -234,15 +234,13 @@ struct crypto_aead *ovpn_aead_init(const char *title, const char *alg_name,
 
 	ret = crypto_aead_setkey(aead, key, keylen);
 	if (ret) {
-		pr_err("%s crypto_aead_setkey size=%u failed, err=%d\n", title,
-		       keylen, ret);
+		pr_err("%s crypto_aead_setkey size=%u failed, err=%d\n", title, keylen, ret);
 		goto error;
 	}
 
 	ret = crypto_aead_setauthsize(aead, AUTH_TAG_SIZE);
 	if (ret) {
-		pr_err("%s crypto_aead_setauthsize failed, err=%d\n", title,
-		       ret);
+		pr_err("%s crypto_aead_setauthsize failed, err=%d\n", title, ret);
 		goto error;
 	}
 

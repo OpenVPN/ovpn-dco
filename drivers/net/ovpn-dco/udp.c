@@ -47,7 +47,7 @@ static int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 
 	ovpn = ovpn_from_udp_sock(sk);
 	if (unlikely(!ovpn)) {
-		pr_err_ratelimited("%s: cannot obtain ovpn object from UDP socket\n", __func__);
+		net_err_ratelimited("%s: cannot obtain ovpn object from UDP socket\n", __func__);
 		goto drop;
 	}
 
@@ -55,7 +55,7 @@ static int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 	 * They are required to fetch the OP code, the key ID and the peer ID.
 	 */
 	if (unlikely(!pskb_may_pull(skb, sizeof(struct udphdr) + 4))) {
-		pr_debug_ratelimited("%s: packet too small\n", __func__);
+		net_dbg_ratelimited("%s: packet too small\n", __func__);
 		goto drop;
 	}
 
@@ -69,7 +69,7 @@ static int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 		if (peer_id != OVPN_PEER_ID_UNDEF) {
 			peer = ovpn_peer_lookup_id(ovpn, peer_id);
 			if (!peer) {
-				pr_err_ratelimited("%s: received data from unknown peer (id: %d)\n",
+				net_err_ratelimited("%s: received data from unknown peer (id: %d)\n",
 						   __func__, peer_id);
 				goto drop;
 			}
@@ -84,13 +84,15 @@ static int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 		peer = ovpn_peer_lookup_transp_addr(ovpn, skb);
 		if (unlikely(!peer)) {
 			if (opcode != OVPN_DATA_V2) {
-				pr_debug("%s: control packet from unknown peer, sending to userspace",
-					 __func__);
+				netdev_dbg(ovpn->dev,
+					   "%s: control packet from unknown peer, sending to userspace",
+					   __func__);
 				return 1;
 			}
 
-			pr_debug("%s: received data with undef peer-id from unknown source\n",
-				 __func__);
+			netdev_dbg(ovpn->dev,
+				   "%s: received data with undef peer-id from unknown source\n",
+				   __func__);
 			goto drop;
 		}
 	}
@@ -100,7 +102,7 @@ static int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 
 	ret = ovpn_recv(ovpn, peer, skb);
 	if (unlikely(ret < 0)) {
-		pr_err_ratelimited("%s: cannot handle incoming packet: %d\n", __func__, ret);
+		net_err_ratelimited("%s: cannot handle incoming packet: %d\n", __func__, ret);
 		goto drop;
 	}
 
@@ -272,7 +274,7 @@ void ovpn_udp_send_skb(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	/* get socket info */
 	sock = peer->sock->sock;
 	if (unlikely(!sock)) {
-		pr_debug_ratelimited("%s: no sock for remote peer\n", __func__);
+		net_dbg_ratelimited("%s: no sock for remote peer\n", __func__);
 		goto out;
 	}
 
@@ -280,7 +282,7 @@ void ovpn_udp_send_skb(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	/* get binding */
 	bind = rcu_dereference(peer->bind);
 	if (unlikely(!bind)) {
-		pr_debug_ratelimited("%s: no bind for remote peer\n", __func__);
+		net_dbg_ratelimited("%s: no bind for remote peer\n", __func__);
 		goto out_unlock;
 	}
 
@@ -306,7 +308,7 @@ int ovpn_udp_socket_attach(struct socket *sock, struct ovpn_struct *ovpn)
 
 	/* sanity check */
 	if (sock->sk->sk_protocol != IPPROTO_UDP) {
-		pr_err("%s: expected UDP socket\n", __func__);
+		netdev_err(ovpn->dev, "%s: expected UDP socket\n", __func__);
 		return -EINVAL;
 	}
 
@@ -316,11 +318,14 @@ int ovpn_udp_socket_attach(struct socket *sock, struct ovpn_struct *ovpn)
 	rcu_read_unlock();
 	if (old_data) {
 		if (old_data->ovpn == ovpn) {
-			pr_debug("%s: provided socket already owned by this interface\n", __func__);
+			netdev_dbg(ovpn->dev,
+				   "%s: provided socket already owned by this interface\n",
+				   __func__);
 			return -EALREADY;
 		}
 
-		pr_err("%s: provided socket already taken by other user\n", __func__);
+		netdev_err(ovpn->dev, "%s: provided socket already taken by other user\n",
+			   __func__);
 		return -EBUSY;
 	}
 
