@@ -69,17 +69,6 @@ static int ovpn_net_stop(struct net_device *dev)
 	return 0;
 }
 
-static int ovpn_net_change_mtu(struct net_device *dev, int new_mtu)
-{
-	if (new_mtu < IPV4_MIN_MTU ||
-	    new_mtu + dev->hard_header_len > IP_MAX_MTU)
-		return -EINVAL;
-
-	dev->mtu = new_mtu;
-
-	return 0;
-}
-
 /*******************************************
  * ovpn ethtool ops
  *******************************************/
@@ -117,7 +106,6 @@ bool ovpn_dev_is_valid(const struct net_device *dev)
  *******************************************/
 
 static const struct net_device_ops ovpn_netdev_ops = {
-	.ndo_change_mtu		= ovpn_net_change_mtu,
 	.ndo_open		= ovpn_net_open,
 	.ndo_stop		= ovpn_net_stop,
 	.ndo_start_xmit		= ovpn_net_xmit,
@@ -152,7 +140,8 @@ static void ovpn_setup(struct net_device *dev)
 	dev->hard_header_len = 0;
 	dev->addr_len = 0;
 	dev->mtu = ETH_DATA_LEN - overhead;
-	dev->max_mtu = INT_MAX - overhead;
+	dev->min_mtu = IPV4_MIN_MTU;
+	dev->max_mtu = IP_MAX_MTU - overhead;
 
 	/* Zero header length */
 	dev->type = ARPHRD_NONE;
