@@ -364,7 +364,19 @@ static struct ovpn_peer *ovpn_peer_lookup_vpn_addr6(struct hlist_head *head, str
 	return peer;
 }
 
-static struct rtable *ovpn_gw4(struct ovpn_struct *ovpn, __be32 dst)
+/**
+ * ovpn_nexthop4() - looks up the IP of the nexthop for the given destination
+ *
+ * Looks up in the IPv4 system routing table the IO of the nexthop to be used
+ * to reach the destination passed as argument. IF no nexthop can be found, the
+ * destination itself is returned as it probably has to be used as nexthop.
+ *
+ * @ovpn: the private data representing the current VPN session
+ * @dst: the destination to be looked up
+ *
+ * Return the IP of the next hop if found or the dst itself otherwise
+ */
+static __be32 ovpn_nexthop4(struct ovpn_struct *ovpn, __be32 dst)
 {
 	struct rtable *rt;
 	struct flowi4 fl = {
@@ -375,22 +387,36 @@ static struct rtable *ovpn_gw4(struct ovpn_struct *ovpn, __be32 dst)
 	if (IS_ERR(rt)) {
 		net_dbg_ratelimited("%s: no route to host %pI4\n", __func__, &dst);
 		/* if we end up here this packet is probably going to be thrown away later */
-		return NULL;
+		return dst;
 	}
 
-	if (!rt->rt_uses_gateway) {
-		ip_rt_put(rt);
-		rt = NULL;
-	}
+	if (!rt->rt_uses_gateway)
+		goto out;
 
-	return rt;
+	dst = rt->rt_gw4;
+out:
+	ip_rt_put(rt);
+	return dst;
 }
 
-static struct rt6_info *ovpn_gw6(struct ovpn_struct *ovpn, const struct in6_addr *dst)
+/**
+ * ovpn_nexthop6() - looks up the IPv6 of the nexthop for the given destination
+ *
+ * Looks up in the IPv6 system routing table the IO of the nexthop to be used
+ * to reach the destination passed as argument. IF no nexthop can be found, the
+ * destination itself is returned as it probably has to be used as nexthop.
+ *
+ * @ovpn: the private data representing the current VPN session
+ * @dst: the destination to be looked up
+ *
+ * Return the IP of the next hop if found or the dst itself otherwise
+ */
+static struct in6_addr ovpn_nexthop6(struct ovpn_struct *ovpn, const struct in6_addr dst)
 {
+#if IS_ENABLED(CONFIG_IPV6)
 	struct rt6_info *rt;
 	struct flowi6 fl = {
-		.daddr = *dst,
+		.daddr = dst,
 	};
 
 	rt = (struct rt6_info *)ipv6_stub->ipv6_dst_lookup_flow(dev_net(ovpn->dev), NULL, &fl,
@@ -398,15 +424,17 @@ static struct rt6_info *ovpn_gw6(struct ovpn_struct *ovpn, const struct in6_addr
 	if (IS_ERR(rt)) {
 		net_dbg_ratelimited("%s: no route to host %pI6\n", __func__, dst);
 		/* if we end up here this packet is probably going to be thrown away later */
-		return NULL;
+		return dst;
 	}
 
-	if (!(rt->rt6i_flags & RTF_GATEWAY)) {
-		dst_release((struct dst_entry *)rt);
-		rt = NULL;
-	}
+	if (!(rt->rt6i_flags & RTF_GATEWAY))
+		goto out;
 
-	return rt;
+	dst = rt6i->rt6i_gateway;
+out:
+	dst_release((struct dst_entry *)rt);
+#endif
+	return dst;
 }
 
 /**
@@ -431,7 +459,7 @@ struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_
 	struct rt6_info *rt6i = NULL;
 	struct rtable *rt = NULL;
 	sa_family_t sa_fam;
-	struct in6_addr *addr6;
+	struct in6_addr addr6;
 	__be32 addr4;
 	u32 index;
 
@@ -455,9 +483,7 @@ struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_
 			addr4 = ip_hdr(skb)->saddr;
 		else
 			addr4 = ip_hdr(skb)->daddr;
-		rt = ovpn_gw4(ovpn, addr4);
-		if (rt)
-			addr4 = rt->rt_gw4;
+		addr4 = ovpn_nexthop4(ovpn, addr4);
 
 		index = ovpn_peer_index(ovpn->peers.by_vpn_addr, &addr4, sizeof(addr4));
 		head = &ovpn->peers.by_vpn_addr[index];
@@ -466,17 +492,15 @@ struct ovpn_peer *ovpn_peer_lookup_vpn_addr(struct ovpn_struct *ovpn, struct sk_
 		break;
 	case AF_INET6:
 		if (use_src)
-			addr6 = &ipv6_hdr(skb)->saddr;
+			addr6 = ipv6_hdr(skb)->saddr;
 		else
-			addr6 = &ipv6_hdr(skb)->daddr;
-		rt6i = ovpn_gw6(ovpn, addr6);
-		if (rt6i)
-			addr6 = &rt6i->rt6i_gateway;
+			addr6 = ipv6_hdr(skb)->daddr;
+		addr6 = ovpn_nexthop6(ovpn, addr6);
 
-		index = ovpn_peer_index(ovpn->peers.by_vpn_addr, addr6, sizeof(*addr6));
+		index = ovpn_peer_index(ovpn->peers.by_vpn_addr, &addr6, sizeof(addr6));
 		head = &ovpn->peers.by_vpn_addr[index];
 
-		peer = ovpn_peer_lookup_vpn_addr6(head, addr6);
+		peer = ovpn_peer_lookup_vpn_addr6(head, &addr6);
 		break;
 	}
 
