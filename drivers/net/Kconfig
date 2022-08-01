@@ -7,8 +7,11 @@ config OVPN_DCO
 	tristate "OpenVPN data channel offload"
 	depends on NET && INET
 	select NET_UDP_TUNNEL
+	select DST_CACHE
 	select CRYPTO
-	select CRYPTO_AEAD
+	select CRYPTO_AES
+	select CRYPTO_GCM
+	select CRYPTO_CHACHA20POLY1305
 	help
 	  This module enhances the performance of the OpenVPN userspace software
 	  by offloading the data channel processing to kernelspace.
