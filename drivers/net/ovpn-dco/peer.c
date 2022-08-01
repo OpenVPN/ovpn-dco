@@ -411,7 +411,7 @@ out:
  *
  * Return the IP of the next hop if found or the dst itself otherwise
  */
-static struct in6_addr ovpn_nexthop6(struct ovpn_struct *ovpn, const struct in6_addr dst)
+static struct in6_addr ovpn_nexthop6(struct ovpn_struct *ovpn, struct in6_addr dst)
 {
 #if IS_ENABLED(CONFIG_IPV6)
 	struct rt6_info *rt;
@@ -430,7 +430,7 @@ static struct in6_addr ovpn_nexthop6(struct ovpn_struct *ovpn, const struct in6_
 	if (!(rt->rt6i_flags & RTF_GATEWAY))
 		goto out;
 
-	dst = rt6i->rt6i_gateway;
+	dst = rt->rt6i_gateway;
 out:
 	dst_release((struct dst_entry *)rt);
 #endif
