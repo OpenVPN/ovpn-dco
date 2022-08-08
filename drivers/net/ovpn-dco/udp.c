@@ -243,6 +243,9 @@ static int ovpn_udp_output(struct ovpn_struct *ovpn, struct ovpn_bind *bind,
 	if (!skb->destructor)
 		skb->sk = NULL;
 
+	/* always permit openvpn-created packets to be (outside) fragmented */
+	skb->ignore_df = 1;
+
 	switch (bind->sa.in4.sin_family) {
 	case AF_INET:
 		ret = ovpn_udp4_output(ovpn, bind, cache, sk, skb);
