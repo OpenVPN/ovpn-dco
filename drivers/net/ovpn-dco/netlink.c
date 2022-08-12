@@ -366,9 +366,16 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 	if (ret)
 		return ret;
 
-	if (!attrs[OVPN_NEW_PEER_ATTR_PEER_ID] || !attrs[OVPN_NEW_PEER_ATTR_SOCKET] ||
-	    (!attrs[OVPN_NEW_PEER_ATTR_IPV4] && !attrs[OVPN_NEW_PEER_ATTR_IPV6])) {
-		netdev_dbg(ovpn->dev, "%s: basic attributes missing\n", __func__);
+	if (!attrs[OVPN_NEW_PEER_ATTR_PEER_ID] || !attrs[OVPN_NEW_PEER_ATTR_SOCKET]) {
+		netdev_err(ovpn->dev, "%s: basic attributes missing\n", __func__);
+		return -EINVAL;
+	}
+
+
+	if (ovpn->mode == OVPN_MODE_MP && !attrs[OVPN_NEW_PEER_ATTR_IPV4] &&
+	    !attrs[OVPN_NEW_PEER_ATTR_IPV6]) {
+		netdev_err(ovpn->dev, "%s: a VPN IP is required when adding a peer in MP mode\n",
+			   __func__);
 		return -EINVAL;
 	}
 
