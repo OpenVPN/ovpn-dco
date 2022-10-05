@@ -201,19 +201,6 @@ static void ovpn_dellink(struct net_device *dev, struct list_head *head)
 	unregister_netdevice_queue(dev, head);
 }
 
-/**
- * ovpn_num_queues - define number of queues to allocate per device
- *
- * The value returned by this function is used to decide how many RX and TX
- * queues to allocate when creating the netdev object
- *
- * Return the number of queues to allocate
- */
-static unsigned int ovpn_num_queues(void)
-{
-	return num_online_cpus();
-}
-
 static struct rtnl_link_ops ovpn_link_ops __read_mostly = {
 	.kind			= DRV_NAME,
 	.priv_size		= sizeof(struct ovpn_struct),
@@ -222,8 +209,6 @@ static struct rtnl_link_ops ovpn_link_ops __read_mostly = {
 	.maxtype		= IFLA_OVPN_MAX,
 	.newlink		= ovpn_newlink,
 	.dellink		= ovpn_dellink,
-	.get_num_tx_queues	= ovpn_num_queues,
-	.get_num_rx_queues	= ovpn_num_queues,
 };
 
 static int __init ovpn_init(void)
