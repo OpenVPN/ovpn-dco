@@ -7,8 +7,8 @@
  *		James Yonan <james@openvpn.net>
  */
 
-#ifndef _NET_OVPN_DCO_OVPNPKTID_H_
-#define _NET_OVPN_DCO_OVPNPKTID_H_
+#ifndef _NET_OVPN_OVPNPKTID_H_
+#define _NET_OVPN_OVPNPKTID_H_
 
 #include "main.h"
 
@@ -113,4 +113,4 @@ void ovpn_pktid_recv_init(struct ovpn_pktid_recv *pr);
 
 int ovpn_pktid_recv(struct ovpn_pktid_recv *pr, u32 pkt_id, u32 pkt_time);
 
-#endif /* _NET_OVPN_DCO_OVPNPKTID_H_ */
+#endif /* _NET_OVPN_OVPNPKTID_H_ */

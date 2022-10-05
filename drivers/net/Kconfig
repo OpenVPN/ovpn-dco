@@ -3,7 +3,7 @@
 #
 #  Author:	Antonio Quartulli <antonio@openvpn.net>
 
-config OVPN_DCO
+config OVPN
 	tristate "OpenVPN data channel offload"
 	depends on NET && INET
 	select NET_UDP_TUNNEL

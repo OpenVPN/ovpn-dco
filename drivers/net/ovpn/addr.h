@@ -7,8 +7,8 @@
  *		Antonio Quartulli <antonio@openvpn.net>
  */
 
-#ifndef _NET_OVPN_DCO_OVPNADDR_H_
-#define _NET_OVPN_DCO_OVPNADDR_H_
+#ifndef _NET_OVPN_OVPNADDR_H_
+#define _NET_OVPN_OVPNADDR_H_
 
 #include "crypto.h"
 
@@ -38,4 +38,4 @@ static inline unsigned short skb_protocol_to_family(const struct sk_buff *skb)
 	}
 }
 
-#endif /* _NET_OVPN_DCO_OVPNADDR_H_ */
+#endif /* _NET_OVPN_OVPNADDR_H_ */

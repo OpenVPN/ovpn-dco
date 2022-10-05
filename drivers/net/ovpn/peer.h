@@ -7,8 +7,8 @@
  *		Antonio Quartulli <antonio@openvpn.net>
  */
 
-#ifndef _NET_OVPN_DCO_OVPNPEER_H_
-#define _NET_OVPN_DCO_OVPNPEER_H_
+#ifndef _NET_OVPN_OVPNPEER_H_
+#define _NET_OVPN_OVPNPEER_H_
 
 #include "addr.h"
 #include "bind.h"
@@ -165,4 +165,4 @@ struct ovpn_peer *ovpn_peer_lookup_id(struct ovpn_struct *ovpn, u32 peer_id);
 void ovpn_peer_update_local_endpoint(struct ovpn_peer *peer, struct sk_buff *skb);
 void ovpn_peer_float(struct ovpn_peer *peer, struct sk_buff *skb);
 
-#endif /* _NET_OVPN_DCO_OVPNPEER_H_ */
+#endif /* _NET_OVPN_OVPNPEER_H_ */

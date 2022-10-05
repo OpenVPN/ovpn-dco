@@ -8,8 +8,8 @@
  *		Lev Stipakov <lev@openvpn.net>
  */
 
-#ifndef _NET_OVPN_DCO_OVPNSTATS_H_
-#define _NET_OVPN_DCO_OVPNSTATS_H_
+#ifndef _NET_OVPN_OVPNSTATS_H_
+#define _NET_OVPN_OVPNSTATS_H_
 
 #include <linux/atomic.h>
 #include <linux/jiffies.h>
@@ -64,4 +64,4 @@ static inline void ovpn_peer_stats_increment_tx(struct ovpn_peer_stats *stats, c
 	ovpn_peer_stats_increment(&stats->tx, n);
 }
 
-#endif /* _NET_OVPN_DCO_OVPNSTATS_H_ */
+#endif /* _NET_OVPN_OVPNSTATS_H_ */

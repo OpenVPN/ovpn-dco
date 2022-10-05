@@ -7,8 +7,8 @@
  *		Antonio Quartulli <antonio@openvpn.net>
  */
 
-#ifndef _NET_OVPN_DCO_SOCK_H_
-#define _NET_OVPN_DCO_SOCK_H_
+#ifndef _NET_OVPN_SOCK_H_
+#define _NET_OVPN_SOCK_H_
 
 #include <linux/net.h>
 #include <linux/kref.h>
@@ -19,7 +19,7 @@
 struct ovpn_struct;
 
 /**
- * struct ovpn_socket - a kernel socket referenced in the ovpn-dco code
+ * struct ovpn_socket - a kernel socket referenced in the ovpn code
  */
 struct ovpn_socket {
 	union {
@@ -51,4 +51,4 @@ static inline void ovpn_socket_put(struct ovpn_socket *sock)
 
 struct ovpn_socket *ovpn_socket_new(struct socket *sock, struct ovpn_peer *peer);
 
-#endif /* _NET_OVPN_DCO_SOCK_H_ */
+#endif /* _NET_OVPN_SOCK_H_ */

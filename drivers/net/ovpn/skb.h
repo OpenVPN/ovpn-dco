@@ -7,8 +7,8 @@
  *		James Yonan <james@openvpn.net>
  */
 
-#ifndef _NET_OVPN_DCO_SKB_H_
-#define _NET_OVPN_DCO_SKB_H_
+#ifndef _NET_OVPN_SKB_H_
+#define _NET_OVPN_SKB_H_
 
 #include <linux/in.h>
 #include <linux/in6.h>
@@ -51,4 +51,4 @@ static inline __be16 ovpn_ip_check_protocol(struct sk_buff *skb)
 	return proto;
 }
 
-#endif /* _NET_OVPN_DCO_SKB_H_ */
+#endif /* _NET_OVPN_SKB_H_ */

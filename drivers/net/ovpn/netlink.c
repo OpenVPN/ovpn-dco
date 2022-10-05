@@ -7,14 +7,14 @@
  */
 
 #include "main.h"
-#include "ovpn.h"
+#include "io.h"
 #include "peer.h"
 #include "proto.h"
 #include "netlink.h"
 #include "ovpnstruct.h"
 #include "udp.h"
 
-#include <uapi/linux/ovpn_dco.h>
+#include <uapi/linux/ovpn.h>
 
 #include <linux/netdevice.h>
 #include <linux/netlink.h>
@@ -26,7 +26,7 @@
 #include <uapi/linux/in.h>
 #include <uapi/linux/in6.h>
 
-/** The ovpn-dco netlink family */
+/** The ovpn netlink family */
 static struct genl_family ovpn_netlink_family;
 
 enum ovpn_netlink_multicast_groups {
@@ -390,9 +390,9 @@ static int ovpn_netlink_new_peer(struct sk_buff *skb, struct genl_info *info)
 	}
 
 	/* Only when using UDP as transport protocol the remote endpoint must be configured
-	 * so that ovpn-dco knows where to send packets to.
+	 * so that ovpn knows where to send packets to.
 	 *
-	 * In case of TCP, the socket is connected to the peer and ovpn-dco will just send bytes
+	 * In case of TCP, the socket is connected to the peer and ovpn will just send bytes
 	 * over it, without the need to specify a destination.
 	 */
 	if (sock->sk->sk_protocol == IPPROTO_UDP) {

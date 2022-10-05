@@ -7,12 +7,12 @@
  *		Antonio Quartulli <antonio@openvpn.net>
  */
 
-#ifndef _NET_OVPN_DCO_OVPNSTRUCT_H_
-#define _NET_OVPN_DCO_OVPNSTRUCT_H_
+#ifndef _NET_OVPN_OVPNSTRUCT_H_
+#define _NET_OVPN_OVPNSTRUCT_H_
 
 #include "peer.h"
 
-#include <uapi/linux/ovpn_dco.h>
+#include <uapi/linux/ovpn.h>
 #include <linux/spinlock.h>
 #include <linux/workqueue.h>
 
@@ -56,4 +56,4 @@ struct ovpn_struct {
 	bool registered_nl_portid_set;
 };
 
-#endif /* _NET_OVPN_DCO_OVPNSTRUCT_H_ */
+#endif /* _NET_OVPN_OVPNSTRUCT_H_ */

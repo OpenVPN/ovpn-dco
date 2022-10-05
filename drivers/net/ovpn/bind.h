@@ -5,8 +5,8 @@
  *  Author: James Yonan <james@openvpn.net>
  */
 
-#ifndef _NET_OVPN_DCO_OVPNBIND_H_
-#define _NET_OVPN_DCO_OVPNBIND_H_
+#ifndef _NET_OVPN_OVPNBIND_H_
+#define _NET_OVPN_OVPNBIND_H_
 
 #include "addr.h"
 #include "rcu.h"
@@ -64,4 +64,4 @@ static inline bool ovpn_bind_skb_src_match(const struct ovpn_bind *bind, struct 
 struct ovpn_bind *ovpn_bind_from_sockaddr(const struct sockaddr_storage *sa);
 void ovpn_bind_reset(struct ovpn_peer *peer, struct ovpn_bind *bind);
 
-#endif /* _NET_OVPN_DCO_OVPNBIND_H_ */
+#endif /* _NET_OVPN_OVPNBIND_H_ */

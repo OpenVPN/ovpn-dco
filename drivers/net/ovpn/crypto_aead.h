@@ -7,8 +7,8 @@
  *		Antonio Quartulli <antonio@openvpn.net>
  */
 
-#ifndef _NET_OVPN_DCO_OVPNAEAD_H_
-#define _NET_OVPN_DCO_OVPNAEAD_H_
+#ifndef _NET_OVPN_OVPNAEAD_H_
+#define _NET_OVPN_OVPNAEAD_H_
 
 #include "crypto.h"
 
@@ -24,4 +24,4 @@ int ovpn_aead_decrypt(struct ovpn_crypto_key_slot *ks, struct sk_buff *skb);
 struct ovpn_crypto_key_slot *ovpn_aead_crypto_key_slot_new(const struct ovpn_key_config *kc);
 void ovpn_aead_crypto_key_slot_destroy(struct ovpn_crypto_key_slot *ks);
 
-#endif /* _NET_OVPN_DCO_OVPNAEAD_H_ */
+#endif /* _NET_OVPN_OVPNAEAD_H_ */

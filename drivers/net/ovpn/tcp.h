@@ -6,8 +6,8 @@
  *  Author:	Antonio Quartulli <antonio@openvpn.net>
  */
 
-#ifndef _NET_OVPN_DCO_TCP_H_
-#define _NET_OVPN_DCO_TCP_H_
+#ifndef _NET_OVPN_TCP_H_
+#define _NET_OVPN_TCP_H_
 
 #include "peer.h"
 
@@ -35,4 +35,4 @@ static inline void ovpn_tcp_send_skb(struct ovpn_peer *peer, struct sk_buff *skb
 	ovpn_queue_tcp_skb(peer, skb);
 }
 
-#endif /* _NET_OVPN_DCO_TCP_H_ */
+#endif /* _NET_OVPN_TCP_H_ */

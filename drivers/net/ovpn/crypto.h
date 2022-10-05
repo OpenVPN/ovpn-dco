@@ -7,13 +7,13 @@
  *		Antonio Quartulli <antonio@openvpn.net>
  */
 
-#ifndef _NET_OVPN_DCO_OVPNCRYPTO_H_
-#define _NET_OVPN_DCO_OVPNCRYPTO_H_
+#ifndef _NET_OVPN_OVPNCRYPTO_H_
+#define _NET_OVPN_OVPNCRYPTO_H_
 
 #include "main.h"
 #include "pktid.h"
 
-#include <uapi/linux/ovpn_dco.h>
+#include <uapi/linux/ovpn.h>
 #include <linux/skbuff.h>
 
 struct ovpn_peer;
@@ -141,4 +141,4 @@ void ovpn_crypto_key_slots_swap(struct ovpn_crypto_state *cs);
 
 void ovpn_crypto_kill_primary(struct ovpn_crypto_state *cs);
 
-#endif /* _NET_OVPN_DCO_OVPNCRYPTO_H_ */
+#endif /* _NET_OVPN_OVPNCRYPTO_H_ */

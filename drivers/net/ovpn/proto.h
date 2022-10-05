@@ -7,8 +7,8 @@
  *		James Yonan <james@openvpn.net>
  */
 
-#ifndef _NET_OVPN_DCO_OVPNPROTO_H_
-#define _NET_OVPN_DCO_OVPNPROTO_H_
+#ifndef _NET_OVPN_OVPNPROTO_H_
+#define _NET_OVPN_OVPNPROTO_H_
 
 #include "main.h"
 
@@ -98,4 +98,4 @@ static inline u32 ovpn_opcode_compose(u8 opcode, u8 key_id, u32 peer_id)
 	return (op << 24) | (peer_id & OVPN_PEER_ID_MASK);
 }
 
-#endif /* _NET_OVPN_DCO_OVPNPROTO_H_ */
+#endif /* _NET_OVPN_OVPNPROTO_H_ */

@@ -8,7 +8,7 @@
 
 #include "main.h"
 #include "bind.h"
-#include "ovpn.h"
+#include "io.h"
 #include "ovpnstruct.h"
 #include "peer.h"
 #include "proto.h"

@@ -11,7 +11,7 @@
 #include "crypto_aead.h"
 #include "crypto.h"
 
-#include <uapi/linux/ovpn_dco.h>
+#include <uapi/linux/ovpn.h>
 
 static void ovpn_ks_destroy_rcu(struct rcu_head *head)
 {

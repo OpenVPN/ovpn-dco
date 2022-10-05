@@ -7,8 +7,8 @@
  *		Antonio Quartulli <antonio@openvpn.net>
  */
 
-#ifndef _NET_OVPN_DCO_OVPN_H_
-#define _NET_OVPN_DCO_OVPN_H_
+#ifndef _NET_OVPN_OVPN_H_
+#define _NET_OVPN_OVPN_H_
 
 #include "main.h"
 #include "peer.h"
@@ -40,4 +40,4 @@ int ovpn_napi_poll(struct napi_struct *napi, int budget);
 
 int ovpn_send_data(struct ovpn_struct *ovpn, u32 peer_id, const u8 *data, size_t len);
 
-#endif /* _NET_OVPN_DCO_OVPN_H_ */
+#endif /* _NET_OVPN_OVPN_H_ */

@@ -31,21 +31,21 @@ NOSTDINC_FLAGS += \
 #	-I$(PWD)/compat-include/
 
 ifneq ($(REVISION),)
-NOSTDINC_FLAGS += -DOVPN_DCO_VERSION=\"$(REVISION)\"
+NOSTDINC_FLAGS += -DOVPN_VERSION=\"$(REVISION)\"
 endif
 
 ifeq ($(DEBUG),1)
 NOSTDINC_FLAGS += -DDEBUG=1
 endif
 
-obj-y += drivers/net/ovpn-dco/
-export ovpn-dco-y
+obj-y += drivers/net/ovpn/
+export ovpn-y
 
 BUILD_FLAGS := \
 	M=$(PWD) \
 	PWD=$(PWD) \
 	REVISION=$(REVISION) \
-	CONFIG_OVPN_DCO=m \
+	CONFIG_OVPN=m \
 	INSTALL_MOD_DIR=updates/
 
 all: config

@@ -6,8 +6,8 @@
  *  Author:	Antonio Quartulli <antonio@openvpn.net>
  */
 
-#ifndef _NET_OVPN_DCO_UDP_H_
-#define _NET_OVPN_DCO_UDP_H_
+#ifndef _NET_OVPN_UDP_H_
+#define _NET_OVPN_UDP_H_
 
 #include "peer.h"
 #include "ovpnstruct.h"
@@ -22,4 +22,4 @@ void ovpn_udp_socket_detach(struct socket *sock);
 void ovpn_udp_send_skb(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 		       struct sk_buff *skb);
 
-#endif /* _NET_OVPN_DCO_UDP_H_ */
+#endif /* _NET_OVPN_UDP_H_ */

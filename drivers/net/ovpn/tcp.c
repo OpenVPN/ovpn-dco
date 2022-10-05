@@ -8,7 +8,7 @@
 
 #include "main.h"
 #include "ovpnstruct.h"
-#include "ovpn.h"
+#include "io.h"
 #include "peer.h"
 #include "skb.h"
 #include "tcp.h"

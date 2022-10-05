@@ -7,16 +7,16 @@
  *		Antonio Quartulli <antonio@openvpn.net>
  */
 
-#ifndef _NET_OVPN_DCO_MAIN_H_
-#define _NET_OVPN_DCO_MAIN_H_
+#ifndef _NET_OVPN_MAIN_H_
+#define _NET_OVPN_MAIN_H_
 
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 #include <linux/printk.h>
 #include <linux/udp.h>
 
-#ifndef OVPN_DCO_VERSION
-#define OVPN_DCO_VERSION "2.0.0"
+#ifndef OVPN_VERSION
+#define OVPN_VERSION "2.0.0"
 #endif
 
 /* Our UDP encapsulation types, must be unique
@@ -36,4 +36,4 @@ bool ovpn_dev_is_valid(const struct net_device *dev);
 #define OVPN_QUEUE_LEN 1024
 #define OVPN_MAX_TUN_QUEUE_LEN 0x10000
 
-#endif /* _NET_OVPN_DCO_OVPN_DCO_H_ */
+#endif /* _NET_OVPN_MAIN_H_ */

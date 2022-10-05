@@ -8,7 +8,7 @@
  */
 
 #include "main.h"
-#include "ovpn.h"
+#include "io.h"
 #include "peer.h"
 #include "sock.h"
 #include "rcu.h"

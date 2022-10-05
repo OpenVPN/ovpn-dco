@@ -7,7 +7,7 @@
  *		Antonio Quartulli <antonio@openvpn.net>
  */
 
-#include "ovpn.h"
+#include "io.h"
 #include "bind.h"
 #include "crypto.h"
 #include "peer.h"
