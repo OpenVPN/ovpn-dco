@@ -88,8 +88,8 @@ static struct ovpn_peer *ovpn_peer_create(struct ovpn_struct *ovpn, u32 id)
 	}
 
 	/* configure and start NAPI */
-	netif_tx_napi_add(ovpn->dev, &peer->napi, ovpn_napi_poll,
-			  NAPI_POLL_WEIGHT);
+	netif_napi_add_tx_weight(ovpn->dev, &peer->napi, ovpn_napi_poll,
+				 NAPI_POLL_WEIGHT);
 	napi_enable(&peer->napi);
 
 	dev_hold(ovpn->dev);

@@ -22,6 +22,16 @@
 #endif
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
+
+/**
+ * commit 58caed3dacb4 renamed to netif_napi_add_tx_weight,
+ * commit c3f760ef1287 removed netif_tx_napi_add
+ */
+#define netif_napi_add_tx_weight netif_tx_napi_add
+
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) */
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0) && !defined(EL8)
 
 #define dev_get_tstats64 ip_tunnel_get_stats64
