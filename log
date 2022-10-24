@@ -1,0 +1,26 @@
+In file included from /home/ordex/exp/ovpn_tech/dev/ovpn-dco/drivers/net/ovpn-dco/crypto.h:16,
+                 from /home/ordex/exp/ovpn_tech/dev/ovpn-dco/drivers/net/ovpn-dco/addr.h:11,
+                 from /home/ordex/exp/ovpn_tech/dev/ovpn-dco/drivers/net/ovpn-dco/peer.h:13,
+                 from /home/ordex/exp/ovpn_tech/dev/ovpn-dco/drivers/net/ovpn-dco/ovpn.h:14,
+                 from /home/ordex/exp/ovpn_tech/dev/ovpn-dco/drivers/net/ovpn-dco/main.c:12:
+/home/ordex/exp/ovpn_tech/dev/ovpn-dco/include/uapi/linux/ovpn_dco.h:98:1: error: expected ‘;’, identifier or ‘(’ before ‘enum’
+   98 | enum ovpn_netlink_key_dir_attrs {
+      | ^~~~
+/home/ordex/exp/ovpn_tech/dev/ovpn-dco/include/uapi/linux/ovpn_dco.h:137:2: error: expected ‘,’ or ‘}’ before ‘OVPN_NEW_PEER_ATTR_PROTO’
+  137 |  OVPN_NEW_PEER_ATTR_PROTO,
+      |  ^~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /home/ordex/exp/ovpn_tech/dev/ovpn-dco/drivers/net/ovpn-dco/ovpn.h:16,
+                 from /home/ordex/exp/ovpn_tech/dev/ovpn-dco/drivers/net/ovpn-dco/main.c:12:
+/home/ordex/exp/ovpn_tech/dev/ovpn-dco/drivers/net/ovpn-dco/ovpnstruct.h:41:27: error: expected identifier or ‘(’ before ‘default’
+   41 |   struct ovpn_peer __rcu *default;
+      |                           ^~~~~~~
+/home/ordex/exp/ovpn_tech/dev/ovpn-dco/drivers/net/ovpn-dco/ovpnstruct.h:42:2: warning: no semicolon at end of struct or union
+   42 |  } peers;
+      |  ^
+/home/ordex/exp/ovpn_tech/dev/ovpn-dco/drivers/net/ovpn-dco/ovpnstruct.h:45:17: error: field ‘mode’ has incomplete type
+   45 |  enum ovpn_mode mode;
+      |                 ^~~~
+make[3]: *** [scripts/Makefile.build:279: /home/ordex/exp/ovpn_tech/dev/ovpn-dco/drivers/net/ovpn-dco/main.o] Error 1
+make[2]: *** [scripts/Makefile.build:496: /home/ordex/exp/ovpn_tech/dev/ovpn-dco/drivers/net/ovpn-dco] Error 2
+make[1]: *** [Makefile:1805: /home/ordex/exp/ovpn_tech/dev/ovpn-dco] Error 2
+make: *** [Makefile:46: all] Error 2

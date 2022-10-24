@@ -1,0 +1,12 @@
+/home/ordex/exp/openvpn_dev/ovpn-dco/drivers/net/ovpn-dco/main.o
+/home/ordex/exp/openvpn_dev/ovpn-dco/drivers/net/ovpn-dco/bind.o
+/home/ordex/exp/openvpn_dev/ovpn-dco/drivers/net/ovpn-dco/crypto.o
+/home/ordex/exp/openvpn_dev/ovpn-dco/drivers/net/ovpn-dco/ovpn.o
+/home/ordex/exp/openvpn_dev/ovpn-dco/drivers/net/ovpn-dco/peer.o
+/home/ordex/exp/openvpn_dev/ovpn-dco/drivers/net/ovpn-dco/sock.o
+/home/ordex/exp/openvpn_dev/ovpn-dco/drivers/net/ovpn-dco/stats.o
+/home/ordex/exp/openvpn_dev/ovpn-dco/drivers/net/ovpn-dco/netlink.o
+/home/ordex/exp/openvpn_dev/ovpn-dco/drivers/net/ovpn-dco/crypto_aead.o
+/home/ordex/exp/openvpn_dev/ovpn-dco/drivers/net/ovpn-dco/pktid.o
+/home/ordex/exp/openvpn_dev/ovpn-dco/drivers/net/ovpn-dco/tcp.o
+/home/ordex/exp/openvpn_dev/ovpn-dco/drivers/net/ovpn-dco/udp.o

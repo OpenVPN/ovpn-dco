@@ -37,81 +37,45 @@ static const struct genl_multicast_group ovpn_netlink_mcgrps[] = {
 	[OVPN_MCGRP_PEERS] = { .name = OVPN_NL_MULTICAST_GROUP_PEERS },
 };
 
-/** Key direction policy. Can be used for configuring an encryption and a decryption key */
-static const struct nla_policy ovpn_netlink_policy_key_dir[OVPN_KEY_DIR_ATTR_MAX + 1] = {
-	[OVPN_KEY_DIR_ATTR_CIPHER_KEY] = NLA_POLICY_MAX_LEN(U8_MAX),
-	[OVPN_KEY_DIR_ATTR_NONCE_TAIL] = NLA_POLICY_EXACT_LEN(NONCE_TAIL_SIZE),
+/** KEYDIR policy. Can be used for configuring an encryption and a decryption key */
+static const struct nla_policy ovpn_nl_policy_keydir[NUM_OVPN_A_KEYDIR] = {
+	[OVPN_A_KEYDIR_CIPHER_KEY] = NLA_POLICY_MAX_LEN(U8_MAX),
+	[OVPN_A_KEYDIR_NONCE_TAIL] = NLA_POLICY_EXACT_LEN(NONCE_TAIL_SIZE),
 };
 
-/** CMD_NEW_KEY policy */
-static const struct nla_policy ovpn_netlink_policy_new_key[OVPN_NEW_KEY_ATTR_MAX + 1] = {
-	[OVPN_NEW_KEY_ATTR_PEER_ID] = { .type = NLA_U32 },
-	[OVPN_NEW_KEY_ATTR_KEY_SLOT] = NLA_POLICY_RANGE(NLA_U8, __OVPN_KEY_SLOT_FIRST,
-							__OVPN_KEY_SLOT_AFTER_LAST - 1),
-	[OVPN_NEW_KEY_ATTR_KEY_ID] = { .type = NLA_U8 },
-	[OVPN_NEW_KEY_ATTR_CIPHER_ALG] = { .type = NLA_U16 },
-	[OVPN_NEW_KEY_ATTR_ENCRYPT_KEY] = NLA_POLICY_NESTED(ovpn_netlink_policy_key_dir),
-	[OVPN_NEW_KEY_ATTR_DECRYPT_KEY] = NLA_POLICY_NESTED(ovpn_netlink_policy_key_dir),
+/** KEYCONF policy */
+static const struct nla_policy ovpn_nl_policy_keyconf[NUM_OVPN_A_KEYCONF] = {
+	[OVPN_A_KEYCONF_SLOT] = NLA_POLICY_RANGE(NLA_U8, __OVPN_KEY_SLOT_FIRST,
+						 NUM_OVPN_A_KEY_SLOT - 1),
+	[OVPN_A_KEYCONF_KEY_ID] = { .type = NLA_U8 },
+	[OVPN_A_KEYCONF_CIPHER_ALG] = { .type = NLA_U16 },
+	[OVPN_A_KEYCONF_ENCRYPT_DIR] = NLA_POLICY_NESTED(ovpn_netlink_policy_keydir),
+	[OVPN_A_KEYCONF_DECRYPT_DIR] = NLA_POLICY_NESTED(ovpn_netlink_policy_keydir),
 };
 
-/** CMD_DEL_KEY policy */
-static const struct nla_policy ovpn_netlink_policy_del_key[OVPN_DEL_KEY_ATTR_MAX + 1] = {
-	[OVPN_DEL_KEY_ATTR_PEER_ID] = { .type = NLA_U32 },
-	[OVPN_DEL_KEY_ATTR_KEY_SLOT] = NLA_POLICY_RANGE(NLA_U8, __OVPN_KEY_SLOT_FIRST,
-							__OVPN_KEY_SLOT_AFTER_LAST - 1),
-};
-
-/** CMD_SWAP_KEYS policy */
-static const struct nla_policy ovpn_netlink_policy_swap_keys[OVPN_SWAP_KEYS_ATTR_MAX + 1] = {
-	[OVPN_SWAP_KEYS_ATTR_PEER_ID] = { .type = NLA_U32 },
-};
-
-/** CMD_NEW_PEER policy */
-static const struct nla_policy ovpn_netlink_policy_new_peer[OVPN_NEW_PEER_ATTR_MAX + 1] = {
-	[OVPN_NEW_PEER_ATTR_PEER_ID] = { .type = NLA_U32 },
-	[OVPN_NEW_PEER_ATTR_SOCKADDR_REMOTE] = NLA_POLICY_MIN_LEN(sizeof(struct sockaddr)),
-	[OVPN_NEW_PEER_ATTR_SOCKET] = { .type = NLA_U32 },
-	[OVPN_NEW_PEER_ATTR_IPV4] = { .type = NLA_U32 },
-	[OVPN_NEW_PEER_ATTR_IPV6] = NLA_POLICY_EXACT_LEN(sizeof(struct in6_addr)),
-	[OVPN_NEW_PEER_ATTR_LOCAL_IP] = NLA_POLICY_MAX_LEN(sizeof(struct in6_addr)),
-};
-
-/** CMD_SET_PEER policy */
-static const struct nla_policy ovpn_netlink_policy_set_peer[OVPN_SET_PEER_ATTR_MAX + 1] = {
-	[OVPN_SET_PEER_ATTR_PEER_ID] = { .type = NLA_U32 },
-	[OVPN_SET_PEER_ATTR_KEEPALIVE_INTERVAL] = { .type = NLA_U32 },
-	[OVPN_SET_PEER_ATTR_KEEPALIVE_TIMEOUT] = { .type = NLA_U32 },
-};
-
-/** CMD_DEL_PEER policy */
-static const struct nla_policy ovpn_netlink_policy_del_peer[OVPN_DEL_PEER_ATTR_MAX + 1] = {
-	[OVPN_DEL_PEER_ATTR_REASON] = NLA_POLICY_RANGE(NLA_U8, __OVPN_DEL_PEER_REASON_FIRST,
-						       __OVPN_DEL_PEER_REASON_AFTER_LAST - 1),
-	[OVPN_DEL_PEER_ATTR_PEER_ID] = { .type = NLA_U32 },
-};
-
-/** CMD_GET_PEER policy */
-static const struct nla_policy ovpn_netlink_policy_get_peer[OVPN_GET_PEER_ATTR_MAX + 1] = {
-	[OVPN_GET_PEER_ATTR_PEER_ID] = { .type = NLA_U32 },
-};
-
-/** CMD_PACKET polocy */
-static const struct nla_policy ovpn_netlink_policy_packet[OVPN_PACKET_ATTR_MAX + 1] = {
-	[OVPN_PACKET_ATTR_PEER_ID] = { .type = NLA_U32 },
-	[OVPN_PACKET_ATTR_PACKET] = NLA_POLICY_MAX_LEN(U16_MAX),
+/** PEER policy */
+static const struct nla_policy ovpn_nl_policy_peer[NUM_OVPN_A_PEER] = {
+	[OVPN_A_PEER_ID] = { .type = NLA_U32 },
+	[OVPN_A_PEER_SOCKADDR_REMOTE] = NLA_POLICY_MIN_LEN(sizeof(struct sockaddr)),
+	[OVPN_A_PEER_SOCKET] = { .type = NLA_U32 },
+	[OVPN_A_PEER_IPV4] = { .type = NLA_U32 },
+	[OVPN_A_PEER_IPV6] = NLA_POLICY_EXACT_LEN(sizeof(struct in6_addr)),
+	[OVPN_A_PEER_LOCAL_IP] = NLA_POLICY_MAX_LEN(sizeof(struct in6_addr)),
+	[OVPN_A_PEER_LOCAL_PORT] = NLA_POLICY_MAX_LEN(sizeof(u16)),
+	[OVPN_A_PEER_KEEPALIVE_INTERVAL] = { .type = NLA_U32 },
+	[OVPN_A_PEER_KEEPALIVE_TIMEOUT] = { .type = NLA_U32 },
+	[OVPN_A_PEER_DEL_REASON] = NLA_POLICY_RANGE(NLA_U8, __OVPN_DEL_PEER_REASON_FIRST,
+						    NUM_OVPN_DEL_PEER_REASON - 1),
+	[OVPN_A_PEER_KEYCONF] = NLA_POLICY_NESTED(ovpn_nl_policy_keyconf),
+	[OVPN_A_PEER_RX_STATS] = NLA_POLICY_NESTED(ovpn_nl_policy_stats),
+	[OVPN_A_PEER_TX_STATS] = NLA_POLICY_NESTED(ovpn_nl_policy_stats),
 };
 
 /** Generic message container policy */
-static const struct nla_policy ovpn_netlink_policy[OVPN_ATTR_MAX + 1] = {
-	[OVPN_ATTR_IFINDEX] = { .type = NLA_U32 },
-	[OVPN_ATTR_NEW_PEER] = NLA_POLICY_NESTED(ovpn_netlink_policy_new_peer),
-	[OVPN_ATTR_SET_PEER] = NLA_POLICY_NESTED(ovpn_netlink_policy_set_peer),
-	[OVPN_ATTR_DEL_PEER] = NLA_POLICY_NESTED(ovpn_netlink_policy_del_peer),
-	[OVPN_ATTR_GET_PEER] = NLA_POLICY_NESTED(ovpn_netlink_policy_get_peer),
-	[OVPN_ATTR_NEW_KEY] = NLA_POLICY_NESTED(ovpn_netlink_policy_new_key),
-	[OVPN_ATTR_SWAP_KEYS] = NLA_POLICY_NESTED(ovpn_netlink_policy_swap_keys),
-	[OVPN_ATTR_DEL_KEY] = NLA_POLICY_NESTED(ovpn_netlink_policy_del_key),
-	[OVPN_ATTR_PACKET] = NLA_POLICY_NESTED(ovpn_netlink_policy_packet),
+static const struct nla_policy ovpn_nl_policy[NUM_OVPN_A] = {
+	[OVPN_A_IFINDEX] = { .type = NLA_U32 },
+	[OVPN_A_IFNAME] = { .type = NLA_U32 },
+	[OVPN_A_PEER] = NLA_POLICY_NESTED(ovpn_nl_policy_peer),
 };
 
 static struct net_device *
@@ -120,10 +84,10 @@ ovpn_get_dev_from_attrs(struct net *net, struct nlattr **attrs)
 	struct net_device *dev;
 	int ifindex;
 
-	if (!attrs[OVPN_ATTR_IFINDEX])
+	if (!attrs[OVPN_A_IFINDEX])
 		return ERR_PTR(-EINVAL);
 
-	ifindex = nla_get_u32(attrs[OVPN_ATTR_IFINDEX]);
+	ifindex = nla_get_u32(attrs[OVPN_A_IFINDEX]);
 
 	dev = dev_get_by_index(net, ifindex);
 	if (!dev)
@@ -153,6 +117,17 @@ static int ovpn_pre_doit(const struct genl_ops *ops, struct sk_buff *skb,
 {
 	struct net *net = genl_info_net(info);
 	struct net_device *dev;
+
+	/* the OVPN_CMD_NEW_IFACE command is different from the rest as it
+	 * just expects an IFNAME, while all the others expect an IFINDEX
+	 */
+	if (info->genlhdr.cmd == OVPN_CMD_NEW_IFACE) {
+		if (!info->attrs[OVPN_A_IFNAME]) {
+			GENL_SET_ERR_MSG(info, "no interface name specified");
+			return -EINVAL;
+		}
+		return 0;
+	}
 
 	dev = ovpn_get_dev_from_attrs(net, info->attrs);
 	if (IS_ERR(dev))
@@ -880,6 +855,59 @@ static int ovpn_netlink_packet(struct sk_buff *skb, struct genl_info *info)
 
 	return ovpn_send_data(ovpn, peer_id, packet, len);
 }
+
+static const struct nla_policy ovpn_policy[IFLA_OVPN_MAX + 1] = {
+	[IFLA_OVPN_MODE] = NLA_POLICY_RANGE(NLA_U8, __OVPN_MODE_FIRST,
+					    __OVPN_MODE_AFTER_LAST - 1),
+};
+
+static int ovpn_netlink_new_iface(struct sk_buff *skb, struct genl_info *info)
+{
+	struct nlattr *attrs[OVPN_ATTR_MAX + 1];
+	struct ovpn_struct *ovpn;
+	struct net_device *dev;
+	int ret;
+
+	if (!info->attrs[OVPN_IFNAME])
+		return -EINVAL;
+
+	dev = ovpn_iface_create(nla_data(info->attrs[OVPN_IFNAME]));
+	if (IS_ERR(dev))
+		return -PTR_ERR(dev);
+
+	ret = ovpn_struct_init(dev);
+	if (ret < 0)
+		return ret;
+
+	ovpn->mode = OVPN_MODE_P2P;
+	if (info->attrs[OVPN_MODE]) {
+		ovpn->mode = nla_get_u8(info->attrs[OVPN_MODE]);
+		netdev_dbg(dev, "%s: setting device (%s) mode: %u\n", __func__, dev->name,
+			   ovpn->mode);
+	}
+
+	return register_netdevice(dev);
+}
+
+static void ovpn_netlink_del_iface(struct sk_buff *skb, struct genl_info *info)
+{
+	struct nlattr *attrs[OVPN_ATTR_MAX + 1];
+	struct ovpn_struct *ovpn = info->user_ptr[0];
+
+	struct ovpn_struct *ovpn = netdev_priv(dev);
+
+	switch (ovpn->mode) {
+	case OVPN_MODE_P2P:
+		ovpn_peer_release_p2p(ovpn);
+		break;
+	default:
+		ovpn_peers_free(ovpn);
+		break;
+	}
+
+	unregister_netdevice_queue(dev, head);
+}
+
 
 static const struct genl_ops ovpn_netlink_ops[] = {
 	{

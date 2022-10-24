@@ -155,60 +155,10 @@ static void ovpn_setup(struct net_device *dev)
 	dev->needed_tailroom = OVPN_MAX_PADDING;
 }
 
-static const struct nla_policy ovpn_policy[IFLA_OVPN_MAX + 1] = {
-	[IFLA_OVPN_MODE] = NLA_POLICY_RANGE(NLA_U8, __OVPN_MODE_FIRST,
-					    __OVPN_MODE_AFTER_LAST - 1),
-};
-
-static int ovpn_newlink(struct net *src_net, struct net_device *dev, struct nlattr *tb[],
-			struct nlattr *data[], struct netlink_ext_ack *extack)
+struct net_device *ovpn_iface_create(const char *name)
 {
-	struct ovpn_struct *ovpn = netdev_priv(dev);
-	int ret;
-
-	ret = security_tun_dev_create();
-	if (ret < 0)
-		return ret;
-
-	ret = ovpn_struct_init(dev);
-	if (ret < 0)
-		return ret;
-
-	ovpn->mode = OVPN_MODE_P2P;
-	if (data && data[IFLA_OVPN_MODE]) {
-		ovpn->mode = nla_get_u8(data[IFLA_OVPN_MODE]);
-		netdev_dbg(dev, "%s: setting device (%s) mode: %u\n", __func__, dev->name,
-			   ovpn->mode);
-	}
-
-	return register_netdevice(dev);
+	return alloc_netdev(sizeof(struct ovpn_struct), name, NET_NAME_USER, ovpn_setup);
 }
-
-static void ovpn_dellink(struct net_device *dev, struct list_head *head)
-{
-	struct ovpn_struct *ovpn = netdev_priv(dev);
-
-	switch (ovpn->mode) {
-	case OVPN_MODE_P2P:
-		ovpn_peer_release_p2p(ovpn);
-		break;
-	default:
-		ovpn_peers_free(ovpn);
-		break;
-	}
-
-	unregister_netdevice_queue(dev, head);
-}
-
-static struct rtnl_link_ops ovpn_link_ops __read_mostly = {
-	.kind			= DRV_NAME,
-	.priv_size		= sizeof(struct ovpn_struct),
-	.setup			= ovpn_setup,
-	.policy			= ovpn_policy,
-	.maxtype		= IFLA_OVPN_MAX,
-	.newlink		= ovpn_newlink,
-	.dellink		= ovpn_dellink,
-};
 
 static int __init ovpn_init(void)
 {
@@ -216,31 +166,17 @@ static int __init ovpn_init(void)
 
 	pr_info("%s %s -- %s\n", DRV_DESCRIPTION, DRV_VERSION, DRV_COPYRIGHT);
 
-	/* init RTNL link ops */
-	err = rtnl_link_register(&ovpn_link_ops);
-	if (err) {
-		pr_err("ovpn: can't register RTNL link ops\n");
-		goto err;
-	}
-
 	err = ovpn_netlink_register();
 	if (err) {
-		pr_err("ovpn: can't register netlink family\n");
-		goto err_rtnl_unregister;
+		pr_err("ovpn: can't register netlink family: %d\n", err);
+		return err;
 	}
 
 	return 0;
-
-err_rtnl_unregister:
-	rtnl_link_unregister(&ovpn_link_ops);
-err:
-	pr_err("ovpn: initialization failed, error status=%d\n", err);
-	return err;
 }
 
 static __exit void ovpn_cleanup(void)
 {
-	rtnl_link_unregister(&ovpn_link_ops);
 	ovpn_netlink_unregister();
 	rcu_barrier(); /* because we use call_rcu */
 }
@@ -252,5 +188,4 @@ MODULE_DESCRIPTION(DRV_DESCRIPTION);
 MODULE_AUTHOR(DRV_COPYRIGHT);
 MODULE_LICENSE("GPL");
 MODULE_VERSION(DRV_VERSION);
-MODULE_ALIAS_RTNL_LINK(DRV_NAME);
 MODULE_ALIAS_GENL_FAMILY(OVPN_NL_NAME);

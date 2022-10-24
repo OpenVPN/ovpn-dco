@@ -19,6 +19,22 @@
 
 static void ovpn_tcp_state_change(struct sock *sk)
 {
+	struct ovpn_socket *sock;
+
+	/* as long as the socket is in established state, everything is fine */
+	if (inet_sk_state_load(sk) == TCP_ESTABLISHED)
+		return;
+
+	rcu_read_lock();
+	sock = rcu_dereference_sk_user_data(sk);
+	rcu_read_unlock();
+
+	if (!sock || !sock->peer)
+		return;
+
+	netdev_warn(sock->peer->ovpn->dev, "TCP connection to peer %d interrupted\n",
+		    sock->peer->id);
+	ovpn_peer_del(sock->peer, OVPN_DEL_PEER_REASON_TRANSPORT_ERROR);
 }
 
 static void ovpn_tcp_data_ready(struct sock *sk)

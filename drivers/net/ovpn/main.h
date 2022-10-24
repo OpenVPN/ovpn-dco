@@ -26,6 +26,7 @@
 
 struct net_device;
 bool ovpn_dev_is_valid(const struct net_device *dev);
+struct net_device *ovpn_iface_create(const char *name);
 
 #define SKB_HEADER_LEN                                       \
 	(max(sizeof(struct iphdr), sizeof(struct ipv6hdr)) + \

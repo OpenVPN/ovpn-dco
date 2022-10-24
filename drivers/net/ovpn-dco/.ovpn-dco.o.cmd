@@ -1,0 +1,1 @@
+cmd_/home/ordex/exp/openvpn_dev/ovpn-dco/drivers/net/ovpn-dco/ovpn-dco.o := ld -m elf_x86_64 -z noexecstack   -r -o /home/ordex/exp/openvpn_dev/ovpn-dco/drivers/net/ovpn-dco/ovpn-dco.o @/home/ordex/exp/openvpn_dev/ovpn-dco/drivers/net/ovpn-dco/ovpn-dco.mod 

@@ -1,0 +1,1 @@
+cmd_/home/ordex/exp/openvpn_dev/ovpn-dco/drivers/net/ovpn-dco/ovpn-dco.mod := printf '%s\n'   main.o bind.o crypto.o ovpn.o peer.o sock.o stats.o netlink.o crypto_aead.o pktid.o tcp.o udp.o | awk '!x[$$0]++ { print("/home/ordex/exp/openvpn_dev/ovpn-dco/drivers/net/ovpn-dco/"$$0) }' > /home/ordex/exp/openvpn_dev/ovpn-dco/drivers/net/ovpn-dco/ovpn-dco.mod
