@@ -963,8 +963,8 @@ int ovpn_netlink_notify_del_peer(struct ovpn_peer *peer)
 	void *hdr;
 	int ret;
 
-	netdev_info(peer->ovpn->dev, "%s: deleting peer with id %u, reason %d\n",
-		    peer->ovpn->dev->name, peer->id, peer->delete_reason);
+	netdev_info(peer->ovpn->dev, "deleting peer with id %u, reason %d\n",
+		    peer->id, peer->delete_reason);
 
 	msg = nlmsg_new(100, GFP_KERNEL);
 	if (!msg)
