@@ -19,6 +19,18 @@
 
 static void ovpn_tcp_state_change(struct sock *sk)
 {
+	struct ovpn_socket *sock;
+
+	rcu_read_lock();
+	sock = rcu_dereference_sk_user_data(sk);
+	rcu_read_unlock();
+
+	if (!sock || !sock->peer)
+		return;
+
+	/* notify userspace if the TCP connection was closed in a way or another */
+	if (sk->sk_state == TCP_CLOSE || sk->sk_state == TCP_CLOSE_WAIT)
+		ovpn_peer_del(sock->peer, OVPN_DEL_PEER_REASON_TRANSPORT_DISCONNECT);
 }
 
 static void ovpn_tcp_data_ready(struct sock *sk)
