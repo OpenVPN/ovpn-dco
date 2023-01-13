@@ -102,7 +102,8 @@ static int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 
 	ret = ovpn_recv(ovpn, peer, skb);
 	if (unlikely(ret < 0)) {
-		net_err_ratelimited("%s: cannot handle incoming packet: %d\n", __func__, ret);
+		net_err_ratelimited("%s: cannot handle incoming packet from peer %d: %d\n",
+				    __func__, peer->id, ret);
 		goto drop;
 	}
 
