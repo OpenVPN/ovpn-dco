@@ -704,20 +704,14 @@ err:
 	return ret;
 }
 
-static int ovpn_netlink_dump_done(struct netlink_callback *cb)
-{
-	struct ovpn_struct *ovpn = (struct ovpn_struct *)cb->args[0];
-
-	dev_put(ovpn->dev);
-	return 0;
-}
-
-static int ovpn_netlink_dump_prepare(struct netlink_callback *cb)
+static int ovpn_netlink_dump_peers(struct sk_buff *skb, struct netlink_callback *cb)
 {
 	struct net *netns = sock_net(cb->skb->sk);
 	struct nlattr **attrbuf;
+	struct ovpn_struct *ovpn;
 	struct net_device *dev;
-	int ret;
+	int ret, bkt, last_idx = cb->args[1], dumped = 0;
+	struct ovpn_peer *peer;
 
 	attrbuf = kcalloc(OVPN_ATTR_MAX + 1, sizeof(*attrbuf), GFP_KERNEL);
 	if (!attrbuf)
@@ -725,37 +719,19 @@ static int ovpn_netlink_dump_prepare(struct netlink_callback *cb)
 
 	ret = nlmsg_parse_deprecated(cb->nlh, GENL_HDRLEN, attrbuf, OVPN_ATTR_MAX,
 				     ovpn_netlink_policy, NULL);
-	if (ret < 0)
+	if (ret < 0) {
+		pr_err("ovpn: cannot parse incoming request in %s: %d\n", __func__, ret);
 		goto err;
+	}
 
 	dev = ovpn_get_dev_from_attrs(netns, attrbuf);
 	if (IS_ERR(dev)) {
 		ret = PTR_ERR(dev);
+		pr_err("ovpn: cannot retrieve device in %s: %d\n", __func__, ret);
 		goto err;
 	}
 
-	cb->args[0] = (long)netdev_priv(dev);
-	ret = 0;
-err:
-	kfree(attrbuf);
-	return ret;
-}
-
-static int ovpn_netlink_dump_peers(struct sk_buff *skb, struct netlink_callback *cb)
-{
-	struct ovpn_struct *ovpn = (struct ovpn_struct *)cb->args[0];
-	int ret, bkt, last_idx = cb->args[1], dumped = 0;
-	struct ovpn_peer *peer;
-
-	if (!ovpn) {
-		ret = ovpn_netlink_dump_prepare(cb);
-		if (ret < 0) {
-			netdev_dbg(ovpn->dev, "%s: cannot prepare for dump: %d\n", __func__, ret);
-			return ret;
-		}
-
-		ovpn = (struct ovpn_struct *)cb->args[0];
-	}
+	ovpn = netdev_priv(dev);
 
 	rcu_read_lock();
 	hash_for_each_rcu(ovpn->peers.by_id, bkt, peer, hash_entry_id) {
@@ -774,12 +750,16 @@ static int ovpn_netlink_dump_peers(struct sk_buff *skb, struct netlink_callback 
 	}
 	rcu_read_unlock();
 
+	dev_put(dev);
+
 	/* sum up peers dumped in this message, so that at the next invocation
 	 * we can continue from where we left
 	 */
 	cb->args[1] += dumped;
-
-	return skb->len;
+	ret = skb->len;
+err:
+	kfree(attrbuf);
+	return ret;
 }
 
 static int ovpn_netlink_del_peer(struct sk_buff *skb, struct genl_info *info)
@@ -881,61 +861,51 @@ static int ovpn_netlink_packet(struct sk_buff *skb, struct genl_info *info)
 	return ovpn_send_data(ovpn, peer_id, packet, len);
 }
 
-static const struct genl_ops ovpn_netlink_ops[] = {
+static const struct genl_small_ops ovpn_netlink_ops[] = {
 	{
 		.cmd = OVPN_CMD_NEW_PEER,
-		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
-		.flags = GENL_ADMIN_PERM,
+		.flags = GENL_ADMIN_PERM | GENL_CMD_CAP_DO,
 		.doit = ovpn_netlink_new_peer,
 	},
 	{
 		.cmd = OVPN_CMD_SET_PEER,
-		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
-		.flags = GENL_ADMIN_PERM,
+		.flags = GENL_ADMIN_PERM | GENL_CMD_CAP_DO,
 		.doit = ovpn_netlink_set_peer,
 	},
 	{
 		.cmd = OVPN_CMD_DEL_PEER,
-		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
-		.flags = GENL_ADMIN_PERM,
+		.flags = GENL_ADMIN_PERM | GENL_CMD_CAP_DO,
 		.doit = ovpn_netlink_del_peer,
 	},
 	{
 		.cmd = OVPN_CMD_GET_PEER,
-		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
-		.flags = GENL_ADMIN_PERM,
+		.flags = GENL_ADMIN_PERM | GENL_CMD_CAP_DO | GENL_CMD_CAP_DUMP,
 		.doit = ovpn_netlink_get_peer,
 		.dumpit = ovpn_netlink_dump_peers,
-		.done = ovpn_netlink_dump_done,
 	},
 	{
 		.cmd = OVPN_CMD_NEW_KEY,
-		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
-		.flags = GENL_ADMIN_PERM,
+		.flags = GENL_ADMIN_PERM | GENL_CMD_CAP_DO,
 		.doit = ovpn_netlink_new_key,
 	},
 	{
 		.cmd = OVPN_CMD_DEL_KEY,
-		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
-		.flags = GENL_ADMIN_PERM,
+		.flags = GENL_ADMIN_PERM | GENL_CMD_CAP_DO,
 		.doit = ovpn_netlink_del_key,
 	},
 	{
 		.cmd = OVPN_CMD_SWAP_KEYS,
-		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
-		.flags = GENL_ADMIN_PERM,
+		.flags = GENL_ADMIN_PERM | GENL_CMD_CAP_DO,
 		.doit = ovpn_netlink_swap_keys,
 	},
 	{
 		.cmd = OVPN_CMD_REGISTER_PACKET,
-		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
-		.flags = GENL_ADMIN_PERM,
+		.flags = GENL_ADMIN_PERM | GENL_CMD_CAP_DO,
 		.doit = ovpn_netlink_register_packet,
 	},
 	{
 		.cmd = OVPN_CMD_PACKET,
-		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
-		.flags = GENL_ADMIN_PERM,
+		.flags = GENL_ADMIN_PERM | GENL_CMD_CAP_DO,
 		.doit = ovpn_netlink_packet,
 	},
 };
@@ -950,8 +920,8 @@ static struct genl_family ovpn_netlink_family __ro_after_init = {
 	.pre_doit = ovpn_pre_doit,
 	.post_doit = ovpn_post_doit,
 	.module = THIS_MODULE,
-	.ops = ovpn_netlink_ops,
-	.n_ops = ARRAY_SIZE(ovpn_netlink_ops),
+	.small_ops = ovpn_netlink_ops,
+	.n_small_ops = ARRAY_SIZE(ovpn_netlink_ops),
 	.mcgrps = ovpn_netlink_mcgrps,
 	.n_mcgrps = ARRAY_SIZE(ovpn_netlink_mcgrps),
 };
