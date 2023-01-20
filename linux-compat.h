@@ -22,6 +22,12 @@
 #endif
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0)
+
+#define genl_split_ops genl_ops
+
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0) */
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
 
 /**

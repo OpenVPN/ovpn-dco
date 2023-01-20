@@ -148,7 +148,7 @@ err_put_dev:
  *
  * Return: 0 on success or negative error number in case of failure
  */
-static int ovpn_pre_doit(const struct genl_ops *ops, struct sk_buff *skb,
+static int ovpn_pre_doit(const struct genl_split_ops *ops, struct sk_buff *skb,
 			 struct genl_info *info)
 {
 	struct net *net = genl_info_net(info);
@@ -169,7 +169,7 @@ static int ovpn_pre_doit(const struct genl_ops *ops, struct sk_buff *skb,
  * @skb: Netlink message with request data
  * @info: receiver information
  */
-static void ovpn_post_doit(const struct genl_ops *ops, struct sk_buff *skb,
+static void ovpn_post_doit(const struct genl_split_ops *ops, struct sk_buff *skb,
 			   struct genl_info *info)
 {
 	struct ovpn_struct *ovpn;
