@@ -1097,12 +1097,16 @@ int __init ovpn_netlink_register(void)
 	int ret;
 
 	ret = genl_register_family(&ovpn_netlink_family);
-	if (ret)
+	if (ret) {
+		pr_err("ovpn: genl_register_family() failed: %d\n", ret);
 		return ret;
+	}
 
 	ret = netlink_register_notifier(&ovpn_netlink_notifier);
-	if (ret)
+	if (ret) {
+		pr_err("ovpn: netlink_register_notifier() failed: %d\n", ret);
 		goto err;
+	}
 
 	return 0;
 err:
