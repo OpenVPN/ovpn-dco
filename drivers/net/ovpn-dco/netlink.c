@@ -98,7 +98,7 @@ static const struct nla_policy ovpn_netlink_policy_get_peer[OVPN_GET_PEER_ATTR_M
 /** CMD_PACKET polocy */
 static const struct nla_policy ovpn_netlink_policy_packet[OVPN_PACKET_ATTR_MAX + 1] = {
 	[OVPN_PACKET_ATTR_PEER_ID] = { .type = NLA_U32 },
-	[OVPN_PACKET_ATTR_PACKET] = NLA_POLICY_MAX_LEN(U16_MAX),
+	[OVPN_PACKET_ATTR_PACKET] = NLA_POLICY_MAX_LEN(1024 * 4),
 };
 
 /** Generic message container policy */
