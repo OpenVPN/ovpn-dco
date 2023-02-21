@@ -150,23 +150,6 @@ int ovpn_napi_poll(struct napi_struct *napi, int budget)
 	return work_done;
 }
 
-static int ovpn_transport_to_userspace(struct ovpn_struct *ovpn, const struct ovpn_peer *peer,
-				       struct sk_buff *skb)
-{
-	int ret;
-
-	ret = skb_linearize(skb);
-	if (ret < 0)
-		return ret;
-
-	ret = ovpn_netlink_send_packet(ovpn, peer, skb->data, skb->len);
-	if (ret < 0)
-		return ret;
-
-	consume_skb(skb);
-	return 0;
-}
-
 /* Entry point for processing an incoming packet (in skb form)
  *
  * Enqueue the packet and schedule RX consumer.
@@ -177,25 +160,7 @@ static int ovpn_transport_to_userspace(struct ovpn_struct *ovpn, const struct ov
  */
 int ovpn_recv(struct ovpn_struct *ovpn, struct ovpn_peer *peer, struct sk_buff *skb)
 {
-	int ret;
-
-	/* At this point we know the packet is from a configured peer.
-	 * DATA_V2 packets are handled in kernel space, the rest goes to user space.
-	 *
-	 * Packets are sent to userspace via netlink API in order to be consistenbt across
-	 * UDP and TCP.
-	 */
-	if (unlikely(ovpn_opcode_from_skb(skb, 0) != OVPN_DATA_V2)) {
-		ret = ovpn_transport_to_userspace(ovpn, peer, skb);
-		if (ret < 0)
-			return ret;
-
-		ovpn_peer_put(peer);
-		return 0;
-	}
-
-	ret = ptr_ring_produce_bh(&peer->rx_ring, skb);
-	if (unlikely(ret < 0))
+	if (unlikely(ptr_ring_produce_bh(&peer->rx_ring, skb) < 0))
 		return -ENOSPC;
 
 	if (!queue_work(ovpn->crypto_wq, &peer->decrypt_work))
