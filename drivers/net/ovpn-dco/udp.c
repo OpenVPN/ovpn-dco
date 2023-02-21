@@ -97,6 +97,16 @@ static int ovpn_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 		}
 	}
 
+	/* At this point we know the packet is from a configured peer.
+	 * DATA_V2 packets are handled in kernel space, the rest goes to user space.
+	 *
+	 * Return 1 to instruct the stack to let the packet bubble up to userspace
+	 */
+	if (unlikely(opcode != OVPN_DATA_V2)) {
+		ovpn_peer_put(peer);
+		return 1;
+	}
+
 	/* pop off outer UDP header */
 	__skb_pull(skb, sizeof(struct udphdr));
 
