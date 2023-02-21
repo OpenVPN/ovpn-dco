@@ -288,7 +288,7 @@ void ovpn_udp_send_skb(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	/* get socket info */
 	sock = peer->sock->sock;
 	if (unlikely(!sock)) {
-		net_dbg_ratelimited("%s: no sock for remote peer\n", __func__);
+		net_warn_ratelimited("%s: no sock for remote peer\n", __func__);
 		goto out;
 	}
 
@@ -296,7 +296,7 @@ void ovpn_udp_send_skb(struct ovpn_struct *ovpn, struct ovpn_peer *peer,
 	/* get binding */
 	bind = rcu_dereference(peer->bind);
 	if (unlikely(!bind)) {
-		net_dbg_ratelimited("%s: no bind for remote peer\n", __func__);
+		net_warn_ratelimited("%s: no bind for remote peer\n", __func__);
 		goto out_unlock;
 	}
 

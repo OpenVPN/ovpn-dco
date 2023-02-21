@@ -291,7 +291,7 @@ static bool ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	/* get primary key to be used for encrypting data */
 	ks = ovpn_crypto_key_slot_primary(&peer->crypto);
 	if (unlikely(!ks)) {
-		net_info_ratelimited("%s: error while retrieving primary key slot\n", __func__);
+		net_warn_ratelimited("%s: error while retrieving primary key slot\n", __func__);
 		return false;
 	}
 
@@ -424,7 +424,7 @@ netdev_tx_t ovpn_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	/* verify IP header size in network packet */
 	proto = ovpn_ip_check_protocol(skb);
 	if (unlikely(!proto || skb->protocol != proto)) {
-		net_dbg_ratelimited("%s: dropping malformed payload packet\n",
+		net_err_ratelimited("%s: dropping malformed payload packet\n",
 				    dev->name);
 		goto drop;
 	}
@@ -433,7 +433,7 @@ netdev_tx_t ovpn_net_xmit(struct sk_buff *skb, struct net_device *dev)
 		segments = skb_gso_segment(skb, 0);
 		if (IS_ERR(segments)) {
 			ret = PTR_ERR(segments);
-			net_dbg_ratelimited("%s: cannot segment packet: %d\n", dev->name, ret);
+			net_err_ratelimited("%s: cannot segment packet: %d\n", dev->name, ret);
 			goto drop;
 		}
 
@@ -450,7 +450,7 @@ netdev_tx_t ovpn_net_xmit(struct sk_buff *skb, struct net_device *dev)
 		tmp = skb_share_check(curr, GFP_ATOMIC);
 		if (unlikely(!tmp)) {
 			kfree_skb_list(next);
-			net_dbg_ratelimited("%s: skb_share_check failed\n", dev->name);
+			net_err_ratelimited("%s: skb_share_check failed\n", dev->name);
 			goto drop_list;
 		}
 
