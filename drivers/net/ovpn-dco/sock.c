@@ -125,10 +125,20 @@ struct ovpn_socket *ovpn_socket_new(struct socket *sock, struct ovpn_peer *peer)
 	kref_init(&ovpn_sock->refcount);
 
 	/* TCP sockets are per-peer, therefore they are linked to their unique peer */
-	if (sock->sk->sk_protocol == IPPROTO_TCP)
+	if (sock->sk->sk_protocol == IPPROTO_TCP) {
 		ovpn_sock->peer = peer;
+		ret = ptr_ring_init(&ovpn_sock->recv_ring, OVPN_QUEUE_LEN, GFP_KERNEL);
+		if (ret < 0) {
+			netdev_err(peer->ovpn->dev, "%s: cannot allocate TCP recv ring\n",
+				   __func__);
+			goto err;
+		}
+	}
 
 	rcu_assign_sk_user_data(sock->sk, ovpn_sock);
 
 	return ovpn_sock;
+err:
+	kfree(ovpn_sock);
+	return ERR_PTR(ret);
 }

@@ -64,6 +64,7 @@ struct ovpn_peer {
 			void (*sk_state_change)(struct sock *sk);
 			void (*sk_data_ready)(struct sock *sk);
 			void (*sk_write_space)(struct sock *sk);
+			struct proto *prot;
 		} sk_cb;
 	} tcp;
 

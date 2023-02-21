@@ -10,12 +10,16 @@
 #include "ovpnstruct.h"
 #include "ovpn.h"
 #include "peer.h"
+#include "proto.h"
 #include "skb.h"
 #include "tcp.h"
 
 #include <linux/ptr_ring.h>
 #include <linux/skbuff.h>
+#include <net/tcp.h>
 #include <net/route.h>
+
+static struct proto ovpn_tcp_prot;
 
 static void ovpn_tcp_state_change(struct sock *sk)
 {
@@ -28,23 +32,139 @@ static void ovpn_tcp_state_change(struct sock *sk)
 	if (!sock || !sock->peer)
 		return;
 
+	sock->peer->tcp.sk_cb.sk_state_change(sk);
+
 	/* notify userspace if the TCP connection was closed in a way or another */
 	if (sk->sk_state == TCP_CLOSE || sk->sk_state == TCP_CLOSE_WAIT)
 		ovpn_peer_del(sock->peer, OVPN_DEL_PEER_REASON_TRANSPORT_DISCONNECT);
 }
 
-static void ovpn_tcp_data_ready(struct sock *sk)
+static int ovpn_tcp_read_sock(read_descriptor_t *desc, struct sk_buff *in_skb,
+			      unsigned int in_offset, size_t in_len)
 {
+	struct sock *sk = desc->arg.data;
 	struct ovpn_socket *sock;
+	struct ovpn_skb_cb *cb;
+	struct ovpn_peer *peer;
+	size_t chunk, copied = 0;
+	int status;
+	void *data;
+	u16 len;
 
 	rcu_read_lock();
 	sock = rcu_dereference_sk_user_data(sk);
 	rcu_read_unlock();
 
-	if (!sock || !sock->peer)
+	if (unlikely(!sock || !sock->peer)) {
+		desc->error = -EINVAL;
+		return 0;
+	}
+
+	peer = sock->peer;
+
+	while (in_len > 0) {
+		/* no skb allocated means that we have to read (or finish reading) the 2 bytes
+		 * prefix containing the actual packet size.
+		 */
+		if (!peer->tcp.skb) {
+			chunk = min_t(size_t, in_len, sizeof(u16) - peer->tcp.offset);
+			WARN_ON(skb_copy_bits(in_skb, in_offset,
+					      peer->tcp.raw_len + peer->tcp.offset, chunk) < 0);
+			peer->tcp.offset += chunk;
+
+			/* keep on reading until we got the whole packet size */
+			if (peer->tcp.offset != sizeof(u16))
+				goto next_read;
+
+			len = ntohs(*(__be16 *)peer->tcp.raw_len);
+			/* invalid packet length: this is a fatal TCP error */
+			if (!len || (len > 1500)) {
+				netdev_err(peer->ovpn->dev, "%s: received invalid packet length: %d\n",
+					   __func__, len);
+				desc->error = -EINVAL;
+				return 0;
+			}
+
+			/* add 2 bytes to allocated space (and immediately reserve them) for packet
+			 * length prepending, in case the skb has to be forwarded to userspace
+			 */
+			peer->tcp.skb = netdev_alloc_skb_ip_align(peer->ovpn->dev,
+								  len + sizeof(u16));
+			if (!peer->tcp.skb) {
+				desc->error = -ENOMEM;
+				return 0;
+			}
+			skb_reserve(peer->tcp.skb, sizeof(u16));
+
+			peer->tcp.offset = 0;
+			peer->tcp.data_len = len;
+		} else {
+			chunk = min_t(size_t, in_len, peer->tcp.data_len - peer->tcp.offset);
+
+			/* extend skb to accommodate the new chunk and copy it from the input skb */
+			data = skb_put(peer->tcp.skb, chunk);
+			WARN_ON(skb_copy_bits(in_skb, in_offset, data, chunk) < 0);
+			peer->tcp.offset += chunk;
+
+			/* keep on reading until we get the full packet */
+			if (peer->tcp.offset != peer->tcp.data_len)
+				goto next_read;
+
+			/* do not perform IP caching for TCP connections */
+			cb = OVPN_SKB_CB(peer->tcp.skb);
+			cb->sa_fam = AF_UNSPEC;
+
+			/* At this point we know the packet is from a configured peer.
+			 * DATA_V2 packets are handled in kernel space, the rest goes to user space.
+			 *
+			 * Queue skb for sending to userspace via recvmsg on the socket
+			 */
+			if (likely(ovpn_opcode_from_skb(peer->tcp.skb, 0) == OVPN_DATA_V2)) {
+				/* hold reference to peer as requird by ovpn_recv() */
+				ovpn_peer_hold(peer);
+				status = ovpn_recv(peer->ovpn, peer, peer->tcp.skb);
+			} else {
+				/* prepend skb with packet len. this way userspace can parse
+				 * the packet as if it just arrived from the remote endpoint
+				 */
+				void *raw_len = __skb_push(peer->tcp.skb, sizeof(u16));
+				memcpy(raw_len, peer->tcp.raw_len, sizeof(u16));
+
+				status = ptr_ring_produce_bh(&peer->sock->recv_ring, peer->tcp.skb);
+				if (likely(!status))
+					peer->tcp.sk_cb.sk_data_ready(sk);
+			}
+
+			/* skb not consumed - free it now */
+			if (unlikely(status < 0))
+				kfree_skb(peer->tcp.skb);
+
+			peer->tcp.skb = NULL;
+			peer->tcp.offset = 0;
+			peer->tcp.data_len = 0;
+		}
+next_read:
+		in_len -= chunk;
+		in_offset += chunk;
+		copied += chunk;
+	}
+
+	return copied;
+}
+
+static void ovpn_tcp_data_ready(struct sock *sk)
+{
+	struct socket *sock = sk->sk_socket;
+	read_descriptor_t desc;
+
+	if (unlikely(!sock || !sock->ops || !sock->ops->read_sock))
 		return;
 
-	queue_work(sock->peer->ovpn->events_wq, &sock->peer->tcp.rx_work);
+	desc.arg.data = sk;
+	desc.error = 0;
+	desc.count = 1;
+
+	sock->ops->read_sock(sk, &desc, ovpn_tcp_read_sock);
 }
 
 static void ovpn_tcp_write_space(struct sock *sk)
@@ -59,6 +179,101 @@ static void ovpn_tcp_write_space(struct sock *sk)
 		return;
 
 	queue_work(sock->peer->ovpn->events_wq, &sock->peer->tcp.tx_work);
+}
+
+static bool ovpn_tcp_sock_is_readable(
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0)
+				      const struct sock *sk
+#else
+				      struct sock *sk
+#endif
+				      )
+
+{
+	struct ovpn_socket *sock;
+
+	rcu_read_lock();
+	sock = rcu_dereference_sk_user_data(sk);
+	rcu_read_unlock();
+
+	if (!sock || !sock->peer)
+		return false;
+
+	return !ptr_ring_empty_bh(&sock->recv_ring);
+}
+
+static int ovpn_tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
+			    int noblock,
+#endif
+			    int flags, int *addr_len)
+{
+	DEFINE_WAIT_FUNC(wait, woken_wake_function);
+	int ret, chunk, copied = 0;
+	struct ovpn_socket *sock;
+	struct sk_buff *skb;
+	long timeo;
+
+	if (unlikely(flags & MSG_ERRQUEUE))
+		return sock_recv_errqueue(sk, msg, len, SOL_IP, IP_RECVERR);
+
+	lock_sock(sk);
+
+	timeo = sock_rcvtimeo(sk, flags & MSG_DONTWAIT);
+
+	rcu_read_lock();
+	sock = rcu_dereference_sk_user_data(sk);
+	rcu_read_unlock();
+
+	if (!sock || !sock->peer) {
+		ret = -EBADF;
+		goto unlock;
+	}
+
+	while (ptr_ring_empty_bh(&sock->recv_ring)) {
+		if (!timeo) {
+			ret = -EAGAIN;
+			goto unlock;
+		}
+
+		add_wait_queue(sk_sleep(sk), &wait);
+		sk_set_bit(SOCKWQ_ASYNC_WAITDATA, sk);
+		sk_wait_event(sk, &timeo, !ptr_ring_empty_bh(&sock->recv_ring), &wait);
+		sk_clear_bit(SOCKWQ_ASYNC_WAITDATA, sk);
+		remove_wait_queue(sk_sleep(sk), &wait);
+
+		/* take care of signals */
+		if (signal_pending(current)) {
+			ret = sock_intr_errno(timeo);
+			goto unlock;
+		}
+	}
+
+	while (len && (skb = __ptr_ring_peek(&sock->recv_ring))) {
+		chunk = min_t(size_t, len, skb->len);
+		ret = skb_copy_datagram_msg(skb, 0, msg, chunk);
+		if (ret < 0) {
+			pr_err("ovpn: cannot copy TCP data to userspace: %d\n", ret);
+			kfree_skb(skb);
+			goto unlock;
+		}
+
+		__skb_pull(skb, chunk);
+
+		if (!skb->len) {
+			/* skb was entirely consumed and can now be removed from the ring */
+			__ptr_ring_discard_one(&sock->recv_ring);
+			consume_skb(skb);
+		}
+
+		len -= chunk;
+		copied += chunk;
+	}
+	ret = copied;
+
+unlock:
+	release_sock(sk);
+	return ret ? : -EAGAIN;
 }
 
 static void ovpn_destroy_skb(void *skb)
@@ -88,6 +303,7 @@ void ovpn_tcp_socket_detach(struct socket *sock)
 	sock->sk->sk_state_change = peer->tcp.sk_cb.sk_state_change;
 	sock->sk->sk_data_ready = peer->tcp.sk_cb.sk_data_ready;
 	sock->sk->sk_write_space = peer->tcp.sk_cb.sk_write_space;
+	sock->sk->sk_prot = peer->tcp.sk_cb.prot;
 	rcu_assign_sk_user_data(sock->sk, NULL);
 	write_unlock_bh(&sock->sk->sk_callback_lock);
 
@@ -95,8 +311,8 @@ void ovpn_tcp_socket_detach(struct socket *sock)
 	 * re-armed
 	 */
 	cancel_work_sync(&peer->tcp.tx_work);
-	cancel_work_sync(&peer->tcp.rx_work);
 
+	ptr_ring_cleanup(&ovpn_sock->recv_ring, ovpn_destroy_skb);
 	ptr_ring_cleanup(&peer->tcp.tx_ring, ovpn_destroy_skb);
 }
 
@@ -167,96 +383,6 @@ static void ovpn_tcp_tx_work(struct work_struct *work)
 	}
 }
 
-static int ovpn_tcp_rx_one(struct ovpn_peer *peer)
-{
-	struct msghdr msg = { .msg_flags = MSG_DONTWAIT | MSG_NOSIGNAL };
-	struct ovpn_skb_cb *cb;
-	int status, ret;
-
-	/* no skb allocated means that we have to read (or finish reading) the 2 bytes prefix
-	 * containing the actual packet size.
-	 */
-	if (!peer->tcp.skb) {
-		struct kvec iv = {
-			.iov_base = peer->tcp.raw_len + peer->tcp.offset,
-			.iov_len = sizeof(u16) - peer->tcp.offset,
-		};
-
-		ret = kernel_recvmsg(peer->sock->sock, &msg, &iv, 1, iv.iov_len, msg.msg_flags);
-		if (ret <= 0)
-			return ret;
-
-		peer->tcp.offset += ret;
-		/* the entire packet size was read, prepare skb for reading data */
-		if (peer->tcp.offset == sizeof(u16)) {
-			u16 len = ntohs(*(__be16 *)peer->tcp.raw_len);
-			/* invalid packet length: this is a fatal TCP error */
-			if (!len) {
-				netdev_err(peer->ovpn->dev, "%s: received invalid packet length\n",
-					   __func__);
-				return -EINVAL;
-			}
-
-			peer->tcp.skb = netdev_alloc_skb_ip_align(peer->ovpn->dev, len);
-			peer->tcp.offset = 0;
-			peer->tcp.data_len = len;
-		}
-	} else {
-		struct kvec iv = {
-			.iov_base = peer->tcp.skb->data + peer->tcp.offset,
-			.iov_len = peer->tcp.data_len - peer->tcp.offset,
-		};
-
-		ret = kernel_recvmsg(peer->sock->sock, &msg, &iv, 1, iv.iov_len, msg.msg_flags);
-		if (ret <= 0)
-			return ret;
-
-		peer->tcp.offset += ret;
-		/* full packet received, send it up for processing */
-		if (peer->tcp.offset == peer->tcp.data_len) {
-			/* update the skb data structure with the amount of data written by
-			 * kernel_recvmsg()
-			 */
-			skb_put(peer->tcp.skb, peer->tcp.data_len);
-
-			/* do not perform IP caching for TCP connections */
-			cb = OVPN_SKB_CB(peer->tcp.skb);
-			cb->sa_fam = AF_UNSPEC;
-
-			/* hold reference to peer as requird by ovpn_recv() */
-			ovpn_peer_hold(peer);
-			status = ovpn_recv(peer->ovpn, peer, peer->tcp.skb);
-			/* skb not consumed - free it now */
-			if (unlikely(status < 0))
-				kfree_skb(peer->tcp.skb);
-
-			peer->tcp.skb = NULL;
-			peer->tcp.offset = 0;
-			peer->tcp.data_len = 0;
-		}
-	}
-
-	return ret;
-}
-
-static void ovpn_tcp_rx_work(struct work_struct *work)
-{
-	struct ovpn_peer *peer = container_of(work, struct ovpn_peer, tcp.rx_work);
-	int ret;
-
-	while (true) {
-		/* give a chance to be rescheduled if needed */
-		cond_resched();
-
-		ret = ovpn_tcp_rx_one(peer);
-		if (ret <= 0)
-			break;
-	}
-
-	if (ret < 0 && ret != -EAGAIN)
-		netdev_err(peer->ovpn->dev, "%s: TCP socket error: %d\n", __func__, ret);
-}
-
 /* Put packet into TCP TX queue and schedule a consumer */
 void ovpn_queue_tcp_skb(struct ovpn_peer *peer, struct sk_buff *skb)
 {
@@ -278,7 +404,6 @@ int ovpn_tcp_socket_attach(struct socket *sock, struct ovpn_peer *peer)
 	int ret;
 
 	INIT_WORK(&peer->tcp.tx_work, ovpn_tcp_tx_work);
-	INIT_WORK(&peer->tcp.rx_work, ovpn_tcp_rx_work);
 
 	ret = ptr_ring_init(&peer->tcp.tx_ring, OVPN_QUEUE_LEN, GFP_KERNEL);
 	if (ret < 0) {
@@ -321,11 +446,13 @@ int ovpn_tcp_socket_attach(struct socket *sock, struct ovpn_peer *peer)
 	peer->tcp.sk_cb.sk_state_change = sock->sk->sk_state_change;
 	peer->tcp.sk_cb.sk_data_ready = sock->sk->sk_data_ready;
 	peer->tcp.sk_cb.sk_write_space = sock->sk->sk_write_space;
+	peer->tcp.sk_cb.prot = sock->sk->sk_prot;
 
 	/* assign our static CBs */
 	sock->sk->sk_state_change = ovpn_tcp_state_change;
 	sock->sk->sk_data_ready = ovpn_tcp_data_ready;
 	sock->sk->sk_write_space = ovpn_tcp_write_space;
+	sock->sk->sk_prot = &ovpn_tcp_prot;
 
 	write_unlock_bh(&sock->sk->sk_callback_lock);
 
@@ -335,4 +462,25 @@ err:
 	ptr_ring_cleanup(&peer->tcp.tx_ring, NULL);
 
 	return ret;
+}
+
+int __init ovpn_tcp_init(void)
+{
+	/* We need to substitute the recvmsg and the sock_is_readable
+	 * callbacks in the sk_prot member of the sock object for TCP
+	 * sockets.
+	 *
+	 * However sock->sk_prot is a pointer to a static variable and
+	 * therefore we can't directly modify it, otherwise every socket
+	 * pointing to it will be affected.
+	 *
+	 * For this reason we create our own static copy and modify what
+	 * we need. Then we make sk_prot point to this copy
+	 * (in ovpn_tcp_socket_attach())
+	 */
+	ovpn_tcp_prot = tcp_prot;
+	ovpn_tcp_prot.recvmsg = ovpn_tcp_recvmsg;
+	ovpn_tcp_prot.sock_is_readable = ovpn_tcp_sock_is_readable;
+
+	return 0;
 }

@@ -12,6 +12,7 @@
 #include "ovpn.h"
 #include "ovpnstruct.h"
 #include "netlink.h"
+#include "tcp.h"
 
 #include <linux/ethtool.h>
 #include <linux/genetlink.h>
@@ -230,6 +231,12 @@ static int __init ovpn_init(void)
 	int err = 0;
 
 	pr_info("%s %s -- %s\n", DRV_DESCRIPTION, DRV_VERSION, DRV_COPYRIGHT);
+
+	err = ovpn_tcp_init();
+	if (err) {
+		pr_err("ovpn: can't initialize TCP subsystem\n");
+		goto err;
+	}
 
 	/* init RTNL link ops */
 	err = rtnl_link_register(&ovpn_link_ops);

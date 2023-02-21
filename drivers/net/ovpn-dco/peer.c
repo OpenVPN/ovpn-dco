@@ -285,10 +285,6 @@ struct ovpn_peer *ovpn_peer_new(struct ovpn_struct *ovpn, const struct sockaddr_
 		return ERR_PTR(-ENOTSOCK);
 	}
 
-	/* schedule initial TCP RX work only after having assigned peer->sock */
-	if (peer->sock->sock->sk->sk_protocol == IPPROTO_TCP)
-		queue_work(peer->ovpn->events_wq, &peer->tcp.rx_work);
-
 	return peer;
 }
 

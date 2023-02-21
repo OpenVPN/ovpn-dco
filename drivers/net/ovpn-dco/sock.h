@@ -12,6 +12,7 @@
 
 #include <linux/net.h>
 #include <linux/kref.h>
+#include <linux/ptr_ring.h>
 #include <net/sock.h>
 
 #include "peer.h"
@@ -26,8 +27,12 @@ struct ovpn_socket {
 		/** @ovpn: the VPN session object owning this socket (UDP only) */
 		struct ovpn_struct *ovpn;
 
-		/** @peer: the unique peer transmitting over this socket (TCP only) */
-		struct ovpn_peer *peer;
+		/* TCP only */
+		struct {
+			/** @peer: the unique peer transmitting over this socket (TCP only) */
+			struct ovpn_peer *peer;
+			struct ptr_ring recv_ring;
+		};
 	};
 
 	/** @sock: the kernel socket */

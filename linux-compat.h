@@ -38,6 +38,12 @@
 
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) */
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0)
+
+#define sock_is_readable stream_memory_read
+
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0) */
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0) && !defined(EL8)
 
 #define dev_get_tstats64 ip_tunnel_get_stats64

@@ -16,6 +16,9 @@
 #include <linux/types.h>
 #include <linux/workqueue.h>
 
+/* Initialize TCP static objects */
+int __init ovpn_tcp_init(void);
+
 void ovpn_queue_tcp_skb(struct ovpn_peer *peer, struct sk_buff *skb);
 
 int ovpn_tcp_socket_attach(struct socket *sock, struct ovpn_peer *peer);
