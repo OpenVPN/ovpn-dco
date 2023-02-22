@@ -11,7 +11,7 @@
 #ifndef _UAPI_LINUX_OVPN_DCO_H_
 #define _UAPI_LINUX_OVPN_DCO_H_
 
-#define OVPN_NL_NAME "ovpn-dco"
+#define OVPN_NL_NAME "ovpn-dco-v2"
 
 #define OVPN_NL_MULTICAST_GROUP_PEERS "peers"
 
