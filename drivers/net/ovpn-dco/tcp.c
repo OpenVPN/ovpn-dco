@@ -56,6 +56,7 @@ static int ovpn_tcp_read_sock(read_descriptor_t *desc, struct sk_buff *in_skb,
 	rcu_read_unlock();
 
 	if (unlikely(!sock || !sock->peer)) {
+		pr_err("ovpn: read_sock triggered for socket with no metadata\n");
 		desc->error = -EINVAL;
 		return 0;
 	}
@@ -82,7 +83,7 @@ static int ovpn_tcp_read_sock(read_descriptor_t *desc, struct sk_buff *in_skb,
 				netdev_err(peer->ovpn->dev, "%s: received invalid packet length: %d\n",
 					   __func__, len);
 				desc->error = -EINVAL;
-				return 0;
+				goto err;
 			}
 
 			/* add 2 bytes to allocated space (and immediately reserve them) for packet
@@ -92,7 +93,7 @@ static int ovpn_tcp_read_sock(read_descriptor_t *desc, struct sk_buff *in_skb,
 								  len + sizeof(u16));
 			if (!peer->tcp.skb) {
 				desc->error = -ENOMEM;
-				return 0;
+				goto err;
 			}
 			skb_reserve(peer->tcp.skb, sizeof(u16));
 
@@ -150,6 +151,10 @@ next_read:
 	}
 
 	return copied;
+err:
+	netdev_err(peer->ovpn->dev, "cannot process incoming TCP data: %d\n", desc->error);
+	ovpn_peer_del(peer, OVPN_DEL_PEER_REASON_TRANSPORT_ERROR);
+	return 0;
 }
 
 static void ovpn_tcp_data_ready(struct sock *sk)
