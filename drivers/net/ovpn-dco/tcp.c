@@ -78,7 +78,7 @@ static int ovpn_tcp_read_sock(read_descriptor_t *desc, struct sk_buff *in_skb,
 
 			len = ntohs(*(__be16 *)peer->tcp.raw_len);
 			/* invalid packet length: this is a fatal TCP error */
-			if (!len || (len > 1500)) {
+			if (!len) {
 				netdev_err(peer->ovpn->dev, "%s: received invalid packet length: %d\n",
 					   __func__, len);
 				desc->error = -EINVAL;
