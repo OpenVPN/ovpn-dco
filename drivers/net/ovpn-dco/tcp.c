@@ -222,8 +222,6 @@ static int ovpn_tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 	if (unlikely(flags & MSG_ERRQUEUE))
 		return sock_recv_errqueue(sk, msg, len, SOL_IP, IP_RECVERR);
 
-	lock_sock(sk);
-
 	timeo = sock_rcvtimeo(sk, flags & MSG_DONTWAIT);
 
 	rcu_read_lock();
@@ -236,6 +234,12 @@ static int ovpn_tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 	}
 
 	while (ptr_ring_empty_bh(&sock->recv_ring)) {
+		if (sk->sk_shutdown & RCV_SHUTDOWN)
+			return 0;
+
+		if (sock_flag(sk, SOCK_DONE))
+			return 0;
+
 		if (!timeo) {
 			ret = -EAGAIN;
 			goto unlock;
@@ -277,7 +281,6 @@ static int ovpn_tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 	ret = copied;
 
 unlock:
-	release_sock(sk);
 	return ret ? : -EAGAIN;
 }
 
