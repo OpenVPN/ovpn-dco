@@ -46,19 +46,6 @@ enum ovpn_nl_commands {
 	OVPN_CMD_DEL_KEY,
 
 	/**
-	 * @OVPN_CMD_REGISTER_PACKET: Register for specific packet types to be
-	 * forwarded to userspace
-	 */
-	OVPN_CMD_REGISTER_PACKET,
-
-	/**
-	 * @OVPN_CMD_PACKET: Send a packet from userspace to kernelspace. Also
-	 * used to send to userspace packets for which a process had registered
-	 * with OVPN_CMD_REGISTER_PACKET
-	 */
-	OVPN_CMD_PACKET,
-
-	/**
 	 * @OVPN_CMD_GET_PEER: Retrieve the status of a peer or all peers
 	 */
 	OVPN_CMD_GET_PEER,
@@ -105,7 +92,6 @@ enum ovpn_netlink_attrs {
 	OVPN_ATTR_NEW_KEY,
 	OVPN_ATTR_SWAP_KEYS,
 	OVPN_ATTR_DEL_KEY,
-	OVPN_ATTR_PACKET,
 	OVPN_ATTR_GET_PEER,
 
 	__OVPN_ATTR_AFTER_LAST,

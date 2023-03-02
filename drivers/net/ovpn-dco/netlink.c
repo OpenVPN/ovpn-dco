@@ -95,12 +95,6 @@ static const struct nla_policy ovpn_netlink_policy_get_peer[OVPN_GET_PEER_ATTR_M
 	[OVPN_GET_PEER_ATTR_PEER_ID] = { .type = NLA_U32 },
 };
 
-/** CMD_PACKET polocy */
-static const struct nla_policy ovpn_netlink_policy_packet[OVPN_PACKET_ATTR_MAX + 1] = {
-	[OVPN_PACKET_ATTR_PEER_ID] = { .type = NLA_U32 },
-	[OVPN_PACKET_ATTR_PACKET] = NLA_POLICY_MAX_LEN(1024 * 4),
-};
-
 /** Generic message container policy */
 static const struct nla_policy ovpn_netlink_policy[OVPN_ATTR_MAX + 1] = {
 	[OVPN_ATTR_IFINDEX] = { .type = NLA_U32 },
@@ -111,7 +105,6 @@ static const struct nla_policy ovpn_netlink_policy[OVPN_ATTR_MAX + 1] = {
 	[OVPN_ATTR_NEW_KEY] = NLA_POLICY_NESTED(ovpn_netlink_policy_new_key),
 	[OVPN_ATTR_SWAP_KEYS] = NLA_POLICY_NESTED(ovpn_netlink_policy_swap_keys),
 	[OVPN_ATTR_DEL_KEY] = NLA_POLICY_NESTED(ovpn_netlink_policy_del_key),
-	[OVPN_ATTR_PACKET] = NLA_POLICY_NESTED(ovpn_netlink_policy_packet),
 };
 
 static struct net_device *
@@ -794,73 +787,6 @@ static int ovpn_netlink_del_peer(struct sk_buff *skb, struct genl_info *info)
 	return ret;
 }
 
-static int ovpn_netlink_register_packet(struct sk_buff *skb,
-					struct genl_info *info)
-{
-	struct ovpn_struct *ovpn = info->user_ptr[0];
-
-	/* only one registered process per interface is allowed for now */
-	if (ovpn->registered_nl_portid_set) {
-		netdev_dbg(ovpn->dev, "%s: userspace listener already registered\n", __func__);
-		return -EBUSY;
-	}
-
-	netdev_dbg(ovpn->dev, "%s: registering userspace at %u\n", __func__, info->snd_portid);
-
-	ovpn->registered_nl_portid = info->snd_portid;
-	ovpn->registered_nl_portid_set = true;
-
-	return 0;
-}
-
-static int ovpn_netlink_packet(struct sk_buff *skb, struct genl_info *info)
-{
-	struct nlattr *attrs[OVPN_PACKET_ATTR_MAX + 1];
-	struct ovpn_struct *ovpn = info->user_ptr[0];
-	const u8 *packet;
-	u32 peer_id;
-	size_t len;
-	u8 opcode;
-	int ret;
-
-	if (!info->attrs[OVPN_ATTR_PACKET])
-		return -EINVAL;
-
-	ret = nla_parse_nested(attrs, OVPN_PACKET_ATTR_MAX, info->attrs[OVPN_ATTR_PACKET],
-			       NULL, info->extack);
-	if (ret)
-		return ret;
-
-	if (!attrs[OVPN_PACKET_ATTR_PACKET] || !attrs[OVPN_PACKET_ATTR_PEER_ID]) {
-		netdev_dbg(ovpn->dev, "received netlink packet with no payload\n");
-		return -EINVAL;
-	}
-
-	peer_id = nla_get_u32(attrs[OVPN_PACKET_ATTR_PEER_ID]);
-
-	len = nla_len(attrs[OVPN_PACKET_ATTR_PACKET]);
-
-	if (len < 4 || len > ovpn->dev->mtu) {
-		netdev_dbg(ovpn->dev, "%s: invalid packet size %zu (min is 4, max is MTU: %u)\n",
-			   __func__, len, ovpn->dev->mtu);
-		return -EINVAL;
-	}
-
-	packet = nla_data(attrs[OVPN_PACKET_ATTR_PACKET]);
-	opcode = ovpn_opcode_from_byte(packet[0]);
-
-	/* reject data packets from userspace as they could lead to IV reuse */
-	if (opcode == OVPN_DATA_V1 || opcode == OVPN_DATA_V2) {
-		netdev_dbg(ovpn->dev, "%s: rejecting data packet from userspace (opcode=%u)\n",
-			   __func__, opcode);
-		return -EINVAL;
-	}
-
-	netdev_dbg(ovpn->dev, "%s: sending userspace packet to peer %u...\n", __func__, peer_id);
-
-	return ovpn_send_data(ovpn, peer_id, packet, len);
-}
-
 static const struct genl_small_ops ovpn_netlink_ops[] = {
 	{
 		.cmd = OVPN_CMD_NEW_PEER,
@@ -897,16 +823,6 @@ static const struct genl_small_ops ovpn_netlink_ops[] = {
 		.cmd = OVPN_CMD_SWAP_KEYS,
 		.flags = GENL_ADMIN_PERM | GENL_CMD_CAP_DO,
 		.doit = ovpn_netlink_swap_keys,
-	},
-	{
-		.cmd = OVPN_CMD_REGISTER_PACKET,
-		.flags = GENL_ADMIN_PERM | GENL_CMD_CAP_DO,
-		.doit = ovpn_netlink_register_packet,
-	},
-	{
-		.cmd = OVPN_CMD_PACKET,
-		.flags = GENL_ADMIN_PERM | GENL_CMD_CAP_DO,
-		.doit = ovpn_netlink_packet,
 	},
 };
 
@@ -976,65 +892,6 @@ int ovpn_netlink_notify_del_peer(struct ovpn_peer *peer)
 				msg, 0, OVPN_MCGRP_PEERS, GFP_KERNEL);
 
 	return 0;
-
-err_free_msg:
-	nlmsg_free(msg);
-	return ret;
-}
-
-int ovpn_netlink_send_packet(struct ovpn_struct *ovpn, const struct ovpn_peer *peer,
-			     const u8 *buf, size_t len)
-{
-	struct nlattr *attr;
-	struct sk_buff *msg;
-	void *hdr;
-	int ret;
-
-	if (!ovpn->registered_nl_portid_set) {
-		net_warn_ratelimited("%s: no userspace listener\n", __func__);
-		return 0;
-	}
-
-	netdev_dbg(ovpn->dev, "%s: sending packet to userspace, len: %zd\n", __func__, len);
-
-	msg = nlmsg_new(100 + len, GFP_ATOMIC);
-	if (!msg)
-		return -ENOMEM;
-
-	hdr = genlmsg_put(msg, 0, 0, &ovpn_netlink_family, 0,
-			  OVPN_CMD_PACKET);
-	if (!hdr) {
-		ret = -ENOBUFS;
-		goto err_free_msg;
-	}
-
-	if (nla_put_u32(msg, OVPN_ATTR_IFINDEX, ovpn->dev->ifindex)) {
-		ret = -EMSGSIZE;
-		goto err_free_msg;
-	}
-
-	attr = nla_nest_start(msg, OVPN_ATTR_PACKET);
-	if (!attr) {
-		ret = -EMSGSIZE;
-		goto err_free_msg;
-	}
-
-	if (nla_put(msg, OVPN_PACKET_ATTR_PACKET, len, buf)) {
-		ret = -EMSGSIZE;
-		goto err_free_msg;
-	}
-
-	if (nla_put_u32(msg, OVPN_PACKET_ATTR_PEER_ID, peer->id)) {
-		ret = -EMSGSIZE;
-		goto err_free_msg;
-	}
-
-	nla_nest_end(msg, attr);
-
-	genlmsg_end(msg, hdr);
-
-	return genlmsg_unicast(dev_net(ovpn->dev), msg,
-			       ovpn->registered_nl_portid);
 
 err_free_msg:
 	nlmsg_free(msg);
