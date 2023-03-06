@@ -3,8 +3,8 @@
 #
 #  Author:	Antonio Quartulli <antonio@openvpn.net>
 
-config OVPN_DCO
-	tristate "OpenVPN data channel offload"
+config OVPN_DCO_V2
+	tristate "OpenVPN data channel offload (reloaded)"
 	depends on NET && INET
 	select NET_UDP_TUNNEL
 	select DST_CACHE

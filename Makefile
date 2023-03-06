@@ -39,13 +39,13 @@ NOSTDINC_FLAGS += -DDEBUG=1
 endif
 
 obj-y += drivers/net/ovpn-dco/
-export ovpn-dco-y
+export ovpn-dco-v2-y
 
 BUILD_FLAGS := \
 	M=$(PWD) \
 	PWD=$(PWD) \
 	REVISION=$(REVISION) \
-	CONFIG_OVPN_DCO=m \
+	CONFIG_OVPN_DCO_V2=m \
 	INSTALL_MOD_DIR=updates/
 
 all: config
