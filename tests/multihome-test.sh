@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-2.0
-# Copyright (C) 2021-2022 OpenVPN, Inc.
+# Copyright (C) 2021-2023 OpenVPN, Inc.
 #
 #  Author:	Antonio Quartulli <antonio@openvpn.net>
 
