@@ -21,24 +21,6 @@
 
 static struct proto ovpn_tcp_prot;
 
-static void ovpn_tcp_state_change(struct sock *sk)
-{
-	struct ovpn_socket *sock;
-
-	rcu_read_lock();
-	sock = rcu_dereference_sk_user_data(sk);
-	rcu_read_unlock();
-
-	if (!sock || !sock->peer)
-		return;
-
-	sock->peer->tcp.sk_cb.sk_state_change(sk);
-
-	/* notify userspace if the TCP connection was closed in a way or another */
-	if (sk->sk_state == TCP_CLOSE || sk->sk_state == TCP_CLOSE_WAIT)
-		ovpn_peer_del(sock->peer, OVPN_DEL_PEER_REASON_TRANSPORT_DISCONNECT);
-}
-
 static int ovpn_tcp_read_sock(read_descriptor_t *desc, struct sk_buff *in_skb,
 			      unsigned int in_offset, size_t in_len)
 {
@@ -308,7 +290,6 @@ void ovpn_tcp_socket_detach(struct socket *sock)
 
 	/* restore CBs that were saved in ovpn_sock_set_tcp_cb() */
 	write_lock_bh(&sock->sk->sk_callback_lock);
-	sock->sk->sk_state_change = peer->tcp.sk_cb.sk_state_change;
 	sock->sk->sk_data_ready = peer->tcp.sk_cb.sk_data_ready;
 	sock->sk->sk_write_space = peer->tcp.sk_cb.sk_write_space;
 	sock->sk->sk_prot = peer->tcp.sk_cb.prot;
@@ -451,13 +432,11 @@ int ovpn_tcp_socket_attach(struct socket *sock, struct ovpn_peer *peer)
 	}
 
 	/* save current CBs so that they can be restored upon socket release */
-	peer->tcp.sk_cb.sk_state_change = sock->sk->sk_state_change;
 	peer->tcp.sk_cb.sk_data_ready = sock->sk->sk_data_ready;
 	peer->tcp.sk_cb.sk_write_space = sock->sk->sk_write_space;
 	peer->tcp.sk_cb.prot = sock->sk->sk_prot;
 
 	/* assign our static CBs */
-	sock->sk->sk_state_change = ovpn_tcp_state_change;
 	sock->sk->sk_data_ready = ovpn_tcp_data_ready;
 	sock->sk->sk_write_space = ovpn_tcp_write_space;
 	sock->sk->sk_prot = &ovpn_tcp_prot;
