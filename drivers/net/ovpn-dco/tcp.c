@@ -423,14 +423,14 @@ int ovpn_tcp_socket_attach(struct socket *sock, struct ovpn_peer *peer)
 
 	/* sanity check */
 	if (sock->sk->sk_protocol != IPPROTO_TCP) {
-		netdev_err(peer->ovpn->dev, "expected TCP socket\n");
+		netdev_err(peer->ovpn->dev, "provided socket is UDP but expected TCP\n");
 		ret = -EINVAL;
 		goto err;
 	}
 
 	/* only a fully connected socket are expected. Connection should be handled in userspace */
 	if (sock->sk->sk_state != TCP_ESTABLISHED) {
-		netdev_err(peer->ovpn->dev, "unexpected state for TCP socket: %d\n",
+		netdev_err(peer->ovpn->dev, "provided TCP socket is not in ESTABLISHED state: %d\n",
 			   sock->sk->sk_state);
 		ret = -EINVAL;
 		goto err;
