@@ -119,7 +119,7 @@ static void tun_netdev_write(struct ovpn_peer *peer, struct sk_buff *skb)
 	/* update per-cpu RX stats with the stored size of encrypted packet */
 
 	/* we are in softirq context - hence no locking nor disable preemption needed */
-	dev_sw_netstats_rx_add(peer->ovpn->dev, OVPN_SKB_CB(skb)->rx_stats_size);
+	dev_sw_netstats_rx_add(peer->ovpn->dev, skb->len);
 
 	/* cause packet to be "received" by tun interface */
 	napi_gro_receive(&peer->napi, skb);
@@ -173,13 +173,11 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 {
 	struct ovpn_peer *allowed_peer = NULL;
 	struct ovpn_crypto_key_slot *ks;
-	unsigned int rx_stats_size;
 	__be16 proto;
 	int ret = -1;
 	u8 key_id;
 
-	/* save original packet size for stats accounting */
-	OVPN_SKB_CB(skb)->rx_stats_size = skb->len;
+	ovpn_peer_stats_increment_rx(&peer->link_stats, skb->len);
 
 	/* get the key slot matching the key Id in the received packet */
 	key_id = ovpn_key_id_from_skb(skb);
@@ -209,8 +207,7 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 		ovpn_peer_update_local_endpoint(peer, skb);
 
 	/* increment RX stats */
-	rx_stats_size = OVPN_SKB_CB(skb)->rx_stats_size;
-	ovpn_peer_stats_increment_rx(&peer->stats, rx_stats_size);
+	ovpn_peer_stats_increment_rx(&peer->vpn_stats, skb->len);
 
 	/* check if this is a valid datapacket that has to be delivered to the
 	 * tun interface
@@ -301,7 +298,7 @@ static bool ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 		goto err;
 	}
 
-	ovpn_peer_stats_increment_tx(&peer->stats, skb->len);
+	ovpn_peer_stats_increment_tx(&peer->vpn_stats, skb->len);
 
 	/* encrypt */
 	ret = ovpn_aead_encrypt(ks, skb, peer->id);
@@ -319,6 +316,8 @@ static bool ovpn_encrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	}
 
 	success = true;
+
+	ovpn_peer_stats_increment_tx(&peer->link_stats, skb->len);
 err:
 	ovpn_crypto_key_slot_put(ks);
 	return success;

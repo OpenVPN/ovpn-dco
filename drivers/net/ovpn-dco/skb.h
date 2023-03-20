@@ -20,9 +20,6 @@
 #define OVPN_SKB_CB(skb) ((struct ovpn_skb_cb *)&((skb)->cb))
 
 struct ovpn_skb_cb {
-	/* original recv packet size for stats accounting */
-	unsigned int rx_stats_size;
-
 	union {
 		struct in_addr ipv4;
 		struct in6_addr ipv6;

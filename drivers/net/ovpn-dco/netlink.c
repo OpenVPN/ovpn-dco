@@ -631,18 +631,30 @@ static int ovpn_netlink_send_peer(struct sk_buff *skb, const struct ovpn_peer *p
 
 	if (nla_put_net16(skb, OVPN_GET_PEER_RESP_ATTR_LOCAL_PORT,
 			  inet_sk(peer->sock->sock->sk)->inet_sport) ||
-	    /* RX stats */
-	    nla_put_u64_64bit(skb, OVPN_GET_PEER_RESP_ATTR_RX_BYTES,
-			      atomic64_read(&peer->stats.rx.bytes),
+	    /* VPN RX stats */
+	    nla_put_u64_64bit(skb, OVPN_GET_PEER_RESP_ATTR_VPN_RX_BYTES,
+			      atomic64_read(&peer->vpn_stats.rx.bytes),
 			      OVPN_GET_PEER_RESP_ATTR_UNSPEC) ||
-	    nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_RX_PACKETS,
-			atomic_read(&peer->stats.rx.packets)) ||
-	    /* TX stats */
-	    nla_put_u64_64bit(skb, OVPN_GET_PEER_RESP_ATTR_TX_BYTES,
-			      atomic64_read(&peer->stats.tx.bytes),
+	    nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_VPN_RX_PACKETS,
+			atomic_read(&peer->vpn_stats.rx.packets)) ||
+	    /* VPN TX stats */
+	    nla_put_u64_64bit(skb, OVPN_GET_PEER_RESP_ATTR_VPN_TX_BYTES,
+			      atomic64_read(&peer->vpn_stats.tx.bytes),
 			      OVPN_GET_PEER_RESP_ATTR_UNSPEC) ||
-	    nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_TX_PACKETS,
-			atomic_read(&peer->stats.tx.packets)))
+	    nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_VPN_TX_PACKETS,
+			atomic_read(&peer->vpn_stats.tx.packets)) ||
+	    /* link RX stats */
+	    nla_put_u64_64bit(skb, OVPN_GET_PEER_RESP_ATTR_LINK_RX_BYTES,
+			      atomic64_read(&peer->link_stats.rx.bytes),
+			      OVPN_GET_PEER_RESP_ATTR_UNSPEC) ||
+	    nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_LINK_RX_PACKETS,
+			atomic_read(&peer->link_stats.rx.packets)) ||
+	    /* link TX stats */
+	    nla_put_u64_64bit(skb, OVPN_GET_PEER_RESP_ATTR_LINK_TX_BYTES,
+			      atomic64_read(&peer->link_stats.tx.bytes),
+			      OVPN_GET_PEER_RESP_ATTR_UNSPEC) ||
+	    nla_put_u32(skb, OVPN_GET_PEER_RESP_ATTR_LINK_TX_PACKETS,
+			atomic_read(&peer->link_stats.tx.packets)))
 		goto err;
 
 	nla_nest_end(skb, attr);
