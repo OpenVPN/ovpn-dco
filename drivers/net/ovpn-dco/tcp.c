@@ -196,15 +196,15 @@ static int ovpn_tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 			    int flags, int *addr_len)
 {
 	bool tmp = flags & MSG_DONTWAIT;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
-	tmp = noblock;
-#endif
-
 	DEFINE_WAIT_FUNC(wait, woken_wake_function);
 	int ret, chunk, copied = 0;
 	struct ovpn_socket *sock;
 	struct sk_buff *skb;
 	long timeo;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
+	tmp = noblock;
+#endif
 
 	if (unlikely(flags & MSG_ERRQUEUE))
 		return sock_recv_errqueue(sk, msg, len, SOL_IP, IP_RECVERR);
