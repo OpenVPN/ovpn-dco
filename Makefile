@@ -24,9 +24,16 @@ ifeq (1, $(EL8))
 EL8FLAG := -DEL8
 endif
 
+EL9 := $(shell cat /etc/redhat-release 2>/dev/null | grep -c " 9." )
+ifeq (1, $(EL9))
+EL9FLAG := -DEL9
+endif
+
+ELFLAG := $(EL8FLAG) $(EL9FLAG)
+
 NOSTDINC_FLAGS += \
 	-I$(PWD)/include/ \
-	$(CFLAGS) $(EL8FLAG) \
+	$(CFLAGS) $(ELFLAG) \
 	-include $(PWD)/linux-compat.h
 #	-I$(PWD)/compat-include/
 
