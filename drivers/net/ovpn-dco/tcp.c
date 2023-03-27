@@ -169,7 +169,7 @@ static void ovpn_tcp_write_space(struct sock *sk)
 }
 
 static bool ovpn_tcp_sock_is_readable(
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0) && !defined(EL8)
 				      const struct sock *sk
 #else
 				      struct sock *sk
