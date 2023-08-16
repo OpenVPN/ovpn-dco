@@ -22,6 +22,7 @@
 #include "udp.h"
 
 #include <linux/workqueue.h>
+#include <net/gso.h>
 #include <uapi/linux/if_ether.h>
 
 static const unsigned char ovpn_keepalive_message[] = {

@@ -34,8 +34,8 @@ ELFLAG := $(EL8FLAG) $(EL9FLAG)
 NOSTDINC_FLAGS += \
 	-I$(PWD)/include/ \
 	$(CFLAGS) $(ELFLAG) \
-	-include $(PWD)/linux-compat.h
-#	-I$(PWD)/compat-include/
+	-include $(PWD)/linux-compat.h \
+	-I$(PWD)/compat-include/
 
 ifneq ($(REVISION),)
 NOSTDINC_FLAGS += -DOVPN_DCO_VERSION=\"$(REVISION)\"
