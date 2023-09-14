@@ -1,0 +1,164 @@
+diff --git a/drivers/net/ovpn-dco/main.c b/drivers/net/ovpn-dco/main.c
+index 810ac8024fde..2c724e16b997 100644
+--- a/drivers/net/ovpn-dco/main.c
++++ b/drivers/net/ovpn-dco/main.c
+@@ -217,7 +217,6 @@ static int __init ovpn_init(void)
+ 
+ 	pr_info("%s %s -- %s\n", DRV_DESCRIPTION, DRV_VERSION, DRV_COPYRIGHT);
+ 
+-	err = ovpn_tcp_init();
+ 	if (err) {
+ 		pr_err("ovpn: can't initialize TCP subsystem\n");
+ 		goto err;
+diff --git a/drivers/net/ovpn-dco/tcp.c b/drivers/net/ovpn-dco/tcp.c
+index 288a69101016..f8ef48c48299 100644
+--- a/drivers/net/ovpn-dco/tcp.c
++++ b/drivers/net/ovpn-dco/tcp.c
+@@ -19,8 +19,6 @@
+ #include <net/tcp.h>
+ #include <net/route.h>
+ 
+-static struct proto ovpn_tcp_prot;
+-
+ static int ovpn_tcp_read_sock(read_descriptor_t *desc, struct sk_buff *in_skb,
+ 			      unsigned int in_offset, size_t in_len)
+ {
+@@ -271,6 +269,59 @@ static int ovpn_tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
+ 	return ret ? : -EAGAIN;
+ }
+ 
++static struct proto ovpn_tcp_prot __ro_after_init = {
++        .name                   = "TCP",
++        .owner                  = THIS_MODULE,
++        .close                  = tcp_close,
++        .pre_connect            = tcp_v4_pre_connect,
++        .connect                = tcp_v4_connect,
++        .disconnect             = tcp_disconnect,
++        .accept                 = inet_csk_accept,
++        .ioctl                  = tcp_ioctl,
++        .init                   = tcp_v4_init_sock,
++        .destroy                = tcp_v4_destroy_sock,
++        .shutdown               = tcp_shutdown,
++        .setsockopt             = tcp_setsockopt,
++        .getsockopt             = tcp_getsockopt,
++        .bpf_bypass_getsockopt  = tcp_bpf_bypass_getsockopt,
++        .keepalive              = tcp_set_keepalive,
++        .recvmsg                = ovpn_tcp_recvmsg,
++        .sendmsg                = tcp_sendmsg,
++        .sendpage               = tcp_sendpage,
++        .backlog_rcv            = tcp_v4_do_rcv,
++        .release_cb             = tcp_release_cb,
++        .hash                   = inet_hash,
++        .unhash                 = inet_unhash,
++        .get_port               = inet_csk_get_port,
++        .put_port               = inet_put_port,
++#ifdef CONFIG_BPF_SYSCALL
++        .psock_update_sk_prot   = tcp_bpf_update_proto,
++#endif
++        .enter_memory_pressure  = tcp_enter_memory_pressure,
++        .leave_memory_pressure  = tcp_leave_memory_pressure,
++        .stream_memory_free     = tcp_stream_memory_free,
++        .sockets_allocated      = &tcp_sockets_allocated,
++        .orphan_count           = &tcp_orphan_count,
++
++        .memory_allocated       = &tcp_memory_allocated,
++        .per_cpu_fw_alloc       = &tcp_memory_per_cpu_fw_alloc,
++
++        .memory_pressure        = &tcp_memory_pressure,
++        .sysctl_mem             = sysctl_tcp_mem,
++        .sysctl_wmem_offset     = offsetof(struct net, ipv4.sysctl_tcp_wmem),
++        .sysctl_rmem_offset     = offsetof(struct net, ipv4.sysctl_tcp_rmem),
++        .max_header             = MAX_TCP_HEADER,
++        .typename               = "tcp_sock",
++        .obj_size               = sizeof(struct tcp_sock),
++        .slab_flags             = SLAB_TYPESAFE_BY_RCU,
++        .twsk_prot              = &tcp_timewait_sock_ops,
++        .rsk_prot               = &tcp_request_sock_ops,
++        .h.hashinfo             = NULL,
++        .no_autobind            = true,
++        .diag_destroy           = tcp_abort,
++        .sock_is_readable       = ovpn_tcp_sock_is_readable,
++};
++
+ static void ovpn_destroy_skb(void *skb)
+ {
+ 	consume_skb(skb);
+@@ -455,24 +506,3 @@ int ovpn_tcp_socket_attach(struct socket *sock, struct ovpn_peer *peer)
+ 
+ 	return ret;
+ }
+-
+-int __init ovpn_tcp_init(void)
+-{
+-	/* We need to substitute the recvmsg and the sock_is_readable
+-	 * callbacks in the sk_prot member of the sock object for TCP
+-	 * sockets.
+-	 *
+-	 * However sock->sk_prot is a pointer to a static variable and
+-	 * therefore we can't directly modify it, otherwise every socket
+-	 * pointing to it will be affected.
+-	 *
+-	 * For this reason we create our own static copy and modify what
+-	 * we need. Then we make sk_prot point to this copy
+-	 * (in ovpn_tcp_socket_attach())
+-	 */
+-	ovpn_tcp_prot = tcp_prot;
+-	ovpn_tcp_prot.recvmsg = ovpn_tcp_recvmsg;
+-	ovpn_tcp_prot.sock_is_readable = ovpn_tcp_sock_is_readable;
+-
+-	return 0;
+-}
+diff --git a/drivers/net/ovpn-dco/tcp.h b/drivers/net/ovpn-dco/tcp.h
+index 7f0e4ec826ad..fdb8e5e48b4b 100644
+--- a/drivers/net/ovpn-dco/tcp.h
++++ b/drivers/net/ovpn-dco/tcp.h
+@@ -16,9 +16,6 @@
+ #include <linux/types.h>
+ #include <linux/workqueue.h>
+ 
+-/* Initialize TCP static objects */
+-int __init ovpn_tcp_init(void);
+-
+ void ovpn_queue_tcp_skb(struct ovpn_peer *peer, struct sk_buff *skb);
+ 
+ int ovpn_tcp_socket_attach(struct socket *sock, struct ovpn_peer *peer);
+diff --git a/net/ipv4/tcp_ipv4.c b/net/ipv4/tcp_ipv4.c
+index 1d1163cc86c5..a0fccca41bf6 100644
+--- a/net/ipv4/tcp_ipv4.c
++++ b/net/ipv4/tcp_ipv4.c
+@@ -197,6 +197,8 @@ int tcp_v4_pre_connect(struct sock *sk, struct sockaddr *uaddr,
+ 	return BPF_CGROUP_RUN_PROG_INET4_CONNECT(sk, uaddr);
+ }
+ 
++EXPORT_SYMBOL(tcp_v4_pre_connect);
++
+ /* This will initiate an outgoing connection. */
+ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
+ {
+@@ -1464,6 +1466,8 @@ struct request_sock_ops tcp_request_sock_ops __read_mostly = {
+  	.syn_ack_timeout =	tcp_syn_ack_timeout,
+ };
+ 
++EXPORT_SYMBOL(tcp_request_sock_ops);
++
+ /* net/mptcp/subflow.c:subflow_request_sock_ipv4_ops */
+ const struct tcp_request_sock_ops tcp_request_sock_ipv4_ops = {
+  	.mss_clamp	=	TCP_MSS_DEFAULT,
+@@ -2207,6 +2211,8 @@ struct timewait_sock_ops tcp_timewait_sock_ops = {
+ 	.twsk_destructor= tcp_twsk_destructor,
+ };
+ 
++EXPORT_SYMBOL(tcp_timewait_sock_ops);
++
+ void inet_sk_rx_dst_set(struct sock *sk, const struct sk_buff *skb)
+ {
+ 	struct dst_entry *dst = skb_dst(skb);
+@@ -2261,6 +2267,8 @@ int tcp_v4_init_sock(struct sock *sk)
+ 	return 0;
+ }
+ 
++EXPORT_SYMBOL(tcp_v4_init_sock);
++
+ void tcp_v4_destroy_sock(struct sock *sk)
+ {
+ 	struct tcp_sock *tp = tcp_sk(sk);
