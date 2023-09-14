@@ -1,15 +1,20 @@
 diff --git a/drivers/net/ovpn-dco/main.c b/drivers/net/ovpn-dco/main.c
-index 810ac8024fde..2c724e16b997 100644
+index 810ac8024fde..68e3bfcef898 100644
 --- a/drivers/net/ovpn-dco/main.c
 +++ b/drivers/net/ovpn-dco/main.c
-@@ -217,7 +217,6 @@ static int __init ovpn_init(void)
+@@ -217,12 +217,6 @@ static int __init ovpn_init(void)
  
  	pr_info("%s %s -- %s\n", DRV_DESCRIPTION, DRV_VERSION, DRV_COPYRIGHT);
  
 -	err = ovpn_tcp_init();
+-	if (err) {
+-		pr_err("ovpn: can't initialize TCP subsystem\n");
+-		goto err;
+-	}
+-
+ 	/* init RTNL link ops */
+ 	err = rtnl_link_register(&ovpn_link_ops);
  	if (err) {
- 		pr_err("ovpn: can't initialize TCP subsystem\n");
- 		goto err;
 diff --git a/drivers/net/ovpn-dco/tcp.c b/drivers/net/ovpn-dco/tcp.c
 index 288a69101016..f8ef48c48299 100644
 --- a/drivers/net/ovpn-dco/tcp.c

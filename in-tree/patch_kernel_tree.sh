@@ -19,13 +19,18 @@ else
   fi
 
   cd "$DIFFDIR"
+  # Copy core code
   cp -r ../drivers/net/ovpn-dco "$KDIR/net/"
   cp -r ../include/* "$KDIR/include/"
-
+  # Compat headers
+  cp -r ../compat-include/* "$KDIR/include/"
+  cp ../linux-compat.h "$KDIR/net/drivers/net/ovpn-dco/"
+  sed -i '/udp.h>/a#include "linux-compat.h"' "$KDIR/drivers/net/ovpn-dco/main.h"
+  # Patches & source control
   cd "$KDIR"
   if [[  $(patch -p1 -i "$DIFFDIR/config.diff" -i "$DIFFDIR/proto.diff") ]]; then
     if [[ -d "$KDIR/.git" ]]; then
-      git add "$KDIR/drivers/net"
+      git add "$KDIR/drivers/net/ovpn-dco"
       git add "$KDIR/include"
       git commit -am "OVPN DCO: in-tree @ $COMMIT"
     fi
