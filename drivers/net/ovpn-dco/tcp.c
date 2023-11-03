@@ -103,8 +103,13 @@ static int ovpn_tcp_read_sock(read_descriptor_t *desc, struct sk_buff *in_skb,
 			 * Queue skb for sending to userspace via recvmsg on the socket
 			 */
 			if (likely(ovpn_opcode_from_skb(peer->tcp.skb, 0) == OVPN_DATA_V2)) {
-				/* hold reference to peer as requird by ovpn_recv() */
-				ovpn_peer_hold(peer);
+				/* hold reference to peer as required by ovpn_recv().
+				 *
+				 * NOTE: in this context we should already be holding a
+				 * reference to this peer, therefore ovpn_peer_hold() is
+				 * not expected to fail
+				 */
+				WARN_ON(!ovpn_peer_hold(peer));
 				status = ovpn_recv(peer->ovpn, peer, peer->tcp.skb);
 				if (unlikely(status < 0))
 					ovpn_peer_put(peer);
