@@ -13,6 +13,26 @@
 #include <linux/kconfig.h>
 #include <linux/version.h>
 
+/*
+ *  Red Hat Enterprise Linux kernels provides helper macros for
+ *  detecting the distribution version.  This is needed here as
+ *  Red Hat backports features and changes from newer kernels
+ *  into the older kernel baseline.  Therefore the RHEL kernel
+ *  features may not be correctly identified by the Linux kernel
+ *  version alone.
+ *
+ *  To be able to build ovpn-dco on non-RHEL kernels, we need
+ *  these helper macros defined.  And we want the result to
+ *  always be true, to not disable the other kernel version
+ *  checks
+ */
+#ifndef RHEL_RELEASE_CODE
+#define RHEL_RELEASE_CODE 0
+#endif
+#ifndef RHEL_RELEASE_VERSION
+#define RHEL_RELEASE_VERSION(m, n) 1
+#endif
+
 /* not part of any kernel yet */
 #ifndef NLA_POLICY_MAX_LEN
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
