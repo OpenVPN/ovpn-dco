@@ -19,21 +19,9 @@ REVISION= $(shell	if [ -d "$(PWD)/.git" ]; then \
 				echo $$(git --git-dir="$(PWD)/.git" describe --always --dirty --match "v*" |sed 's/^v//' 2> /dev/null || echo "[unknown]"); \
 			fi)
 
-EL8 := $(shell cat /etc/redhat-release 2>/dev/null | grep -c " 8." )
-ifeq (1, $(EL8))
-EL8FLAG := -DEL8
-endif
-
-EL9 := $(shell cat /etc/redhat-release 2>/dev/null | grep -c " 9." )
-ifeq (1, $(EL9))
-EL9FLAG := -DEL9
-endif
-
-ELFLAG := $(EL8FLAG) $(EL9FLAG)
-
 NOSTDINC_FLAGS += \
 	-I$(PWD)/include/ \
-	$(CFLAGS) $(ELFLAG) \
+	$(CFLAGS) \
 	-include $(PWD)/linux-compat.h \
 	-I$(PWD)/compat-include/
 

@@ -22,11 +22,11 @@
 #endif
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(9, 3)
 
 #define genl_split_ops genl_ops
 
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0) */
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(9, 3) */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
 
@@ -44,7 +44,7 @@
 
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0) */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0) && !defined(EL8)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(8, 0)
 
 #define dev_get_tstats64 ip_tunnel_get_stats64
 
@@ -62,17 +62,17 @@ static inline void dev_sw_netstats_tx_add(struct net_device *dev,
 	u64_stats_update_end(&tstats->syncp);
 }
 
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0) && !defined(EL8) */
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(8, 0) */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) && !defined(EL8)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(8, 0)
 
 #define genl_small_ops genl_ops
 #define small_ops ops
 #define n_small_ops n_ops
 
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) && !defined(EL8) */
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(8, 0) */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) && !defined(EL8)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(8, 0)
 
 #include <linux/netdevice.h>
 
@@ -86,7 +86,7 @@ static inline void dev_sw_netstats_rx_add(struct net_device *dev, unsigned int l
 	u64_stats_update_end(&tstats->syncp);
 }
 
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) && !defined(EL8) */
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(8, 0) */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
 
