@@ -198,7 +198,7 @@ static bool ovpn_tcp_sock_is_readable(
 }
 
 static int ovpn_tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
 			    int noblock,
 #endif
 			    int flags, int *addr_len)
@@ -210,7 +210,7 @@ static int ovpn_tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 	struct sk_buff *skb;
 	long timeo;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
 	tmp = noblock;
 #endif
 
