@@ -742,21 +742,21 @@ static int ovpn_handle_peer(struct nl_msg *msg, void *arg)
 		fprintf(stderr, "\tKeepalive timeout: %u sec\n",
 			nla_get_u32(attrs_peer[OVPN_GET_PEER_RESP_ATTR_KEEPALIVE_TIMEOUT]));
 
-	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_RX_BYTES])
-		fprintf(stderr, "\tRX bytes: %" PRIu64 "\n",
-			nla_get_u64(attrs_peer[OVPN_GET_PEER_RESP_ATTR_RX_BYTES]));
+	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_VPN_RX_BYTES])
+		fprintf(stderr, "\tVPN RX bytes: %" PRIu64 "\n",
+			nla_get_u64(attrs_peer[OVPN_GET_PEER_RESP_ATTR_VPN_RX_BYTES]));
 
-	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_TX_BYTES])
-		fprintf(stderr, "\tTX bytes: %" PRIu64 "\n",
-			nla_get_u64(attrs_peer[OVPN_GET_PEER_RESP_ATTR_TX_BYTES]));
+	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_VPN_TX_BYTES])
+		fprintf(stderr, "\tVPN TX bytes: %" PRIu64 "\n",
+			nla_get_u64(attrs_peer[OVPN_GET_PEER_RESP_ATTR_VPN_TX_BYTES]));
 
-	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_RX_PACKETS])
-		fprintf(stderr, "\tRX packets: %u\n",
-			nla_get_u32(attrs_peer[OVPN_GET_PEER_RESP_ATTR_RX_PACKETS]));
+	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_VPN_RX_PACKETS])
+		fprintf(stderr, "\tVPN RX packets: %u\n",
+			nla_get_u32(attrs_peer[OVPN_GET_PEER_RESP_ATTR_VPN_RX_PACKETS]));
 
-	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_TX_PACKETS])
-		fprintf(stderr, "\tTX packets: %u\n",
-			nla_get_u32(attrs_peer[OVPN_GET_PEER_RESP_ATTR_TX_PACKETS]));
+	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_VPN_TX_PACKETS])
+		fprintf(stderr, "\tVPN TX packets: %u\n",
+			nla_get_u32(attrs_peer[OVPN_GET_PEER_RESP_ATTR_VPN_TX_PACKETS]));
 
 	return NL_SKIP;
 }
