@@ -881,82 +881,10 @@ nla_put_failure:
 	return ret;
 }
 
-static int ovpn_send_data(struct ovpn_ctx *ovpn, const void *data, size_t len)
-{
-	struct nlattr *attr;
-	struct nl_ctx *ctx;
-	int ret = -1;
-
-	ctx = nl_ctx_alloc(ovpn, OVPN_CMD_PACKET);
-	if (!ctx)
-		return -ENOMEM;
-
-	attr = nla_nest_start(ctx->nl_msg, OVPN_ATTR_PACKET);
-	NLA_PUT(ctx->nl_msg, OVPN_PACKET_ATTR_PACKET, len, data);
-	nla_nest_end(ctx->nl_msg, attr);
-
-	ret = ovpn_nl_msg_send(ctx, NULL);
-nla_put_failure:
-	nl_ctx_free(ctx);
-	return ret;
-}
-
-/*static int ovpn_handle_packet(struct nl_msg *msg, void *arg)
-{
-	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
-	struct nlattr *attrs[OVPN_PACKET_ATTR_MAX + 1];
-	const __u8 *data;
-	size_t i, len;
-
-	fprintf(stderr, "received message\n");
-
-	nla_parse(attrs, OVPN_PACKET_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
-		  genlmsg_attrlen(gnlh, 0), NULL);
-
-	if (!attrs[OVPN_PACKET_ATTR_PACKET]) {
-		fprintf(stderr, "no packet content in netlink message\n");
-		return NL_SKIP;
-	}
-
-	len = nla_len(attrs[OVPN_PACKET_ATTR_PACKET]);
-	data = nla_data(attrs[OVPN_PACKET_ATTR_PACKET]);
-
-	fprintf(stderr, "received message, len=%zd:\n", len);
-	for (i = 0; i < len; i++) {
-		if (i && !(i % 16))
-			fprintf(stderr, "\n");
-		fprintf(stderr, "%.2x ", data[i]);
-	}
-	fprintf(stderr, "\n");
-
-	return NL_SKIP;
-}*/
-
 static int nl_seq_check(struct nl_msg *msg, void *arg)
 {
 	return NL_OK;
 }
-
-/*static struct nl_ctx *ovpn_register(struct ovpn_ctx *ovpn)
-{
-	struct nl_ctx *ctx;
-	int ret;
-
-	ctx = nl_ctx_alloc(ovpn, OVPN_CMD_REGISTER_PACKET);
-	if (!ctx)
-		return NULL;
-
-	nl_cb_set(ctx->nl_cb, NL_CB_SEQ_CHECK, NL_CB_CUSTOM, nl_seq_check,
-		  NULL);
-
-	ret = ovpn_nl_msg_send(ctx, ovpn_handle_packet);
-	if (ret < 0) {
-		nl_ctx_free(ctx);
-		return NULL;
-	}
-
-	return ctx;
-}*/
 
 struct mcast_handler_args {
 	const char *group;
@@ -1223,11 +1151,6 @@ static void usage(const char *cmd)
 
 	fprintf(stderr, "* swap_keys <peer-id>: swap primary and seconday key slots\n");
 	fprintf(stderr, "\tpeer-id: peer ID of the peer to modify\n\n");
-
-	fprintf(stderr, "* recv: receive packet and exit\n\n");
-
-	fprintf(stderr, "* send <string>: send packet with string\n");
-	fprintf(stderr, "\tstring: message to send to the peer\n\n");
 
 	fprintf(stderr, "* listen_mcast: listen to ovpn-dco netlink multicast messages\n");
 }
@@ -1600,24 +1523,6 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "cannot swap keys\n");
 			return ret;
 		}
-	}/* else if (!strcmp(argv[2], "recv")) {
-		ctx = ovpn_register(&ovpn);
-		if (!ctx) {
-			fprintf(stderr, "cannot register for packets\n");
-			return -1;
-		}
-
-		ret = ovpn_nl_recvmsgs(ctx);
-		nl_ctx_free(ctx);
-	}*/ else if (!strcmp(argv[2], "send")) {
-		if (argc < 4) {
-			usage(argv[0]);
-			return -1;
-		}
-
-		ret = ovpn_send_data(&ovpn, argv[3], strlen(argv[3]) + 1);
-		if (ret < 0)
-			fprintf(stderr, "cannot send data\n");
 	} else if (!strcmp(argv[2], "listen_mcast")) {
 		ovpn_listen_mcast();
 	} else {
