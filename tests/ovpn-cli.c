@@ -758,6 +758,22 @@ static int ovpn_handle_peer(struct nl_msg *msg, void *arg)
 		fprintf(stderr, "\tVPN TX packets: %u\n",
 			nla_get_u32(attrs_peer[OVPN_GET_PEER_RESP_ATTR_VPN_TX_PACKETS]));
 
+	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_LINK_RX_BYTES])
+		fprintf(stderr, "\tLINK RX bytes: %" PRIu64 "\n",
+			nla_get_u64(attrs_peer[OVPN_GET_PEER_RESP_ATTR_LINK_RX_BYTES]));
+
+	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_LINK_TX_BYTES])
+		fprintf(stderr, "\tLINK TX bytes: %" PRIu64 "\n",
+			nla_get_u64(attrs_peer[OVPN_GET_PEER_RESP_ATTR_LINK_TX_BYTES]));
+
+	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_LINK_RX_PACKETS])
+		fprintf(stderr, "\tLINK RX packets: %u\n",
+			nla_get_u32(attrs_peer[OVPN_GET_PEER_RESP_ATTR_LINK_RX_PACKETS]));
+
+	if (attrs_peer[OVPN_GET_PEER_RESP_ATTR_LINK_TX_PACKETS])
+		fprintf(stderr, "\tLINK TX packets: %u\n",
+			nla_get_u32(attrs_peer[OVPN_GET_PEER_RESP_ATTR_LINK_TX_PACKETS]));
+
 	return NL_SKIP;
 }
 
