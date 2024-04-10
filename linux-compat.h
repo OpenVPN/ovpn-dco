@@ -14,14 +14,14 @@
 #include <linux/version.h>
 
 /*
- *  Red Hat Enterprise Linux kernels provides helper macros for
- *  detecting the distribution version.  This is needed here as
- *  Red Hat backports features and changes from newer kernels
- *  into the older kernel baseline.  Therefore the RHEL kernel
+ *  Red Hat Enterprise Linux and SUSE Linux Enterprise kernels provide
+ *  helper macros for detecting the distribution version.  This is needed
+ *  here as Red Hat and SUSE backport features and changes from newer kernels
+ *  into the older kernel baseline.  Therefore the RHEL and SLE kernel
  *  features may not be correctly identified by the Linux kernel
  *  version alone.
  *
- *  To be able to build ovpn-dco on non-RHEL kernels, we need
+ *  To be able to build ovpn-dco on non-RHEL/SLE kernels, we need
  *  these helper macros defined.  And we want the result to
  *  always be true, to not disable the other kernel version
  *  checks
@@ -31,6 +31,13 @@
 #endif
 #ifndef RHEL_RELEASE_VERSION
 #define RHEL_RELEASE_VERSION(m, n) 1
+#endif
+
+#ifndef SUSE_PRODUCT_CODE
+#define SUSE_PRODUCT_CODE 0
+#endif
+#ifndef SUSE_PRODUCT
+#define SUSE_PRODUCT(pr, v, pl, aux) 1
 #endif
 
 /* not part of any kernel yet */
@@ -48,7 +55,7 @@
 
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(9, 3) */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) && SUSE_PRODUCT_CODE < SUSE_PRODUCT(1, 15, 5, 0)
 
 /**
  * commit 58caed3dacb4 renamed to netif_napi_add_tx_weight,
@@ -56,13 +63,13 @@
  */
 #define netif_napi_add_tx_weight netif_tx_napi_add
 
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) */
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) && SUSE_PRODUCT_CODE < SUSE_PRODUCT(1, 15, 5, 0) */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0) && SUSE_PRODUCT_CODE < SUSE_PRODUCT(1, 15, 5, 0)
 
 #define sock_is_readable stream_memory_read
 
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0) */
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0) && SUSE_PRODUCT_CODE < SUSE_PRODUCT(1, 15, 5, 0) */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(8, 0)
 
@@ -139,13 +146,13 @@ static inline void dev_sw_netstats_rx_add(struct net_device *dev, unsigned int l
 
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0) */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0) && SUSE_PRODUCT_CODE < SUSE_PRODUCT(1, 15, 3, 0)
 
 /* commit 895b5c9f206e renamed nf_reset to nf_reset_ct */
 #undef nf_reset_ct
 #define nf_reset_ct nf_reset
 
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0) */
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0) && SUSE_PRODUCT_CODE < SUSE_PRODUCT(1, 15, 3, 0) */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
 
