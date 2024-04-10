@@ -11,7 +11,7 @@
 
 #include <linux/version.h>
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 10)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 10) || SUSE_PRODUCT_CODE >= SUSE_PRODUCT(1, 15, 6, 0)
 #include_next <net/gso.h>
 #else
 #include <linux/netdevice.h>

@@ -18,10 +18,14 @@ DEPMOD := depmod -a
 REVISION= $(shell	if [ -d "$(PWD)/.git" ]; then \
 				echo $$(git --git-dir="$(PWD)/.git" describe --always --dirty --match "v*" |sed 's/^v//' 2> /dev/null || echo "[unknown]"); \
 			fi)
+ifneq ("$(wildcard $(KERNEL_SRC)/include/generated/uapi/linux/suse_version.h)","")
+VERSION_INCLUDE = -include linux/suse_version.h
+endif
 
 NOSTDINC_FLAGS += \
 	-I$(PWD)/include/ \
 	$(CFLAGS) \
+	$(VERSION_INCLUDE) \
 	-include $(PWD)/linux-compat.h \
 	-I$(PWD)/compat-include/
 
