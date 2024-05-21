@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /* OpenVPN data channel accelerator
  *
- *  Copyright (C) 2023 OpenVPN, Inc.
+ *  Copyright (C) 2023-2024 OpenVPN, Inc.
  *
  *  Author:	Antonio Quartulli <antonio@openvpn.net>
  */
@@ -11,7 +11,9 @@
 
 #include <linux/version.h>
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 10) || SUSE_PRODUCT_CODE >= SUSE_PRODUCT(1, 15, 6, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 10) || \
+	SUSE_PRODUCT_CODE >= SUSE_PRODUCT(1, 15, 6, 0) || \
+	RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(9, 5)
 #include_next <net/gso.h>
 #else
 #include <linux/netdevice.h>
