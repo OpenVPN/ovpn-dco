@@ -27,6 +27,7 @@
 #include <linux/skbuff.h>
 #include <linux/version.h>
 
+#include <net/genetlink.h>
 #include <net/ip_tunnels.h>
 
 /* Driver info */
