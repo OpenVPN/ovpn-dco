@@ -13,7 +13,7 @@
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 10) || \
 	SUSE_PRODUCT_CODE >= SUSE_PRODUCT(1, 15, 6, 0) || \
-	RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(9, 5)
+	RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(9, 4)
 #include_next <net/gso.h>
 #else
 #include <linux/netdevice.h>
