@@ -2,7 +2,7 @@
 #
 # ovpn-dco -- OpenVPN data channel offload in kernel space
 #
-# Copyright (C) 2020-2023 OpenVPN, Inc.
+# Copyright (C) 2020- OpenVPN, Inc.
 #
 # Author:	Antonio Quartulli <antonio@openvpn.net>
 

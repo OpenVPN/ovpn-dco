@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0
-# Copyright (C) 2020-2023 OpenVPN, Inc.
+# Copyright (C) 2020- OpenVPN, Inc.
 #
 #  Author:	Antonio Quartulli <antonio@openvpn.net>
 

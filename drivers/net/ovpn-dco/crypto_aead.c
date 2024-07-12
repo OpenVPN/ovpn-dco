@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*  OpenVPN data channel accelerator
  *
- *  Copyright (C) 2020-2023 OpenVPN, Inc.
+ *  Copyright (C) 2020- OpenVPN, Inc.
  *
  *  Author:	James Yonan <james@openvpn.net>
  *		Antonio Quartulli <antonio@openvpn.net>
