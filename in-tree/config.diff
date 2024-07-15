@@ -1,0 +1,36 @@
+diff --git a/drivers/net/Kconfig b/drivers/net/Kconfig
+index 9d4ab0c134ea..ca3462dd7322 100644
+--- a/drivers/net/Kconfig
++++ b/drivers/net/Kconfig
+@@ -115,6 +115,19 @@ config WIREGUARD_DEBUG
+ 
+ 	  Say N here unless you know what you're doing.
+ 
++config OVPN_DCO_V2
++        tristate "OpenVPN data channel offload (reloaded)"
++        depends on NET && INET
++        select NET_UDP_TUNNEL
++        select DST_CACHE
++        select CRYPTO
++        select CRYPTO_AES
++        select CRYPTO_GCM
++        select CRYPTO_CHACHA20POLY1305
++        help
++          This module enhances the performance of the OpenVPN userspace software
++          by offloading the data channel processing to kernelspace.
++
+ config EQUALIZER
+ 	tristate "EQL (serial line load balancing) support"
+ 	help
+diff --git a/drivers/net/Makefile b/drivers/net/Makefile
+index 913fdf988281..7447bd47459b 100644
+--- a/drivers/net/Makefile
++++ b/drivers/net/Makefile
+@@ -11,6 +11,7 @@ obj-$(CONFIG_IPVLAN) += ipvlan/
+ obj-$(CONFIG_IPVTAP) += ipvlan/
+ obj-$(CONFIG_DUMMY) += dummy.o
+ obj-$(CONFIG_WIREGUARD) += wireguard/
++obj-$(CONFIG_OVPN_DCO_V2) += ovpn-dco/
+ obj-$(CONFIG_EQUALIZER) += eql.o
+ obj-$(CONFIG_IFB) += ifb.o
+ obj-$(CONFIG_MACSEC) += macsec.o
