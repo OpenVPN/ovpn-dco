@@ -40,7 +40,8 @@
 #define SUSE_PRODUCT(pr, v, pl, aux) 1
 #endif
 
-/* not part of any kernel yet */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
+
 #ifndef NLA_POLICY_MAX_LEN
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 #define NLA_POLICY_MAX_LEN(_len) { .type = NLA_BINARY, .len = _len }
@@ -48,6 +49,8 @@
 #define NLA_POLICY_MAX_LEN(_len) NLA_POLICY_MAX(NLA_BINARY, _len)
 #endif
 #endif
+
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0) */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(9, 3)
 
