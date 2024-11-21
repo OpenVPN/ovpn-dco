@@ -40,6 +40,13 @@
 #define SUSE_PRODUCT(pr, v, pl, aux) 1
 #endif
 
+#ifndef UDP_ENCAP_OVPNINUDP
+/* Our UDP encapsulation types, must be unique
+ * (other values in include/uapi/linux/udp.h)
+ */
+#define UDP_ENCAP_OVPNINUDP 100  /* transport layer */
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
 
 #ifndef NLA_POLICY_MAX_LEN
