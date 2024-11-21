@@ -127,9 +127,9 @@ static void ovpn_setup(struct net_device *dev)
 	const int overhead = sizeof(u32) + NONCE_WIRE_SIZE + 16 + sizeof(struct udphdr) +
 			     max(sizeof(struct ipv6hdr), sizeof(struct iphdr));
 
-	netdev_features_t feat = NETIF_F_SG | NETIF_F_LLTX |
-				 NETIF_F_HW_CSUM | NETIF_F_RXCSUM | NETIF_F_GSO |
-				 NETIF_F_GSO_SOFTWARE | NETIF_F_HIGHDMA;
+	netdev_features_t feat = NETIF_F_SG | NETIF_F_HW_CSUM | NETIF_F_RXCSUM |
+				 NETIF_F_GSO | NETIF_F_GSO_SOFTWARE |
+				 NETIF_F_HIGHDMA;
 
 	dev->ethtool_ops = &ovpn_ethtool_ops;
 	dev->needs_free_netdev = true;
@@ -148,6 +148,7 @@ static void ovpn_setup(struct net_device *dev)
 	/* Zero header length */
 	dev->type = ARPHRD_NONE;
 	dev->flags = IFF_POINTOPOINT | IFF_NOARP | IFF_MULTICAST;
+	dev->lltx = true;
 
 	dev->features |= feat;
 	dev->hw_features |= feat;

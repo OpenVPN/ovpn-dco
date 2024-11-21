@@ -59,6 +59,17 @@
 
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0) */
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0)
+
+#include <linux/netdev_features.h>
+#undef NETIF_F_SG
+#define NETIF_F_SG (__NETIF_F(SG) | NETIF_F_LLTX)
+
+#define lltx needs_free_netdev
+
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0) */
+
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(9, 3)
 
 #define genl_split_ops genl_ops
