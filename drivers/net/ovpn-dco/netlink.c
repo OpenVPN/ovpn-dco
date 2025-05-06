@@ -802,12 +802,12 @@ static int ovpn_netlink_del_peer(struct sk_buff *skb, struct genl_info *info)
 static const struct genl_small_ops ovpn_netlink_ops[] = {
 	{
 		.cmd = OVPN_CMD_NEW_PEER,
-		.flags = GENL_ADMIN_PERM | GENL_CMD_CAP_DO | GENL_UNS_ADMIN_PERM,
+		.flags = GENL_UNS_ADMIN_PERM | GENL_CMD_CAP_DO,
 		.doit = ovpn_netlink_new_peer,
 	},
 	{
 		.cmd = OVPN_CMD_SET_PEER,
-		.flags = GENL_ADMIN_PERM | GENL_CMD_CAP_DO | GENL_UNS_ADMIN_PERM,
+		.flags = GENL_UNS_ADMIN_PERM | GENL_CMD_CAP_DO,
 		.doit = ovpn_netlink_set_peer,
 	},
 	{
