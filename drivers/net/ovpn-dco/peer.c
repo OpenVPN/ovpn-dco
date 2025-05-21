@@ -191,8 +191,8 @@ unlock:
 
 static void ovpn_peer_timer_delete_all(struct ovpn_peer *peer)
 {
-	del_timer_sync(&peer->keepalive_xmit);
-	del_timer_sync(&peer->keepalive_recv);
+	timer_delete_sync(&peer->keepalive_xmit);
+	timer_delete_sync(&peer->keepalive_recv);
 }
 
 static void ovpn_peer_free(struct ovpn_peer *peer)
@@ -303,7 +303,7 @@ void ovpn_peer_keepalive_set(struct ovpn_peer *peer, u32 interval, u32 timeout)
 		delta = msecs_to_jiffies(interval * MSEC_PER_SEC);
 		mod_timer(&peer->keepalive_xmit, jiffies + delta);
 	} else {
-		del_timer(&peer->keepalive_xmit);
+		timer_delete(&peer->keepalive_xmit);
 	}
 
 	peer->keepalive_timeout = timeout;
@@ -311,7 +311,7 @@ void ovpn_peer_keepalive_set(struct ovpn_peer *peer, u32 interval, u32 timeout)
 		delta = msecs_to_jiffies(timeout * MSEC_PER_SEC);
 		mod_timer(&peer->keepalive_recv, jiffies + delta);
 	} else {
-		del_timer(&peer->keepalive_recv);
+		timer_delete(&peer->keepalive_recv);
 	}
 }
 

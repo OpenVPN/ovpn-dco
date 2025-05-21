@@ -163,9 +163,18 @@ static const struct nla_policy ovpn_policy[IFLA_OVPN_MAX + 1] = {
 					    __OVPN_MODE_AFTER_LAST - 1),
 };
 
-static int ovpn_newlink(struct net *src_net, struct net_device *dev, struct nlattr *tb[],
-			struct nlattr *data[], struct netlink_ext_ack *extack)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+static int ovpn_newlink(struct net_device *dev,
+			struct rtnl_newlink_params *params,
+			struct netlink_ext_ack *extack)
 {
+	struct nlattr **data = params->data;
+#else
+static int ovpn_newlink(struct net *src_net, struct net_device *dev,
+			struct nlattr *tb[], struct nlattr *data[],
+			struct netlink_ext_ack *extack)
+{
+#endif
 	struct ovpn_struct *ovpn = netdev_priv(dev);
 	int ret;
 
