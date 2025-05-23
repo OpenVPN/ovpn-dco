@@ -234,6 +234,7 @@ static int __init ovpn_init(void)
 		goto err;
 	}
 
+	printk("REGISTERING RTNL .priv_size=%ld\n", ovpn_link_ops.priv_size);
 	/* init RTNL link ops */
 	err = rtnl_link_register(&ovpn_link_ops);
 	if (err) {
