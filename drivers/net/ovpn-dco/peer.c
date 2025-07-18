@@ -22,7 +22,7 @@
 
 static void ovpn_peer_ping(struct timer_list *t)
 {
-	struct ovpn_peer *peer = from_timer(peer, t, keepalive_xmit);
+	struct ovpn_peer *peer = timer_container_of(peer, t, keepalive_xmit);
 
 	netdev_dbg(peer->ovpn->dev, "%s: sending ping to peer %u\n", __func__, peer->id);
 	ovpn_keepalive_xmit(peer);
@@ -30,7 +30,7 @@ static void ovpn_peer_ping(struct timer_list *t)
 
 static void ovpn_peer_expire(struct timer_list *t)
 {
-	struct ovpn_peer *peer = from_timer(peer, t, keepalive_recv);
+	struct ovpn_peer *peer = timer_container_of(peer, t, keepalive_recv);
 
 	netdev_dbg(peer->ovpn->dev, "%s: peer %u expired\n", __func__, peer->id);
 	ovpn_peer_del(peer, OVPN_DEL_PEER_REASON_EXPIRED);

@@ -40,12 +40,39 @@
 #define SUSE_PRODUCT(pr, v, pl, aux) 1
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
+
 #ifndef UDP_ENCAP_OVPNINUDP
 /* Our UDP encapsulation types, must be unique
  * (other values in include/uapi/linux/udp.h)
  */
 #define UDP_ENCAP_OVPNINUDP 100  /* transport layer */
 #endif
+
+#define timer_container_of from_timer
+
+enum ovpn_ifla_attrs {
+	IFLA_OVPN_UNSPEC = 0,
+	IFLA_OVPN_MODE,
+
+	__IFLA_OVPN_AFTER_LAST,
+	IFLA_OVPN_MAX = __IFLA_OVPN_AFTER_LAST - 1,
+};
+
+enum ovpn_mode {
+	__OVPN_MODE_FIRST = 0,
+	OVPN_MODE_P2P = __OVPN_MODE_FIRST,
+	OVPN_MODE_MP,
+
+	__OVPN_MODE_AFTER_LAST,
+};
+
+#else
+
+#define __OVPN_MODE_FIRST 0
+#define __OVPN_MODE_AFTER_LAST (OVPN_MODE_MP + 1)
+
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0) */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
 
