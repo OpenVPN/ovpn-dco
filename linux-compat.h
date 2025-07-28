@@ -74,6 +74,13 @@ enum ovpn_mode {
 
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0) */
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
+
+#define timer_delete del_timer
+#define timer_delete_sync del_timer_sync
+
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0) */
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
 
 #ifndef NLA_POLICY_MAX_LEN
