@@ -74,12 +74,13 @@ enum ovpn_mode {
 
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0) */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0)
 
+#include <linux/timer.h>
 #define timer_delete del_timer
 #define timer_delete_sync del_timer_sync
 
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0) */
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0) */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
 
