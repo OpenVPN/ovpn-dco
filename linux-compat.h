@@ -40,6 +40,39 @@
 #define SUSE_PRODUCT(pr, v, pl, aux) 1
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
+
+#include <net/udp_tunnel.h>
+
+static inline void ovpn_udp_tunnel_xmit_skb(struct rtable *rt, struct sock *sk,
+					    struct sk_buff *skb, __be32 src,
+					    __be32 dst, __u8 tos, __u8 ttl,
+					    __be16 df, __be16 src_port,
+					    __be16 dst_port, bool xnet,
+					    bool nocheck, u16 ipcb_flags)
+{
+	udp_tunnel_xmit_skb(rt, sk, skb, src, dst, tos, ttl, df, src_port,
+			    dst_port, xnet, nocheck);
+}
+#define udp_tunnel_xmit_skb ovpn_udp_tunnel_xmit_skb
+
+static inline void ovpn_udp_tunnel6_xmit_skb(struct dst_entry *dst,
+					     struct sock *sk,
+					     struct sk_buff *skb,
+					     struct net_device *dev,
+					     const struct in6_addr *saddr,
+					     const struct in6_addr *daddr,
+					     __u8 prio, __u8 ttl, __be32 label,
+					     __be16 src_port, __be16 dst_port,
+					     bool nocheck, u16 ip6cb_flags)
+{
+	udp_tunnel6_xmit_skb(dst, sk, skb, dev, saddr, daddr, prio, ttl, label,
+			     src_port, dst_port, nocheck);
+}
+#define udp_tunnel6_xmit_skb ovpn_udp_tunnel6_xmit_skb
+
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0) */
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
 
 #ifndef UDP_ENCAP_OVPNINUDP
