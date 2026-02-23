@@ -1,4 +1,4 @@
-# OpenVPN Data Channel Offload in the linux kernel (ovpn-dco) 
+# OpenVPN Data Channel Offload in the linux kernel (ovpn-dco) - OBSOLETE (only for OpenVPN <2.7.0)
 
 ## COMPATIBILITY NOTE
 
