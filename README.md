@@ -1,6 +1,6 @@
-== OpenVPN Data Channel Offload in the linux kernel (ovpn-dco) ==
+# OpenVPN Data Channel Offload in the linux kernel (ovpn-dco) 
 
-** COMPATIBILITY NOTE **
+## COMPATIBILITY NOTE
 
 The kernel module in this repository is compatible only with OpenVPN 2.6.x and
 older.
@@ -13,7 +13,7 @@ of `ovpn` using the code provided at the following repository:
 
   https://github.com/OpenVPN/ovpn-backports
 
-** MAINTENANCE MODE **
+## MAINTENANCE MODE
 
 This repository is currently in maintenance mode and we only accept important
 and meaningful bugfixes.
@@ -23,12 +23,12 @@ to the following repository:
 
   https://github.com/OpenVPN/ovpn-net-next
 
-== License ==
+# License
 
 ovpn-dco is released under the terms of the GPLv2 license.
 
 
-== Submitting patches ==
+# Submitting patches
 
 Patches for ovpn-dco can be submitted to the openvpn-devel mailing list at
 openvpn-devel@lists.sourceforge.net
@@ -41,7 +41,7 @@ with a prefix identifying the component being modified (ovpn-dco in this case).
 To generate patches, please use git-format-patch and git-send-email.
 
 
-== Building ==
+# Building
 
 To build the ovpn-dco kernel module, just type:
 
@@ -69,7 +69,7 @@ the kernel modules directory on your system.
 It normally means `/lib/modules/$(uname -r)/updates/`.
 
 
-== Testing ==
+# Testing
 
 A basic pre-shared-key client (called ovpn-cli) is also provided in the
 tests/ folder.
@@ -113,7 +113,7 @@ to worry about bugs or spurious kernel crashes. For this reason qemu is suggeste
 can be found that shows how qemu can be launched for testing.
 
 
-== Limitations ==
+# Limitations
 
 This is a list of current limitations which are planned to be removed as we move forward:
 * Only AEAD mode and 'none' (with no auth) supported
