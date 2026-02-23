@@ -1,11 +1,25 @@
 == OpenVPN Data Channel Offload in the linux kernel (ovpn-dco) ==
 
+** COMPATIBILITY NOTE **
+
+The kernel module in this repository is compatible only with OpenVPN 2.6.x and
+older.
+
+For OpenVPN 2.7.0 and newer you MUST use the new `ovpn` kernel module.
+It comes with Linux kernel 6.16 and onwards.
+
+If you are running an older kernel, you can compile an out-of-tree version
+of `ovpn` using the code provided at the following repository:
+
+  https://github.com/OpenVPN/ovpn-backports
+
 ** MAINTENANCE MODE **
+
 This repository is currently in maintenance mode and we only accept important
 and meaningful bugfixes.
 
-For the new version of the DCO linux kernel module, please refer to the following
-repository:
+For the new version of the DCO linux kernel module, namely `ovpn`, please refer
+to the following repository:
 
   https://github.com/OpenVPN/ovpn-net-next
 
