@@ -13,7 +13,6 @@ jobs:
   vng-tests:
     uses: mandelbitdev/kmod-ci/.github/workflows/out-of-tree-vng.yml@main
     with:
-      ci-repository: mandelbitdev/kmod-ci
       cache-prefix: ovpn-dco
       guest-script: ci/run-build.sh
       distros: >-
