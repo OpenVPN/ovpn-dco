@@ -1,0 +1,23 @@
+---
+name: virtme-ng arm64 build
+
+"on":
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vng-arm64-build:
+    uses: mandelbitdev/kmod-ci/.github/workflows/out-of-tree-vng.yml@main
+    with:
+      arch: arm64
+      cache-prefix: ovpn-dco-arm64
+      guest-script: ci/run-build.sh
+      distros: >-
+        ["debian-12", "debian-13",
+        "ubuntu-22.04", "ubuntu-24.04", "ubuntu-26.04",
+        "rhel-8", "rhel-9", "rhel-10"]
+    secrets:
+      RHEL_ORG_ID: ${{ secrets.RHEL_ORG_ID }}
+      RHEL_ACTIVATION_KEY: ${{ secrets.RHEL_ACTIVATION_KEY }}
