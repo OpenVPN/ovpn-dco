@@ -40,6 +40,18 @@
 #define SUSE_PRODUCT(pr, v, pl, aux) 1
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 5)
+
+static inline void ovpn_setup_udp_tunnel_sock(struct net *net, struct sock *sk,
+					      struct udp_tunnel_sock_cfg *cfg)
+{
+	setup_udp_tunnel_sock(net, sk->sk_socket, cfg);
+}
+
+#define setup_udp_tunnel_sock ovpn_setup_udp_tunnel_sock
+
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 5) */
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 0)
 
 #include <net/ipv6_stubs.h>

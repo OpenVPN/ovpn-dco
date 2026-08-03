@@ -343,7 +343,7 @@ int ovpn_udp_socket_attach(struct socket *sock, struct ovpn_struct *ovpn)
 		return -EBUSY;
 	}
 
-	setup_udp_tunnel_sock(sock_net(sock->sk), sock, &cfg);
+	setup_udp_tunnel_sock(sock_net(sock->sk), sock->sk, &cfg);
 
 	return 0;
 }
@@ -353,5 +353,5 @@ void ovpn_udp_socket_detach(struct socket *sock)
 {
 	struct udp_tunnel_sock_cfg cfg = { };
 
-	setup_udp_tunnel_sock(sock_net(sock->sk), sock, &cfg);
+	setup_udp_tunnel_sock(sock_net(sock->sk), sock->sk, &cfg);
 }
