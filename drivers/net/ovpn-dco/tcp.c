@@ -202,7 +202,9 @@ static int ovpn_tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 			    int noblock,
 #endif
 			    int flags
-#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 0) && \
+	(LINUX_VERSION_CODE < KERNEL_VERSION(6, 18, 40) || \
+	 LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0))
 			    , int *addr_len
 #endif
 			    )
