@@ -33,6 +33,34 @@ ifneq ($(REVISION),)
 NOSTDINC_FLAGS += -DOVPN_DCO_VERSION=\"$(REVISION)\"
 endif
 
+# Ubuntu backports can change APIs without changing the upstream version.
+# ABI numbers are specific to a kernel series and flavor, so expose both
+# values from the target headers rather than the running kernel.
+ifneq ("$(wildcard $(KERNEL_SRC)/include/generated/utsrelease.h)","")
+OVPN_UBUNTU_RELEASE_ABI := $(shell \
+	sed -n 's/^\#define UTS_UBUNTU_RELEASE_ABI \([0-9][0-9]*\)$$/\1/p' \
+		$(KERNEL_SRC)/include/generated/utsrelease.h)
+ifneq ($(OVPN_UBUNTU_RELEASE_ABI),)
+NOSTDINC_FLAGS += -DOVPN_UBUNTU_RELEASE_ABI=$(OVPN_UBUNTU_RELEASE_ABI)
+OVPN_UBUNTU_FLAVOR := $(shell \
+	sed -n 's/^\#define UTS_RELEASE "[^"]*-[0-9][0-9]*-\([^"]*\)"$$/\1/p' \
+		$(KERNEL_SRC)/include/generated/utsrelease.h)
+ifeq ($(OVPN_UBUNTU_FLAVOR),generic)
+NOSTDINC_FLAGS += -DOVPN_UBUNTU_FLAVOR=OVPN_UBUNTU_FLAVOR_GENERIC
+else ifeq ($(OVPN_UBUNTU_FLAVOR),aws)
+NOSTDINC_FLAGS += -DOVPN_UBUNTU_FLAVOR=OVPN_UBUNTU_FLAVOR_AWS
+else ifeq ($(OVPN_UBUNTU_FLAVOR),azure)
+NOSTDINC_FLAGS += -DOVPN_UBUNTU_FLAVOR=OVPN_UBUNTU_FLAVOR_AZURE
+else ifeq ($(OVPN_UBUNTU_FLAVOR),oracle)
+NOSTDINC_FLAGS += -DOVPN_UBUNTU_FLAVOR=OVPN_UBUNTU_FLAVOR_ORACLE
+else ifeq ($(OVPN_UBUNTU_FLAVOR),ibm)
+NOSTDINC_FLAGS += -DOVPN_UBUNTU_FLAVOR=OVPN_UBUNTU_FLAVOR_IBM
+else ifeq ($(OVPN_UBUNTU_FLAVOR),gcp)
+NOSTDINC_FLAGS += -DOVPN_UBUNTU_FLAVOR=OVPN_UBUNTU_FLAVOR_GCP
+endif # OVPN_UBUNTU_FLAVOR
+endif # OVPN_UBUNTU_RELEASE_ABI
+endif # generated/utsrelease.h exists
+
 ifeq ($(DEBUG),1)
 NOSTDINC_FLAGS += -DDEBUG=1
 endif
