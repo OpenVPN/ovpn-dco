@@ -18,6 +18,8 @@ jobs:
       distros: >-
         ["debian-12", "debian-13",
         "ubuntu-22.04", "ubuntu-24.04", "ubuntu-26.04",
+        "ubuntu-26.04-aws", "ubuntu-26.04-azure", "ubuntu-26.04-oracle",
+        "ubuntu-26.04-ibm", "ubuntu-26.04-gcp",
         "rhel-8", "rhel-9", "rhel-10"]
     secrets:
       RHEL_ORG_ID: ${{ secrets.RHEL_ORG_ID }}
