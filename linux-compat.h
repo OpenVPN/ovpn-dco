@@ -11,7 +11,12 @@
 #define _NET_OVPN_DCO_LINUX_COMPAT_H_
 
 #include <linux/kconfig.h>
+#include <linux/timer.h>
 #include <linux/version.h>
+
+#ifndef timer_container_of
+#define timer_container_of from_timer
+#endif /* timer_container_of */
 
 /*
  *  Red Hat Enterprise Linux and SUSE Linux Enterprise kernels provide
@@ -189,12 +194,6 @@ enum ovpn_mode {
 	__OVPN_MODE_AFTER_LAST,
 };
 
-#if RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(9, 8)
-
-#define timer_container_of from_timer
-
-#endif /* RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(9, 6) */
-
 #else
 
 #define __OVPN_MODE_FIRST 0
@@ -204,7 +203,6 @@ enum ovpn_mode {
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0)
 
-#include <linux/timer.h>
 #define timer_delete del_timer
 #define timer_delete_sync del_timer_sync
 
