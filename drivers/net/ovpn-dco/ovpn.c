@@ -205,8 +205,10 @@ static int ovpn_decrypt_one(struct ovpn_peer *peer, struct sk_buff *skb)
 	ovpn_peer_keepalive_recv_reset(peer);
 
 	/* update source and destination endpoint for this peer */
-	if (peer->sock->sock->sk->sk_protocol == IPPROTO_UDP)
+	if (peer->sock->sock->sk->sk_protocol == IPPROTO_UDP) {
+		ovpn_peer_float(peer, skb);
 		ovpn_peer_update_local_endpoint(peer, skb);
+	}
 
 	/* increment RX stats */
 	ovpn_peer_stats_increment_rx(&peer->vpn_stats, skb->len);
